@@ -1,7 +1,7 @@
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use crate::error::{AppError, Result};
 
-// pub mod repositories; // TODO: Create this module
+// pub mod repositories;
 
 #[derive(Debug, Clone)]
 pub struct Database {

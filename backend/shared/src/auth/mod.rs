@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::models::Claims;
 use crate::error::{AppError, Result};
 
-// pub mod middleware; // TODO: Create this module
+// pub mod middleware;
 
 #[derive(Debug, Clone)]
 pub struct Auth0Config {
