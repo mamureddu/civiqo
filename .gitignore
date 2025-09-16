@@ -1,0 +1,186 @@
+# Environment files with secrets
+**/*.env
+**/.env*
+.env
+.env.local
+.env.production
+
+# Specific environment files
+backend/*/lambda-env/*.env
+backend/api-gateway/lambda-env/
+backend/chat-service/lambda-env/
+
+# AWS and deployment secrets
+aws-credentials
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Database dumps and credentials
+*.sql.gz
+*.dump
+database.url
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+
+# Production build artifacts
+build/
+dist/
+*.tgz
+*.tar.gz
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Operating System
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
+# Runtime data
+pids/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output/
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# Local development certificates
+localhost.pem
+localhost-key.pem
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Local development overrides
+docker-compose.override.yml
+localstack/
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Auth0 configurations (in case they contain secrets)
+auth0-config.json
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Test artifacts
+test-results/
+coverage/
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Lambda build artifacts
+bootstrap
+bootstrap.zip
+
+# Compiled binaries
+api-gateway
+chat-service
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Windows
+Desktop.ini
+
+# Linux
+*~
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VSCode
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# Local development scripts
+dev-*.sh
+local-*.sh
+
+# Credentials and keys
+credentials.json
+service-account-key.json
+*.crt
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local configuration overrides
+config.local.toml
+config.override.toml
