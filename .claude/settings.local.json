@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(chmod:*)",
-      "Bash(cargo lambda build:*)"
+      "Bash(cargo lambda build:*)",
+      "Bash(cargo check:*)",
+      "Bash(find:*)",
+      "Bash(cargo:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

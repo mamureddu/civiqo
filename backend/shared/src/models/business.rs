@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
+use rust_decimal::Decimal;
 
 use super::Point;
 
@@ -47,7 +48,7 @@ pub struct BusinessProduct {
     pub business_id: Uuid,
     pub name: String,
     pub description: Option<String>,
-    pub price: Option<sqlx::types::Decimal>,
+    pub price: Option<Decimal>,
     pub currency: Option<String>,
     pub unit: Option<String>,
     pub is_available: bool,

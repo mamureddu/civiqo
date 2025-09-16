@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::models::Claims;
 use crate::error::{AppError, Result};
 
-pub mod middleware;
+// pub mod middleware; // TODO: Create this module
 
 #[derive(Debug, Clone)]
 pub struct Auth0Config {
@@ -128,8 +128,8 @@ impl JwtValidator {
                 let cert_der = URL_SAFE_NO_PAD.decode(cert)
                     .map_err(|e| AppError::Auth(format!("Invalid certificate encoding: {}", e)))?;
 
-                return DecodingKey::from_rsa_der(&cert_der)
-                    .map_err(|e| AppError::Auth(format!("Invalid RSA certificate: {}", e)));
+                let decoding_key = DecodingKey::from_rsa_der(&cert_der);
+                return Ok(decoding_key);
             }
         }
 
@@ -185,4 +185,307 @@ pub struct AuthenticatedUser {
     pub email: Option<String>,
     pub name: Option<String>,
     pub claims: Claims,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::{matchers::{method, path}, Mock, MockServer, ResponseTemplate};
+    use tokio_test;
+    use rstest::*;
+    use crate::models::{Claims, CommunityRole};
+
+    #[fixture]
+    fn test_config() -> Auth0Config {
+        Auth0Config {
+            domain: "test.auth0.com".to_string(),
+            audience: "test-audience".to_string(),
+            client_id: "test-client-id".to_string(),
+            client_secret: "test-client-secret".to_string(),
+        }
+    }
+
+    #[fixture]
+    fn mock_claims() -> Claims {
+        Claims {
+            sub: "auth0|123456789".to_string(),
+            aud: "test-audience".to_string(),
+            iss: "https://test.auth0.com/".to_string(),
+            exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp(),
+            iat: chrono::Utc::now().timestamp(),
+            email: Some("test@example.com".to_string()),
+            email_verified: Some(true),
+            name: Some("Test User".to_string()),
+            picture: Some("https://example.com/avatar.jpg".to_string()),
+            community_roles: vec![
+                CommunityRole {
+                    community_id: uuid::Uuid::new_v4(),
+                    role: "admin".to_string(),
+                    permissions: vec!["read".to_string(), "write".to_string()],
+                }
+            ],
+        }
+    }
+
+    #[test]
+    fn test_auth0_config_from_env() {
+        // Set test environment variables
+        std::env::set_var("AUTH0_DOMAIN", "test-domain.auth0.com");
+        std::env::set_var("AUTH0_AUDIENCE", "test-audience");
+        std::env::set_var("AUTH0_CLIENT_ID", "test-client-id");
+        std::env::set_var("AUTH0_CLIENT_SECRET", "test-client-secret");
+
+        let config = Auth0Config::from_env().expect("Should create config from env");
+
+        assert_eq!(config.domain, "test-domain.auth0.com");
+        assert_eq!(config.audience, "test-audience");
+        assert_eq!(config.client_id, "test-client-id");
+        assert_eq!(config.client_secret, "test-client-secret");
+
+        // Clean up
+        std::env::remove_var("AUTH0_DOMAIN");
+        std::env::remove_var("AUTH0_AUDIENCE");
+        std::env::remove_var("AUTH0_CLIENT_ID");
+        std::env::remove_var("AUTH0_CLIENT_SECRET");
+    }
+
+    #[test]
+    fn test_auth0_config_missing_env() {
+        // Ensure variables are not set
+        std::env::remove_var("AUTH0_DOMAIN");
+        std::env::remove_var("AUTH0_AUDIENCE");
+        std::env::remove_var("AUTH0_CLIENT_ID");
+        std::env::remove_var("AUTH0_CLIENT_SECRET");
+
+        let result = Auth0Config::from_env();
+        assert!(result.is_err());
+    }
+
+    #[rstest]
+    fn test_jwt_validator_creation(test_config: Auth0Config) {
+        let validator = JwtValidator::new(&test_config);
+
+        assert_eq!(validator.auth0_domain, "test.auth0.com");
+        assert_eq!(validator.audience, "test-audience");
+        assert_eq!(validator.validation.algorithms, vec![Algorithm::RS256]);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_jwks_success() {
+        let mock_server = MockServer::start().await;
+
+        let jwks_response = serde_json::json!({
+            "keys": [
+                {
+                    "kty": "RSA",
+                    "kid": "test-key-id",
+                    "use": "sig",
+                    "n": "test-n-value",
+                    "e": "AQAB",
+                    "x5c": ["LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"]
+                }
+            ]
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/.well-known/jwks.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_response))
+            .mount(&mock_server)
+            .await;
+
+        let mut config = Auth0Config {
+            domain: mock_server.uri().trim_start_matches("http://").to_string(),
+            audience: "test-audience".to_string(),
+            client_id: "test-client-id".to_string(),
+            client_secret: "test-client-secret".to_string(),
+        };
+
+        let validator = JwtValidator::new(&config);
+        let jwks = validator.fetch_jwks().await.expect("Should fetch JWKS");
+
+        assert_eq!(jwks.keys.len(), 1);
+        assert_eq!(jwks.keys[0].kid, "test-key-id");
+        assert_eq!(jwks.keys[0].kty, "RSA");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_jwks_failure() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/.well-known/jwks.json"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let config = Auth0Config {
+            domain: mock_server.uri().trim_start_matches("http://").to_string(),
+            audience: "test-audience".to_string(),
+            client_id: "test-client-id".to_string(),
+            client_secret: "test-client-secret".to_string(),
+        };
+
+        let validator = JwtValidator::new(&config);
+        let result = validator.fetch_jwks().await;
+
+        assert!(result.is_err());
+        if let Err(AppError::ExternalService(msg)) = result {
+            assert!(msg.contains("Failed to fetch JWKS from Auth0"));
+        } else {
+            panic!("Expected ExternalService error");
+        }
+    }
+
+    #[test_case("Bearer token123", "token123"; "valid bearer token")]
+    #[test_case("bearer token456", "token456"; "lowercase bearer")]
+    fn test_extract_bearer_token_success(header: &str, expected: &str) {
+        let result = extract_bearer_token(header).expect("Should extract token");
+        assert_eq!(result, expected);
+    }
+
+    #[test_case("Invalid token123"; "missing bearer prefix")]
+    #[test_case("Bear token123"; "incorrect prefix")]
+    #[test_case(""; "empty string")]
+    fn test_extract_bearer_token_failure(header: &str) {
+        let result = extract_bearer_token(header);
+        assert!(result.is_err());
+    }
+
+    #[rstest]
+    fn test_has_community_role(mock_claims: Claims) {
+        let community_id = mock_claims.community_roles[0].community_id;
+
+        // Test existing role
+        assert!(has_community_role(&mock_claims, community_id, "admin"));
+
+        // Test non-existing role
+        assert!(!has_community_role(&mock_claims, community_id, "member"));
+
+        // Test different community
+        let different_community = uuid::Uuid::new_v4();
+        assert!(!has_community_role(&mock_claims, different_community, "admin"));
+    }
+
+    #[rstest]
+    fn test_has_permission(mock_claims: Claims) {
+        let community_id = mock_claims.community_roles[0].community_id;
+
+        // Test existing permission
+        assert!(has_permission(&mock_claims, community_id, "read"));
+        assert!(has_permission(&mock_claims, community_id, "write"));
+
+        // Test non-existing permission
+        assert!(!has_permission(&mock_claims, community_id, "delete"));
+
+        // Test different community
+        let different_community = uuid::Uuid::new_v4();
+        assert!(!has_permission(&mock_claims, different_community, "read"));
+    }
+
+    #[test]
+    fn test_jwk_to_decoding_key_unsupported_type() {
+        let config = Auth0Config {
+            domain: "test.auth0.com".to_string(),
+            audience: "test-audience".to_string(),
+            client_id: "test-client-id".to_string(),
+            client_secret: "test-client-secret".to_string(),
+        };
+
+        let validator = JwtValidator::new(&config);
+
+        let ec_jwk = Jwk {
+            kty: "EC".to_string(),
+            kid: "test-key".to_string(),
+            r#use: Some("sig".to_string()),
+            n: "".to_string(),
+            e: "".to_string(),
+            x5c: None,
+        };
+
+        let result = validator.jwk_to_decoding_key(&ec_jwk);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_jwk_to_decoding_key_no_x5c() {
+        let config = Auth0Config {
+            domain: "test.auth0.com".to_string(),
+            audience: "test-audience".to_string(),
+            client_id: "test-client-id".to_string(),
+            client_secret: "test-client-secret".to_string(),
+        };
+
+        let validator = JwtValidator::new(&config);
+
+        let rsa_jwk = Jwk {
+            kty: "RSA".to_string(),
+            kid: "test-key".to_string(),
+            r#use: Some("sig".to_string()),
+            n: "test-n".to_string(),
+            e: "AQAB".to_string(),
+            x5c: None,
+        };
+
+        let result = validator.jwk_to_decoding_key(&rsa_jwk);
+        assert!(result.is_err());
+
+        if let Err(AppError::Auth(msg)) = result {
+            assert!(msg.contains("RSA key construction from n/e not implemented"));
+        } else {
+            panic!("Expected Auth error");
+        }
+    }
+
+    #[cfg(feature = "development")]
+    #[rstest]
+    fn test_validate_token_dev(test_config: Auth0Config, mock_claims: Claims) {
+        let validator = JwtValidator::new(&test_config);
+
+        // Create a simple HS256 token for testing
+        let secret = "test-secret";
+        let header = jsonwebtoken::Header::new(Algorithm::HS256);
+        let token = jsonwebtoken::encode(&header, &mock_claims, &jsonwebtoken::EncodingKey::from_secret(secret.as_ref()))
+            .expect("Should encode token");
+
+        let result = validator.validate_token_dev(&token, secret);
+        assert!(result.is_ok());
+
+        let claims = result.unwrap();
+        assert_eq!(claims.sub, mock_claims.sub);
+        assert_eq!(claims.email, mock_claims.email);
+    }
+
+    #[test]
+    fn test_authenticated_user_creation() {
+        let user_id = uuid::Uuid::new_v4();
+        let auth0_id = "auth0|123456".to_string();
+        let email = "test@example.com".to_string();
+        let name = "Test User".to_string();
+        let claims = Claims {
+            sub: auth0_id.clone(),
+            aud: "test-audience".to_string(),
+            iss: "https://test.auth0.com/".to_string(),
+            exp: chrono::Utc::now().timestamp(),
+            iat: chrono::Utc::now().timestamp(),
+            email: Some(email.clone()),
+            email_verified: Some(true),
+            name: Some(name.clone()),
+            picture: None,
+            community_roles: vec![],
+        };
+
+        let auth_user = AuthenticatedUser {
+            user_id,
+            auth0_id: auth0_id.clone(),
+            email: Some(email.clone()),
+            name: Some(name.clone()),
+            claims: claims.clone(),
+        };
+
+        assert_eq!(auth_user.user_id, user_id);
+        assert_eq!(auth_user.auth0_id, auth0_id);
+        assert_eq!(auth_user.email, Some(email));
+        assert_eq!(auth_user.name, Some(name));
+        assert_eq!(auth_user.claims.sub, claims.sub);
+    }
 }
