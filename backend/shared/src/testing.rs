@@ -54,6 +54,7 @@ pub async fn cleanup_test_db(db: &Database) -> Result<()> {
 }
 
 /// Create a test user
+#[cfg(feature = "database-tests")]
 pub async fn create_test_user(db: &Database, auth0_id: Option<String>) -> Result<User> {
     let auth0_id = auth0_id.unwrap_or_else(|| format!("auth0|{}", Uuid::new_v4()));
     let email = format!("test-{}@example.com", Uuid::new_v4());

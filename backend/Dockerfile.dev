@@ -1,0 +1,25 @@
+FROM rust:1.75-alpine AS builder
+
+RUN apk add --no-cache \
+    build-base \
+    postgresql-dev \
+    openssl-dev \
+    pkgconfig \
+    protobuf-dev
+
+WORKDIR /app
+
+# Copy the entire project
+COPY . .
+
+# Install cargo-watch for hot reloading
+RUN cargo install cargo-watch
+
+# Build dependencies first
+RUN cargo build --release
+
+# Expose the default port
+EXPOSE 3000
+
+# Development entrypoint with hot reloading
+CMD ["cargo", "watch", "-x", "run"]

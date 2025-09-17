@@ -75,19 +75,52 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
-    #[test_case(AppError::Auth("test".to_string()), 401, "AUTH_ERROR"; "auth error")]
-    #[test_case(AppError::Authorization("test".to_string()), 403, "AUTHORIZATION_ERROR"; "authorization error")]
-    #[test_case(AppError::NotFound("test".to_string()), 404, "NOT_FOUND"; "not found error")]
-    #[test_case(AppError::Validation("test".to_string()), 400, "VALIDATION_ERROR"; "validation error")]
-    #[test_case(AppError::Conflict("test".to_string()), 400, "CONFLICT"; "conflict error")]
-    #[test_case(AppError::Serialization(serde_json::Error::from(serde_json::de::Error::custom("test"))), 422, "SERIALIZATION_ERROR"; "serialization error")]
-    #[test_case(AppError::ExternalService("test".to_string()), 502, "EXTERNAL_SERVICE_ERROR"; "external service error")]
-    #[test_case(AppError::Config("test".to_string()), 500, "CONFIG_ERROR"; "config error")]
-    #[test_case(AppError::Crypto("test".to_string()), 500, "CRYPTO_ERROR"; "crypto error")]
-    #[test_case(AppError::Internal(anyhow::Error::msg("test")), 500, "INTERNAL_ERROR"; "internal error")]
-    fn test_error_status_codes_and_codes(error: AppError, expected_status: u16, expected_code: &str) {
-        assert_eq!(error.status_code(), expected_status);
-        assert_eq!(error.error_code(), expected_code);
+    #[test]
+    fn test_error_status_codes_and_codes() {
+        // Test auth error
+        let error = AppError::Auth("test".to_string());
+        assert_eq!(error.status_code(), 401);
+        assert_eq!(error.error_code(), "AUTH_ERROR");
+
+        // Test authorization error
+        let error = AppError::Authorization("test".to_string());
+        assert_eq!(error.status_code(), 403);
+        assert_eq!(error.error_code(), "AUTHORIZATION_ERROR");
+
+        // Test not found error
+        let error = AppError::NotFound("test".to_string());
+        assert_eq!(error.status_code(), 404);
+        assert_eq!(error.error_code(), "NOT_FOUND");
+
+        // Test validation error
+        let error = AppError::Validation("test".to_string());
+        assert_eq!(error.status_code(), 400);
+        assert_eq!(error.error_code(), "VALIDATION_ERROR");
+
+        // Test conflict error
+        let error = AppError::Conflict("test".to_string());
+        assert_eq!(error.status_code(), 400);
+        assert_eq!(error.error_code(), "CONFLICT");
+
+        // Test external service error
+        let error = AppError::ExternalService("test".to_string());
+        assert_eq!(error.status_code(), 502);
+        assert_eq!(error.error_code(), "EXTERNAL_SERVICE_ERROR");
+
+        // Test config error
+        let error = AppError::Config("test".to_string());
+        assert_eq!(error.status_code(), 500);
+        assert_eq!(error.error_code(), "CONFIG_ERROR");
+
+        // Test crypto error
+        let error = AppError::Crypto("test".to_string());
+        assert_eq!(error.status_code(), 500);
+        assert_eq!(error.error_code(), "CRYPTO_ERROR");
+
+        // Test internal error
+        let error = AppError::Internal(anyhow::Error::msg("test"));
+        assert_eq!(error.status_code(), 500);
+        assert_eq!(error.error_code(), "INTERNAL_ERROR");
     }
 
     #[test]

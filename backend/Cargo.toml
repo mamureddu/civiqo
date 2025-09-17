@@ -66,3 +66,7 @@ serial_test = "3.0"
 wiremock = "0.5"
 rstest = "0.18"
 
+# TLS
+rustls = "0.21"
+rustls-native-certs = "0.6"
+

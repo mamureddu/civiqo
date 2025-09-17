@@ -12,7 +12,13 @@
       "Bash(psql:*)",
       "Bash(brew services start:*)",
       "Read(//opt/homebrew/var/postgresql@14/**)",
-      "Bash(source .env)"
+      "Bash(source .env)",
+      "Bash(./scripts/dev-start.sh:*)",
+      "Bash(jobs)",
+      "Bash(docker:*)",
+      "Bash(SQLX_OFFLINE=true cargo test --lib shared --bin auth --bin models)",
+      "Bash(cd:*)",
+      "Bash(./scripts/test-suite.sh:*)"
     ],
     "deny": [],
     "ask": []

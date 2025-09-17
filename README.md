@@ -26,9 +26,17 @@ A decentralized community management platform enabling local communities to orga
 
 ## Quick Start
 ```bash
-./scripts/setup.sh      # Initial setup
-./scripts/dev.sh        # Start development environment
+# Prerequisites: Docker, Docker Compose
+./scripts/dev-start.sh   # Start complete Docker development stack
+./scripts/dev-status.sh  # Check service status
+./scripts/dev-logs.sh    # View service logs
 ```
+
+### Docker Development Commands
+- `./scripts/dev-start.sh`: Start all services
+- `./scripts/dev-stop.sh`: Stop all services
+- `./scripts/dev-reset.sh`: Reset entire development environment
+- `./scripts/dev-logs.sh [service]`: View logs (optional: specify service)
 
 ## Architecture Evolution
 - **Phase 1**: Lambda + API Gateway (~$15/month)

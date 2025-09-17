@@ -336,18 +336,29 @@ mod tests {
         }
     }
 
-    #[test_case("Bearer token123", "token123"; "valid bearer token")]
-    #[test_case("bearer token456", "token456"; "lowercase bearer")]
-    fn test_extract_bearer_token_success(header: &str, expected: &str) {
-        let result = extract_bearer_token(header).expect("Should extract token");
-        assert_eq!(result, expected);
+    #[test]
+    fn test_extract_bearer_token_success() {
+        // Test valid bearer token
+        let result = extract_bearer_token("Bearer token123").expect("Should extract token");
+        assert_eq!(result, "token123");
+
+        // Test lowercase bearer
+        let result = extract_bearer_token("bearer token456").expect("Should extract token");
+        assert_eq!(result, "token456");
     }
 
-    #[test_case("Invalid token123"; "missing bearer prefix")]
-    #[test_case("Bear token123"; "incorrect prefix")]
-    #[test_case(""; "empty string")]
-    fn test_extract_bearer_token_failure(header: &str) {
-        let result = extract_bearer_token(header);
+    #[test]
+    fn test_extract_bearer_token_failure() {
+        // Test missing bearer prefix
+        let result = extract_bearer_token("Invalid token123");
+        assert!(result.is_err());
+
+        // Test incorrect prefix
+        let result = extract_bearer_token("Bear token123");
+        assert!(result.is_err());
+
+        // Test empty string
+        let result = extract_bearer_token("");
         assert!(result.is_err());
     }
 
