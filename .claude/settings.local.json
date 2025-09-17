@@ -6,7 +6,13 @@
       "Bash(cargo check:*)",
       "Bash(find:*)",
       "Bash(cargo:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(SQLX_OFFLINE=true cargo check)",
+      "Bash(pg_ctl:*)",
+      "Bash(psql:*)",
+      "Bash(brew services start:*)",
+      "Read(//opt/homebrew/var/postgresql@14/**)",
+      "Bash(source .env)"
     ],
     "deny": [],
     "ask": []

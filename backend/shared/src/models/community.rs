@@ -59,6 +59,17 @@ pub enum MembershipStatus {
     Banned,
 }
 
+impl std::fmt::Display for MembershipStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MembershipStatus::Pending => write!(f, "pending"),
+            MembershipStatus::Active => write!(f, "active"),
+            MembershipStatus::Suspended => write!(f, "suspended"),
+            MembershipStatus::Banned => write!(f, "banned"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Role {
     pub id: Uuid,
@@ -93,7 +104,7 @@ pub struct JoinCommunityRequest {
     pub message: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct CommunityWithStats {
     pub id: Uuid,
     pub name: String,
@@ -110,7 +121,7 @@ pub struct CommunityWithStats {
     pub user_role: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct MemberWithProfile {
     pub id: Uuid,
     pub user_id: Uuid,

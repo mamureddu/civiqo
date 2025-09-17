@@ -40,7 +40,7 @@ pub struct UpdateUserProfileRequest {
     pub website: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct UserWithProfile {
     pub id: Uuid,
     pub auth0_id: String,

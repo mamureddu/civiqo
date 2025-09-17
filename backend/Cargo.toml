@@ -54,6 +54,7 @@ base64 = "0.21"
 
 # Configuration
 config = "0.13"
+dotenvy = "0.15"
 
 # Testing dependencies
 insta = "1.0"
