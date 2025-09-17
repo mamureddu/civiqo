@@ -1,0 +1,54 @@
+[build]
+target = "x86_64-unknown-linux-gnu"
+
+[deploy]
+function_name = "community-manager-chat-prod"
+runtime = "provided.al2"
+memory = 1024
+timeout = 900  # 15 minutes for WebSocket connections
+iam_role = "arn:aws:iam::{{ACCOUNT_ID}}:role/lambda-websocket-execution-role"
+
+[deploy.env]
+file = "lambda-env/prod.env"
+
+[deploy.websocket_api]
+name = "community-manager-chat-prod"
+stage_name = "prod"
+route_selection_expression = "$request.body.action"
+
+# WebSocket routes
+[[deploy.websocket_api.routes]]
+route_key = "$connect"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "$disconnect"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "sendMessage"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "joinRoom"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "leaveRoom"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "keyExchange"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "$default"
+integration_type = "AWS_PROXY"
+
+# Production optimizations
+[deploy.dead_letter_queue]
+target_arn = "arn:aws:sqs:us-east-1:{{ACCOUNT_ID}}:chat-dlq-prod"
+
+[deploy.tags]
+Environment = "production"
+Service = "community-manager-chat"

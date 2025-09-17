@@ -1,0 +1,38 @@
+[build]
+target = "x86_64-unknown-linux-gnu"
+
+[deploy]
+function_name = "community-manager-chat-dev"
+runtime = "provided.al2"
+memory = 512
+timeout = 900  # 15 minutes for WebSocket connections
+iam_role = "arn:aws:iam::{{ACCOUNT_ID}}:role/lambda-websocket-execution-role"
+
+[deploy.env]
+file = "lambda-env/dev.env"
+
+[deploy.websocket_api]
+name = "community-manager-chat-dev"
+stage_name = "dev"
+route_selection_expression = "$request.body.action"
+
+# WebSocket routes
+[[deploy.websocket_api.routes]]
+route_key = "$connect"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "$disconnect"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "sendMessage"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "joinRoom"
+integration_type = "AWS_PROXY"
+
+[[deploy.websocket_api.routes]]
+route_key = "$default"
+integration_type = "AWS_PROXY"

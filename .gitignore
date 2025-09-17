@@ -143,9 +143,6 @@ temp/
 bootstrap
 bootstrap.zip
 
-# Compiled binaries
-api-gateway
-chat-service
 
 # macOS
 .AppleDouble

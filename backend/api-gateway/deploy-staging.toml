@@ -1,0 +1,22 @@
+[build]
+target = "x86_64-unknown-linux-gnu"
+
+[deploy]
+function_name = "community-manager-api-staging"
+runtime = "provided.al2"
+memory = 512
+timeout = 30
+iam_role = "arn:aws:iam::{{ACCOUNT_ID}}:role/lambda-execution-role"
+
+[deploy.env]
+file = "lambda-env/staging.env"
+
+[deploy.api_gateway]
+name = "community-manager-api-staging"
+stage_name = "staging"
+
+# CORS configuration for staging
+[[deploy.api_gateway.cors]]
+allow_origins = ["https://staging.community-manager.com"]
+allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+allow_headers = ["Content-Type", "Authorization"]

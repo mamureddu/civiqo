@@ -1,0 +1,30 @@
+[build]
+target = "x86_64-unknown-linux-gnu"
+
+[deploy]
+function_name = "community-manager-api-prod"
+runtime = "provided.al2"
+memory = 1024
+timeout = 30
+iam_role = "arn:aws:iam::{{ACCOUNT_ID}}:role/lambda-execution-role"
+
+[deploy.env]
+file = "lambda-env/prod.env"
+
+[deploy.api_gateway]
+name = "community-manager-api-prod"
+stage_name = "prod"
+
+# CORS configuration for production
+[[deploy.api_gateway.cors]]
+allow_origins = ["https://community-manager.com"]
+allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+allow_headers = ["Content-Type", "Authorization"]
+
+# Production optimizations
+[deploy.dead_letter_queue]
+target_arn = "arn:aws:sqs:us-east-1:{{ACCOUNT_ID}}:api-dlq-prod"
+
+[deploy.tags]
+Environment = "production"
+Service = "community-manager-api"
