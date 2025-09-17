@@ -1,6 +1,5 @@
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::postgres::PgPoolOptions;
 use std::sync::Once;
-use tempfile::TempDir;
 use uuid::Uuid;
 use crate::database::Database;
 use crate::models::*;
@@ -54,17 +53,15 @@ pub async fn cleanup_test_db(db: &Database) -> Result<()> {
 }
 
 /// Create a test user
-#[cfg(feature = "database-tests")]
 pub async fn create_test_user(db: &Database, auth0_id: Option<String>) -> Result<User> {
     let auth0_id = auth0_id.unwrap_or_else(|| format!("auth0|{}", Uuid::new_v4()));
     let email = format!("test-{}@example.com", Uuid::new_v4());
 
-    let user = sqlx::query_as!(
-        User,
-        "INSERT INTO users (auth0_id, email) VALUES ($1, $2) RETURNING *",
-        auth0_id,
-        email
+    let user = sqlx::query_as::<_, User>(
+        "INSERT INTO users (auth0_id, email) VALUES ($1, $2) RETURNING id, auth0_id, email, created_at, updated_at"
     )
+    .bind(&auth0_id)
+    .bind(&email)
     .fetch_one(&db.pool)
     .await?;
 
@@ -76,17 +73,16 @@ pub async fn create_test_community(db: &Database, creator_id: Uuid, name: Option
     let name = name.unwrap_or_else(|| format!("Test Community {}", Uuid::new_v4()));
     let slug = crate::utils::generate_slug(&name);
 
-    let community = sqlx::query_as!(
-        Community,
+    let community = sqlx::query_as::<_, Community>(
         r#"INSERT INTO communities (name, description, slug, created_by)
            VALUES ($1, $2, $3, $4)
            RETURNING id, name, description, slug, is_public, requires_approval,
-                     created_by, created_at, updated_at"#,
-        name,
-        "Test community description",
-        slug,
-        creator_id
+                     created_by, created_at, updated_at"#
     )
+    .bind(&name)
+    .bind("Test community description")
+    .bind(&slug)
+    .bind(&creator_id)
     .fetch_one(&db.pool)
     .await?;
 
@@ -97,15 +93,14 @@ pub async fn create_test_community(db: &Database, creator_id: Uuid, name: Option
 pub async fn create_test_role(db: &Database, name: String, permissions: Vec<String>) -> Result<Role> {
     let permissions_json = serde_json::to_value(permissions)?;
 
-    let role = sqlx::query_as!(
-        Role,
+    let role = sqlx::query_as::<_, Role>(
         r#"INSERT INTO roles (name, description, permissions)
            VALUES ($1, $2, $3)
-           RETURNING id, name, description, permissions, is_default, created_at, updated_at"#,
-        name,
-        "Test role description",
-        permissions_json
+           RETURNING id, name, description, permissions, is_default, created_at, updated_at"#
     )
+    .bind(&name)
+    .bind("Test role description")
+    .bind(&permissions_json)
     .fetch_one(&db.pool)
     .await?;
 
@@ -113,7 +108,7 @@ pub async fn create_test_role(db: &Database, name: String, permissions: Vec<Stri
 }
 
 /// Mock Auth0 JWT for testing
-pub fn create_mock_jwt_claims(user_id: Uuid, auth0_id: String, email: String) -> Claims {
+pub fn create_mock_jwt_claims(_user_id: Uuid, auth0_id: String, email: String) -> Claims {
     Claims {
         sub: auth0_id.clone(),
         aud: "test-audience".to_string(),
@@ -132,12 +127,17 @@ pub fn create_mock_jwt_claims(user_id: Uuid, auth0_id: String, email: String) ->
 pub fn create_test_tls_config() -> Result<()> {
     // This function tests that rustls is properly configured in the dependencies
     // by checking if we can create a minimal TLS config
-    use std::sync::Arc;
 
     // Test that rustls is available and working
-    let config = rustls::ClientConfig::builder()
+    let _config = rustls::ClientConfig::builder()
         .with_safe_defaults()
-        .with_root_certificates(rustls_native_certs::load_native_certs().unwrap())
+        .with_root_certificates({
+            let mut root_store = rustls::RootCertStore::empty();
+            for cert in rustls_native_certs::load_native_certs().unwrap() {
+                root_store.add(&rustls::Certificate(cert.0)).unwrap();
+            }
+            root_store
+        })
         .with_no_client_auth();
 
     // If we get here, rustls is working properly

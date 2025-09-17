@@ -73,7 +73,6 @@ impl AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_case::test_case;
 
     #[test]
     fn test_error_status_codes_and_codes() {

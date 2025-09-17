@@ -21,7 +21,10 @@
       "Bash(./scripts/test-suite.sh:*)",
       "Bash(DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager cargo check --quiet)",
       "Bash(SQLX_OFFLINE=true cargo check --quiet)",
-      "Bash(DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager sqlx migrate run)"
+      "Bash(DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager sqlx migrate run)",
+      "Bash(echo:*)",
+      "Bash(export DATABASE_URL=\"postgresql://dev:dev123@localhost:5432/community_manager\")",
+      "Bash(export TEST_DATABASE_URL=\"postgresql://dev:dev123@localhost:5432/community_manager_test\")"
     ],
     "deny": [],
     "ask": []

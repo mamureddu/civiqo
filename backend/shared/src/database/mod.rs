@@ -206,7 +206,7 @@ mod tests {
     #[test]
     fn test_database_struct_fields() {
         // This test validates the Database struct without requiring a connection
-        let database_url = "postgresql://test:test@localhost/test";
+        let _database_url = "postgresql://test:test@localhost/test";
 
         // Test that default environment variable parsing works
         std::env::remove_var("DB_MAX_CONNECTIONS");
@@ -264,7 +264,7 @@ mod tests {
             let pool_ref = db.pool();
 
             // Test a query using the pool reference
-            let result: Result<(i32,), sqlx::Error> = sqlx::query_as("SELECT 1")
+            let result: std::result::Result<(i32,), sqlx::Error> = sqlx::query_as("SELECT 1")
                 .fetch_one(pool_ref)
                 .await;
 
