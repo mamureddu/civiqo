@@ -28,6 +28,9 @@ tracing-subscriber = { workspace = true }
 rustls = { workspace = true }
 rustls-native-certs = { workspace = true }
 
+[features]
+development = []
+
 [dev-dependencies]
 tokio-test = { workspace = true }
 tempfile = { workspace = true }

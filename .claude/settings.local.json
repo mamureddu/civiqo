@@ -18,7 +18,10 @@
       "Bash(docker:*)",
       "Bash(SQLX_OFFLINE=true cargo test --lib shared --bin auth --bin models)",
       "Bash(cd:*)",
-      "Bash(./scripts/test-suite.sh:*)"
+      "Bash(./scripts/test-suite.sh:*)",
+      "Bash(DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager cargo check --quiet)",
+      "Bash(SQLX_OFFLINE=true cargo check --quiet)",
+      "Bash(DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager sqlx migrate run)"
     ],
     "deny": [],
     "ask": []

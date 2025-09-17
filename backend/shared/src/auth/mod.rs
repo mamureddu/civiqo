@@ -1,7 +1,6 @@
 use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
 use serde::{Deserialize, Serialize};
 use reqwest;
-use std::collections::HashMap;
 use crate::models::Claims;
 use crate::error::{AppError, Result};
 
