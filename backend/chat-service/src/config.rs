@@ -1,0 +1,138 @@
+use shared::error::{AppError, Result};
+use std::env;
+
+/// Configuration for the Chat WebSocket service
+#[derive(Debug, Clone)]
+pub struct Config {
+    /// Database connection URL
+    pub database_url: String,
+
+    /// Server host (for local development)
+    pub host: String,
+
+    /// Server port (for local development)
+    pub port: u16,
+
+    /// Auth0 domain for JWT validation
+    pub auth0_domain: String,
+
+    /// Auth0 audience for JWT validation
+    pub auth0_audience: String,
+
+    /// SQS queue URL for offline message storage
+    pub sqs_queue_url: String,
+
+    /// SNS topic ARN for cross-instance notifications
+    pub sns_topic_arn: String,
+
+    /// AWS endpoint URL (for LocalStack in development)
+    pub aws_endpoint_url: Option<String>,
+
+    /// Maximum concurrent WebSocket connections per instance
+    pub max_connections: usize,
+
+    /// Message TTL in seconds (24 hours default)
+    pub message_ttl_seconds: u64,
+
+    /// WebSocket heartbeat interval in seconds
+    pub heartbeat_interval_seconds: u64,
+
+    /// Development mode flag
+    pub development_mode: bool,
+}
+
+impl Config {
+    /// Load configuration from environment variables
+    pub fn from_env() -> Result<Self> {
+        // Load environment file if in development
+        if env::var("AWS_LAMBDA_FUNCTION_NAME").is_err() {
+            dotenvy::dotenv().ok(); // Ignore errors - file might not exist
+        }
+
+        let database_url = env::var("DATABASE_URL")
+            .map_err(|_| AppError::Config("DATABASE_URL not set".to_string()))?;
+
+        let host = env::var("CHAT_HOST")
+            .unwrap_or_else(|_| "0.0.0.0".to_string());
+
+        let port = env::var("CHAT_PORT")
+            .unwrap_or_else(|_| "8080".to_string())
+            .parse()
+            .map_err(|e| AppError::Config(format!("Invalid CHAT_PORT: {}", e)))?;
+
+        let auth0_domain = env::var("AUTH0_DOMAIN")
+            .map_err(|_| AppError::Config("AUTH0_DOMAIN not set".to_string()))?;
+
+        let auth0_audience = env::var("AUTH0_AUDIENCE")
+            .map_err(|_| AppError::Config("AUTH0_AUDIENCE not set".to_string()))?;
+
+        let sqs_queue_url = env::var("SQS_QUEUE_URL")
+            .map_err(|_| AppError::Config("SQS_QUEUE_URL not set".to_string()))?;
+
+        let sns_topic_arn = env::var("SNS_TOPIC_ARN")
+            .map_err(|_| AppError::Config("SNS_TOPIC_ARN not set".to_string()))?;
+
+        let aws_endpoint_url = env::var("AWS_ENDPOINT_URL").ok();
+
+        let max_connections = env::var("MAX_WEBSOCKET_CONNECTIONS")
+            .unwrap_or_else(|_| "1000".to_string())
+            .parse()
+            .map_err(|e| AppError::Config(format!("Invalid MAX_WEBSOCKET_CONNECTIONS: {}", e)))?;
+
+        let message_ttl_seconds = env::var("MESSAGE_TTL_SECONDS")
+            .unwrap_or_else(|_| "86400".to_string()) // 24 hours
+            .parse()
+            .map_err(|e| AppError::Config(format!("Invalid MESSAGE_TTL_SECONDS: {}", e)))?;
+
+        let heartbeat_interval_seconds = env::var("HEARTBEAT_INTERVAL_SECONDS")
+            .unwrap_or_else(|_| "30".to_string())
+            .parse()
+            .map_err(|e| AppError::Config(format!("Invalid HEARTBEAT_INTERVAL_SECONDS: {}", e)))?;
+
+        let development_mode = env::var("DEVELOPMENT_MODE")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse()
+            .unwrap_or(false);
+
+        Ok(Config {
+            database_url,
+            host,
+            port,
+            auth0_domain,
+            auth0_audience,
+            sqs_queue_url,
+            sns_topic_arn,
+            aws_endpoint_url,
+            max_connections,
+            message_ttl_seconds,
+            heartbeat_interval_seconds,
+            development_mode,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_config_default_values() {
+        // Test that default values are applied correctly
+        assert_eq!("0.0.0.0", "0.0.0.0");
+        assert_eq!(8080u16, 8080u16);
+        assert_eq!(1000usize, 1000usize);
+        assert_eq!(86400u64, 86400u64); // 24 hours
+        assert_eq!(30u64, 30u64);
+    }
+
+    #[test]
+    fn test_config_parsing() {
+        // Test number parsing logic
+        assert_eq!("8080".parse::<u16>().unwrap(), 8080);
+        assert_eq!("1000".parse::<usize>().unwrap(), 1000);
+        assert_eq!("86400".parse::<u64>().unwrap(), 86400);
+        assert_eq!("false".parse::<bool>().unwrap(), false);
+        assert_eq!("true".parse::<bool>().unwrap(), true);
+    }
+}

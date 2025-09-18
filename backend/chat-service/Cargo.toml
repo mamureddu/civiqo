@@ -33,6 +33,8 @@ shared = { path = "../shared" }
 # Additional WebSocket dependencies
 futures-util = "0.3"
 dashmap = "5.5" # For thread-safe connection tracking
+tower-http = { workspace = true } # For CORS and tracing middleware
+dotenvy = { workspace = true } # For environment file loading
 
 [dev-dependencies]
 tokio-test = { workspace = true }
