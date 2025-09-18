@@ -34,6 +34,32 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Check for port conflicts
+check_port_conflicts() {
+    print_status "Checking for port conflicts..."
+
+    # Check if PostgreSQL port 5433 is already in use
+    if lsof -Pi :5433 -sTCP:LISTEN -t >/dev/null 2>&1; then
+        print_warning "Port 5433 is already in use!"
+        print_status "Processes using port 5433:"
+        lsof -Pi :5433 -sTCP:LISTEN
+        echo ""
+        print_warning "This might cause database connection issues."
+        print_status "Consider stopping other services using this port."
+        echo ""
+    fi
+
+    # Check if system PostgreSQL is running on 5432 (informational)
+    if lsof -Pi :5432 -sTCP:LISTEN -t >/dev/null 2>&1; then
+        print_status "System PostgreSQL detected on port 5432 (this is fine - we use 5433)"
+        local postgres_processes=$(lsof -Pi :5432 -sTCP:LISTEN 2>/dev/null | grep -v "COMMAND")
+        if [ -n "$postgres_processes" ]; then
+            echo "$postgres_processes" | head -2
+        fi
+        echo ""
+    fi
+}
+
 # Check prerequisites
 check_prerequisites() {
     print_status "Checking prerequisites..."
@@ -73,75 +99,32 @@ start_docker_services() {
 
     print_status "Waiting for services to be ready..."
 
-    # Wait for PostgreSQL container to be running first
-    print_status "Checking PostgreSQL container availability..."
-    local retries=30
-    while ! docker compose exec postgres pg_isready >/dev/null 2>&1; do
+    # Wait for PostgreSQL to be ready (Docker does all the setup automatically)
+    print_status "Waiting for PostgreSQL initialization to complete..."
+    local retries=60
+
+    # Use the health check that matches docker-compose.yml
+    while ! docker compose exec postgres pg_isready -U dev -d community_manager >/dev/null 2>&1; do
         retries=$((retries-1))
         if [ $retries -eq 0 ]; then
-            print_warning "PostgreSQL container may not be fully ready, checking logs..."
-            docker compose logs postgres | tail -10
-            print_warning "Continuing anyway, services might still work..."
-            break
-        fi
-        sleep 1
-    done
-
-    # NOW CREATE DEV USER IMMEDIATELY AFTER POSTGRESQL IS RUNNING
-    print_status "Creating dev user and databases immediately..."
-
-    # Wait a bit more for PostgreSQL to accept connections
-    sleep 3
-
-    # The docker-compose.yml sets POSTGRES_USER=dev, so dev is the superuser
-    # Just wait for PostgreSQL to finish initialization and create the test database
-    local db_retries=30
-    while ! docker compose exec -T --user postgres postgres psql -U dev -d community_manager -c "SELECT 1;" >/dev/null 2>&1; do
-        db_retries=$((db_retries-1))
-        if [ $db_retries -eq 0 ]; then
-            print_error "PostgreSQL dev user not accessible after initialization"
+            print_error "PostgreSQL failed to initialize properly"
             docker compose logs postgres | tail -15
             exit 1
         fi
         sleep 1
     done
 
-    # Dev user exists, now ensure test database exists
-    print_status "Ensuring test database exists..."
+    # Verify both databases are accessible (they should be created by init scripts)
+    print_status "Verifying database setup..."
 
-    # Add timeout to prevent hanging
-    # Note: PostgreSQL doesn't have CREATE DATABASE IF NOT EXISTS, so we'll handle the error
-    if timeout 30 docker compose exec -T --user postgres postgres psql -U dev -d community_manager -c "
-        SELECT 'community_manager database ready' as status;
-    " >/dev/null 2>&1; then
+    if docker compose exec postgres psql -U dev -d community_manager -c "SELECT current_user;" >/dev/null 2>&1; then
         print_success "Main database accessible"
 
-        # Try to create test database, ignore error if it exists
-        timeout 15 docker compose exec -T --user postgres postgres psql -U dev -c "
-            CREATE DATABASE community_manager_test OWNER dev;
-        " 2>/dev/null || true
-
-        # Grant privileges regardless
-        timeout 15 docker compose exec -T --user postgres postgres psql -U dev -c "
-            GRANT ALL PRIVILEGES ON DATABASE community_manager_test TO dev;
-        " 2>/dev/null || true
-        print_success "Test database creation completed"
-    else
-        print_warning "Test database creation timed out or failed, checking PostgreSQL status..."
-        docker compose logs postgres | tail -10
-        print_status "Continuing anyway - database might still work"
-    fi
-
-    # Verify both databases work with timeout
-    print_status "Verifying database connectivity..."
-    if timeout 15 docker compose exec -T --user postgres postgres psql -U dev -d community_manager -c "SELECT current_user;" >/dev/null 2>&1; then
-        print_success "Main database accessible"
-
-        if timeout 15 docker compose exec -T --user postgres postgres psql -U dev -d community_manager_test -c "SELECT current_user;" >/dev/null 2>&1; then
+        if docker compose exec postgres psql -U dev -d community_manager_test -c "SELECT current_user;" >/dev/null 2>&1; then
             print_success "Test database accessible"
-            print_success "All databases verified working"
+            print_success "PostgreSQL setup complete"
         else
-            print_warning "Test database not accessible, but main database works - continuing"
+            print_warning "Test database not accessible - check init-test-db.sql"
         fi
     else
         print_error "Main database not accessible"
@@ -194,18 +177,12 @@ setup_database() {
 
     cd backend
 
-    # Set database URL
-    export DATABASE_URL="postgresql://dev:dev123@localhost:5432/community_manager"
-    export TEST_DATABASE_URL="postgresql://dev:dev123@localhost:5432/community_manager_test"
+    # Set database URL (using port 5433 to avoid conflict with system PostgreSQL)
+    export DATABASE_URL="postgresql://dev:dev123@localhost:5433/community_manager"
+    export TEST_DATABASE_URL="postgresql://dev:dev123@localhost:5433/community_manager_test"
 
-    # Dev user should already exist from start_docker_services
-    print_status "Verifying dev user is accessible..."
-    if docker compose exec -T --user postgres postgres psql -U dev -d community_manager -c "SELECT current_user;" >/dev/null 2>&1; then
-        print_success "Dev user confirmed accessible"
-    else
-        print_error "Dev user not accessible - this should not happen!"
-        exit 1
-    fi
+    # Dev user and databases are already verified from start_docker_services
+    print_status "Database ready for migrations and SQLx operations"
 
     # Initialize SQLx database if needed
     if command_exists sqlx; then
@@ -214,12 +191,28 @@ setup_database() {
             print_success "SQLx database created"
         else
             print_status "Database already exists (SQLx database creation skipped)"
+
+            # Check if SQLx connection error might be due to wrong PostgreSQL
+            if ! timeout 5 sqlx migrate info >/dev/null 2>&1; then
+                print_warning "SQLx cannot connect to database!"
+                print_status "This might indicate a PostgreSQL connection issue."
+                print_status "Are you sure you don't have PostgreSQL running on port 5433?"
+                print_status "Current DATABASE_URL: $DATABASE_URL"
+                echo ""
+                print_status "Checking what's running on port 5433:"
+                if lsof -Pi :5433 -sTCP:LISTEN >/dev/null 2>&1; then
+                    lsof -Pi :5433 -sTCP:LISTEN
+                else
+                    print_warning "Nothing found on port 5433 - Docker container might not be ready"
+                fi
+                echo ""
+            fi
         fi
     fi
 
     # Check if migrations have been run
     local tables_exist=false
-    if docker compose exec -T --user postgres postgres psql -U dev -d community_manager -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | grep -q "[1-9]"; then
+    if docker compose exec postgres psql -U dev -d community_manager -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | grep -q "[1-9]"; then
         tables_exist=true
     fi
 
@@ -231,7 +224,12 @@ setup_database() {
             if sqlx migrate run 2>/dev/null; then
                 print_success "Database migrations completed"
             else
-                print_warning "SQLx migrations failed, trying direct SQL execution..."
+                print_warning "SQLx migrations failed!"
+                print_status "This usually means SQLx cannot connect to the PostgreSQL database."
+                print_status "Are you sure the Docker PostgreSQL container is running on port 5433?"
+                print_status "And that no other PostgreSQL service is conflicting?"
+                echo ""
+                print_status "Falling back to direct SQL execution..."
                 run_migrations_directly
             fi
         else
@@ -245,9 +243,9 @@ setup_database() {
     # Create .env file for development with proper database connection
     print_status "Creating development environment file..."
     cat > .env << EOF
-# Database Configuration
-DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager
-TEST_DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager_test
+# Database Configuration (using port 5433 to avoid conflict with system PostgreSQL)
+DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager
+TEST_DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager_test
 
 # SQLx Configuration
 SQLX_OFFLINE=false
@@ -272,7 +270,13 @@ EOF
         if cargo sqlx prepare --workspace 2>/dev/null; then
             print_success "SQLx query cache prepared"
         else
-            print_status "SQLx query cache preparation skipped - will use online mode during compilation"
+            print_warning "SQLx query cache preparation failed!"
+            print_status "This might mean SQLx cannot connect to PostgreSQL on port 5433."
+            print_status "Are you sure Docker PostgreSQL is running and accessible?"
+            print_status "SQLx will use online mode during compilation instead."
+            echo ""
+            print_status "To debug, try: PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager"
+            echo ""
         fi
     fi
 
@@ -289,7 +293,7 @@ run_migrations_directly() {
             print_status "Running migration: $migration_name"
 
             # Run migration using the mounted /migrations directory in the container
-            if docker compose exec -T --user postgres postgres psql -U dev -d community_manager -f "/migrations/$migration_name" >/dev/null 2>&1; then
+            if docker compose exec postgres psql -U dev -d community_manager -f "/migrations/$migration_name" >/dev/null 2>&1; then
                 print_success "Applied migration: $migration_name"
             else
                 print_warning "Failed to apply migration: $migration_name"
@@ -429,6 +433,9 @@ main() {
     # Check prerequisites
     check_prerequisites
 
+    # Check for port conflicts before starting services
+    check_port_conflicts
+
     # Start Docker services
     start_docker_services
 
@@ -465,7 +472,7 @@ main() {
     echo "  📱 Frontend (Next.js):     http://localhost:3000"
     echo "  🔌 API Gateway (Rust):     http://localhost:9001"
     echo "  💬 Chat Service (Rust):    http://localhost:9002"
-    echo "  🗄️  Database (Postgres):   localhost:5432"
+    echo "  🗄️  Database (Postgres):   localhost:5433"
     echo "  📊 Adminer (DB UI):        http://localhost:8080"
     echo "  ☁️  LocalStack (AWS):       http://localhost:4566"
     echo ""

@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            u.id as \"id!\",\n            u.auth0_id as \"auth0_id!\",\n            u.email as \"email!\",\n            u.created_at as \"created_at!\",\n            u.updated_at as \"updated_at!\",\n            p.id as \"profile_id?\", p.name as \"profile_name?\",\n            p.avatar_url as \"profile_avatar_url?\", p.bio as \"profile_bio?\",\n            p.location as \"profile_location?\", p.website as \"profile_website?\",\n            p.created_at as \"profile_created_at?\", p.updated_at as \"profile_updated_at?\"\n        FROM users u\n        LEFT JOIN user_profiles p ON u.id = p.user_id\n        WHERE u.id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "auth0_id!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "email!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "profile_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "profile_name?",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "profile_avatar_url?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "profile_bio?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "profile_location?",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "profile_website?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "profile_created_at?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "profile_updated_at?",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "97c430031c4dc5c1e450c355a8b756e519d2fe94babe0f01cf2c6a41cbc867e6"
+}

@@ -203,9 +203,9 @@ backend/
 
 ### Current .env Configuration ✅
 ```bash
-# Database Configuration (Docker-Compose ready)
-DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager
-TEST_DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager_test
+# Database Configuration (Docker-Compose ready, port 5433 to avoid system PostgreSQL conflict)
+DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager
+TEST_DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager_test
 
 # Auth0 Configuration (Real credentials)
 AUTH0_DOMAIN=community-manager-dev.eu.auth0.com

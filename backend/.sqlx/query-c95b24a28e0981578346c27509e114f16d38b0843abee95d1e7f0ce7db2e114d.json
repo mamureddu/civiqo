@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO user_profiles (user_id, name, avatar_url, created_at, updated_at)\n            VALUES ($1, $2, $3, NOW(), NOW())\n            ON CONFLICT (user_id)\n            DO UPDATE SET\n                name = COALESCE(EXCLUDED.name, user_profiles.name),\n                avatar_url = COALESCE(EXCLUDED.avatar_url, user_profiles.avatar_url),\n                updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c95b24a28e0981578346c27509e114f16d38b0843abee95d1e7f0ce7db2e114d"
+}

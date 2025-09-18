@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            c.id as \"id!\",\n            c.name as \"name!\",\n            c.description,\n            c.slug as \"slug!\",\n            c.is_public as \"is_public!\",\n            c.requires_approval as \"requires_approval!\",\n            c.created_by as \"created_by!\",\n            c.created_at as \"created_at!\",\n            c.updated_at as \"updated_at!\",\n            COUNT(DISTINCT cm.id) as \"member_count!\",\n            COUNT(DISTINCT b.id) as \"business_count!\",\n            CASE WHEN ucm.id IS NOT NULL THEN true ELSE false END as \"is_member!\",\n            r.name as \"user_role?\"\n        FROM communities c\n        LEFT JOIN community_members cm ON c.id = cm.community_id AND cm.status = 'active'\n        LEFT JOIN businesses b ON c.id = b.community_id AND b.is_active = true\n        LEFT JOIN community_members ucm ON c.id = ucm.community_id AND ucm.user_id = $2 AND ucm.status = 'active'\n        LEFT JOIN roles r ON ucm.role_id = r.id\n        WHERE c.id = $1\n        GROUP BY c.id, c.name, c.description, c.slug, c.is_public,\n                 c.requires_approval, c.created_by, c.created_at, c.updated_at,\n                 ucm.id, r.name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "slug!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "is_public!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "requires_approval!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_by!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "member_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "business_count!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "is_member!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
+        "name": "user_role?",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      null,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "a2b138fdb9a7f57669adba3fe639f029ed7864a055d0a6ba1a33c413c2a99c3e"
+}
