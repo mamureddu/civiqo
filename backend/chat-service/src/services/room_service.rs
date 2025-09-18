@@ -123,18 +123,18 @@ impl RoomService {
 
         let participant_role = role.unwrap_or_else(|| "member".to_string());
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO room_participants (room_id, user_id, role, joined_at)
             VALUES ($1, $2, $3, NOW())
             ON CONFLICT (room_id, user_id) DO UPDATE SET
                 role = $3,
                 joined_at = NOW()
-            "#,
-            room_id,
-            user_id,
-            participant_role
+            "#
         )
+        .bind(room_id)
+        .bind(user_id)
+        .bind(&participant_role)
         .execute(self.database.pool())
         .await
         .map_err(AppError::Database)?;
@@ -181,10 +181,10 @@ impl RoomService {
         .map_err(AppError::Database)?;
 
         let participants = rows.into_iter().map(|row| {
-            let role = match row.role.as_str() {
-                "admin" => ParticipantRole::Admin,
-                "moderator" => ParticipantRole::Moderator,
-                "member" | _ => ParticipantRole::Member,
+            let role = match row.role.as_deref() {
+                Some("admin") => ParticipantRole::Admin,
+                Some("moderator") => ParticipantRole::Moderator,
+                Some("member") | _ => ParticipantRole::Member,
             };
 
             RoomParticipant {
