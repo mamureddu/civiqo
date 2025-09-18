@@ -30,6 +30,7 @@ rustls-native-certs = { workspace = true }
 
 [features]
 development = []
+testing = []
 
 [dev-dependencies]
 tokio-test = { workspace = true }

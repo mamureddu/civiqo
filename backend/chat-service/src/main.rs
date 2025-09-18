@@ -26,6 +26,9 @@ mod middleware;
 mod services;
 mod state;
 
+#[cfg(test)]
+mod integration_tests;
+
 use config::Config;
 use handlers::websocket::websocket_handler;
 use state::AppState;

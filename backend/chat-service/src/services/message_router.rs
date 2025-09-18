@@ -232,7 +232,7 @@ impl MessageRouter {
     }
 
     /// Get participants for a room from local cache
-    async fn get_room_participants(&self, room_id: Uuid) -> Result<Vec<Uuid>> {
+    pub async fn get_room_participants(&self, room_id: Uuid) -> Result<Vec<Uuid>> {
         let membership = self.room_membership.read().await;
         Ok(membership.get(&room_id).cloned().unwrap_or_default())
     }

@@ -5,7 +5,7 @@ pub mod error;
 pub mod models;
 pub mod utils;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
 // Re-export commonly used types

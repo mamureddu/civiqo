@@ -197,7 +197,7 @@ async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
 }
 
 /// Handle incoming text message
-async fn handle_text_message(
+pub async fn handle_text_message(
     text: &str,
     connection_id: &str,
     user_id: Uuid,
@@ -241,7 +241,7 @@ async fn handle_text_message(
 }
 
 /// Handle send message
-async fn handle_send_message(
+pub async fn handle_send_message(
     room_id: Uuid,
     recipient_id: Option<Uuid>,
     encrypted_content: String,

@@ -28,7 +28,7 @@ aws-sdk-sqs = { workspace = true }
 aws-sdk-sns = { workspace = true }
 
 # Shared library
-shared = { path = "../shared" }
+shared = { path = "../shared", features = ["testing"] }
 
 # Additional WebSocket dependencies
 futures-util = "0.3"
@@ -45,6 +45,7 @@ rstest = { workspace = true }
 mockall = { workspace = true }
 insta = { workspace = true }
 test-case = { workspace = true }
+axum-test = "14.0" # For integration testing
 
 # For potential EC2 deployment
 [features]

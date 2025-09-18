@@ -16,7 +16,7 @@ pub struct ChatRoom {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[sqlx(type_name = "room_type", rename_all = "snake_case")]
 pub enum RoomType {
     General,
