@@ -191,9 +191,7 @@ async fn test_rustls_connection_pool_behavior() {
         return;
     }
 
-    // Set specific pool configuration for testing
-    std::env::set_var("DB_MAX_CONNECTIONS", "3");
-    std::env::set_var("DB_MIN_CONNECTIONS", "1");
+    // Use default pool configuration without modifying environment
 
     let database_url = std::env::var("TEST_DATABASE_URL").unwrap();
 
@@ -244,9 +242,7 @@ async fn test_rustls_connection_pool_behavior() {
         }
     }
 
-    // Clean up environment variables
-    std::env::remove_var("DB_MAX_CONNECTIONS");
-    std::env::remove_var("DB_MIN_CONNECTIONS");
+    // No environment cleanup needed - no variables were modified
 }
 
 #[test]

@@ -24,7 +24,9 @@
       "Bash(DATABASE_URL=postgresql://dev:dev123@localhost:5432/community_manager sqlx migrate run)",
       "Bash(echo:*)",
       "Bash(export DATABASE_URL=\"postgresql://dev:dev123@localhost:5432/community_manager\")",
-      "Bash(export TEST_DATABASE_URL=\"postgresql://dev:dev123@localhost:5432/community_manager_test\")"
+      "Bash(export TEST_DATABASE_URL=\"postgresql://dev:dev123@localhost:5432/community_manager_test\")",
+      "Bash(grep:*)",
+      "Bash(source:*)"
     ],
     "deny": [],
     "ask": []
