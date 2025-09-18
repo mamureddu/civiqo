@@ -90,7 +90,7 @@ check_prerequisites() {
 
 # Start Docker services
 start_docker_services() {
-    print_status "Starting Docker services..."
+    print_status "Starting Docker services (PostgreSQL 15 with PostGIS 3.4 extension)..."
 
     if ! docker compose up -d; then
         print_warning "Docker services startup had issues, checking individual services..."
@@ -113,6 +113,28 @@ start_docker_services() {
         fi
         sleep 1
     done
+
+    # Additional wait to ensure database is fully ready for connections
+    print_status "Ensuring database is ready for external connections..."
+    sleep 5
+
+    # Test direct connection from host
+    local db_retries=30
+    while ! PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c "SELECT 1;" >/dev/null 2>&1; do
+        db_retries=$((db_retries-1))
+        if [ $db_retries -eq 0 ]; then
+            print_error "Cannot connect to PostgreSQL from host on port 5433"
+            print_status "Container status:"
+            docker compose ps postgres
+            print_status "Container logs:"
+            docker compose logs postgres | tail -10
+            exit 1
+        fi
+        print_status "Waiting for database external connectivity... ($db_retries retries left)"
+        sleep 2
+    done
+
+    print_success "PostgreSQL is ready for external connections"
 
     # Verify both databases are accessible (they should be created by init scripts)
     print_status "Verifying database setup..."
@@ -177,36 +199,30 @@ setup_database() {
 
     cd backend
 
-    # Set database URL (using port 5433 to avoid conflict with system PostgreSQL)
+    # Set up environment variables for database connections
     export DATABASE_URL="postgresql://dev:dev123@localhost:5433/community_manager"
     export TEST_DATABASE_URL="postgresql://dev:dev123@localhost:5433/community_manager_test"
+    export SQLX_CONNECT_TIMEOUT=30
 
-    # Dev user and databases are already verified from start_docker_services
     print_status "Database ready for migrations and SQLx operations"
+    print_status "Using DATABASE_URL: $DATABASE_URL"
 
-    # Initialize SQLx database if needed
+    # Test SQLx connectivity before proceeding
     if command_exists sqlx; then
-        print_status "Initializing SQLx database..."
-        if sqlx database create 2>/dev/null; then
-            print_success "SQLx database created"
-        else
-            print_status "Database already exists (SQLx database creation skipped)"
+        print_status "Testing SQLx database connectivity..."
 
-            # Check if SQLx connection error might be due to wrong PostgreSQL
-            if ! timeout 5 sqlx migrate info >/dev/null 2>&1; then
-                print_warning "SQLx cannot connect to database!"
-                print_status "This might indicate a PostgreSQL connection issue."
-                print_status "Are you sure you don't have PostgreSQL running on port 5433?"
-                print_status "Current DATABASE_URL: $DATABASE_URL"
-                echo ""
-                print_status "Checking what's running on port 5433:"
-                if lsof -Pi :5433 -sTCP:LISTEN >/dev/null 2>&1; then
-                    lsof -Pi :5433 -sTCP:LISTEN
-                else
-                    print_warning "Nothing found on port 5433 - Docker container might not be ready"
-                fi
-                echo ""
-            fi
+        if sqlx database create 2>/dev/null; then
+            print_success "SQLx database initialized"
+        else
+            print_status "Database already exists"
+        fi
+
+        # Verify SQLx can connect and query
+        if sqlx migrate info >/dev/null 2>&1; then
+            print_success "SQLx connection verified"
+        else
+            print_warning "SQLx connection issues detected, but continuing..."
+            print_status "SQLx will attempt to connect during migration/prepare steps"
         fi
     fi
 
@@ -221,15 +237,12 @@ setup_database() {
 
         # Try to run migrations with sqlx
         if command_exists sqlx; then
-            if sqlx migrate run 2>/dev/null; then
-                print_success "Database migrations completed"
+            print_status "Running database migrations with SQLx..."
+
+            if sqlx migrate run; then
+                print_success "Database migrations completed with SQLx"
             else
-                print_warning "SQLx migrations failed!"
-                print_status "This usually means SQLx cannot connect to the PostgreSQL database."
-                print_status "Are you sure the Docker PostgreSQL container is running on port 5433?"
-                print_status "And that no other PostgreSQL service is conflicting?"
-                echo ""
-                print_status "Falling back to direct SQL execution..."
+                print_warning "SQLx migrations failed, falling back to direct SQL execution..."
                 run_migrations_directly
             fi
         else
@@ -244,8 +257,8 @@ setup_database() {
     print_status "Creating development environment file..."
     cat > .env << EOF
 # Database Configuration (using port 5433 to avoid conflict with system PostgreSQL)
-DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager
-TEST_DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager_test
+DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager?sslmode=prefer&connect_timeout=30
+TEST_DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager_test?sslmode=prefer&connect_timeout=30
 
 # SQLx Configuration
 SQLX_OFFLINE=false
@@ -266,17 +279,18 @@ EOF
     # Prepare SQLx query cache for offline compilation (only if SQLx is available)
     if command_exists sqlx; then
         print_status "Preparing SQLx query cache for compilation..."
-        # Run cargo sqlx prepare in the backend directory with proper environment
-        if cargo sqlx prepare --workspace 2>/dev/null; then
-            print_success "SQLx query cache prepared"
+
+        # Test connection first
+        if sqlx migrate info >/dev/null 2>&1; then
+            print_status "SQLx connection verified, preparing query cache..."
+            if cargo sqlx prepare --workspace 2>/dev/null; then
+                print_success "SQLx query cache prepared successfully"
+            else
+                print_warning "SQLx query cache preparation failed, using online mode"
+            fi
         else
-            print_warning "SQLx query cache preparation failed!"
-            print_status "This might mean SQLx cannot connect to PostgreSQL on port 5433."
-            print_status "Are you sure Docker PostgreSQL is running and accessible?"
-            print_status "SQLx will use online mode during compilation instead."
-            echo ""
-            print_status "To debug, try: PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager"
-            echo ""
+            print_warning "SQLx connection issues, skipping query cache preparation"
+            print_status "SQLx will use online mode during compilation"
         fi
     fi
 
@@ -287,19 +301,31 @@ EOF
 run_migrations_directly() {
     print_status "Applying migrations directly to database..."
 
-    for migration in migrations/*.sql; do
-        if [ -f "$migration" ]; then
-            local migration_name=$(basename "$migration")
+    # Apply migrations in order
+    local migrations=(
+        "001_initial.sql"
+        "002_business.sql"
+        "003_governance.sql"
+        "004_chat.sql"
+        "005_seed_data.sql"
+    )
+
+    for migration_name in "${migrations[@]}"; do
+        if [ -f "migrations/$migration_name" ]; then
             print_status "Running migration: $migration_name"
 
             # Run migration using the mounted /migrations directory in the container
             if docker compose exec postgres psql -U dev -d community_manager -f "/migrations/$migration_name" >/dev/null 2>&1; then
                 print_success "Applied migration: $migration_name"
             else
-                print_warning "Failed to apply migration: $migration_name"
+                print_warning "Migration $migration_name had issues (might already be applied)"
             fi
+        else
+            print_warning "Migration file not found: $migration_name"
         fi
     done
+
+    print_success "Direct migration process completed"
 }
 
 # Setup LocalStack AWS services
@@ -472,7 +498,7 @@ main() {
     echo "  📱 Frontend (Next.js):     http://localhost:3000"
     echo "  🔌 API Gateway (Rust):     http://localhost:9001"
     echo "  💬 Chat Service (Rust):    http://localhost:9002"
-    echo "  🗄️  Database (Postgres):   localhost:5433"
+    echo "  🗄️  Database (PostgreSQL): localhost:5433 (PostGIS 3.4 enabled)"
     echo "  📊 Adminer (DB UI):        http://localhost:8080"
     echo "  ☁️  LocalStack (AWS):       http://localhost:4566"
     echo ""
