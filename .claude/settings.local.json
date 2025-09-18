@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"\\d community_members\")",
-      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"\\d businesses\")"
+      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"\\d businesses\")",
+      "Bash(npx create-next-app:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []
