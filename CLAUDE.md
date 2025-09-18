@@ -278,3 +278,4 @@ SQS_QUEUE_URL=http://localhost:4566/000000000000/chat-queue
 
 ---
 *Last Updated: Current session achievements and revised development strategy - Foundation phase complete, backend service development phase initiated*
+- Remember, there is a script for launching (and others to manage) the run up of the local development stack. Use that one. If it is not up to date, then use the correct agent to update it with all the needed services

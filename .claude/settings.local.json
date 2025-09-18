@@ -26,7 +26,16 @@
       "Bash(export DATABASE_URL=\"postgresql://dev:dev123@localhost:5432/community_manager\")",
       "Bash(export TEST_DATABASE_URL=\"postgresql://dev:dev123@localhost:5432/community_manager_test\")",
       "Bash(grep:*)",
-      "Bash(source:*)"
+      "Bash(source:*)",
+      "Bash(SQLX_OFFLINE=true cargo check -p chat-service)",
+      "Bash(export SQLX_OFFLINE=true)",
+      "Bash(sqlx migrate run:*)",
+      "Bash(./scripts/dev-launch.sh:*)",
+      "Bash(curl:*)",
+      "Bash(aws:*)",
+      "Bash(AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name chat-queue --region us-east-1)",
+      "Bash(AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test aws --endpoint-url=http://localhost:4566 sns create-topic --name chat-notifications --region us-east-1)",
+      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5432 -U dev -d community_manager -c \"\\dt\")"
     ],
     "deny": [],
     "ask": []

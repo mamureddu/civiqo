@@ -3,7 +3,7 @@ use std::time::Duration;
 use axum::{
     extract::{ws::{WebSocket, Message}, WebSocketUpgrade, State},
     http::HeaderMap,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use shared::{
@@ -28,21 +28,28 @@ pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Response> {
+) -> Response {
     // Extract and validate JWT token
-    let token = extract_token_from_headers(&headers)
-        .ok_or_else(|| AppError::Auth("Missing authorization header".to_string()))?;
+    let token = match extract_token_from_headers(&headers) {
+        Some(token) => token,
+        None => {
+            warn!("WebSocket connection attempt without authorization header");
+            return (axum::http::StatusCode::UNAUTHORIZED, "Missing authorization header").into_response();
+        }
+    };
 
-    let claims = state
-        .auth_state()
-        .validate_token(&token)
-        .await
-        .map_err(|e| AppError::Auth(format!("Invalid token: {}", e)))?;
+    let claims = match state.auth_state().validate_token(&token).await {
+        Ok(claims) => claims,
+        Err(e) => {
+            warn!("WebSocket authentication failed: {}", e);
+            return (axum::http::StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)).into_response();
+        }
+    };
 
     info!("WebSocket connection request from user: {}", claims.sub);
 
     // Upgrade to WebSocket connection
-    Ok(ws.on_upgrade(move |socket| handle_websocket(socket, state, claims)))
+    ws.on_upgrade(move |socket| handle_websocket(socket, state, claims))
 }
 
 /// Handle WebSocket connection lifecycle

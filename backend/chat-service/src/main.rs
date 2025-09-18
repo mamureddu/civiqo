@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
     info!("Database connection established");
 
     // Initialize AWS clients
-    let aws_config = aws_config::load_from_env().await;
+    let aws_config = aws_config::defaults(aws_config::BehaviorVersion::latest()).load().await;
     let sqs_client = aws_sdk_sqs::Client::new(&aws_config);
     let sns_client = aws_sdk_sns::Client::new(&aws_config);
     info!("AWS clients initialized");
