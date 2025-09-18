@@ -19,7 +19,7 @@ tracing-subscriber = { workspace = true }
 lambda_runtime = { workspace = true }
 lambda-web = { workspace = true }
 tokio-tungstenite = { workspace = true }
-axum = { workspace = true }
+axum = { workspace = true, features = ["ws"] }
 tower = { workspace = true }
 
 # AWS SDK for SQS/SNS

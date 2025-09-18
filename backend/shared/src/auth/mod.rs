@@ -177,6 +177,9 @@ pub fn has_permission(claims: &Claims, community_id: uuid::Uuid, permission: &st
     })
 }
 
+// Type alias for backwards compatibility with chat service
+pub type AuthState = JwtValidator;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthenticatedUser {
     pub user_id: uuid::Uuid,

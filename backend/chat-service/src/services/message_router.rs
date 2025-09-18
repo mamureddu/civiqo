@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use shared::{
     error::{AppError, Result},
-    models::chat::{WebSocketMessage, MessageType, ChatMessage},
+    models::chat::{WebSocketMessage, MessageType},
 };
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
@@ -55,75 +55,69 @@ impl MessageRouter {
         message: WebSocketMessage,
         sender_connection_id: Option<String>,
     ) -> Result<()> {
-        match &message.message_type {
-            MessageType::ChatMessage(chat_msg) => {
-                self.route_chat_message(chat_msg, sender_connection_id).await
+        match &message {
+            WebSocketMessage::ReceiveMessage { room_id, .. } => {
+                self.route_receive_message(&message, sender_connection_id).await
             }
-            MessageType::JoinRoom { room_id } => {
+            WebSocketMessage::JoinRoom { room_id } => {
                 // Room join is handled by connection manager
                 debug!("Join room message for room {}", room_id);
                 Ok(())
             }
-            MessageType::LeaveRoom { room_id } => {
+            WebSocketMessage::LeaveRoom { room_id } => {
                 // Room leave is handled by connection manager
                 debug!("Leave room message for room {}", room_id);
                 Ok(())
             }
-            MessageType::Heartbeat => {
+            WebSocketMessage::Heartbeat => {
                 // Heartbeat is handled by connection manager
                 debug!("Heartbeat message received");
                 Ok(())
             }
-            MessageType::UserTyping { room_id, user_id } => {
-                self.route_typing_notification(*room_id, *user_id).await
+            WebSocketMessage::TypingStart { room_id, user_id } |
+            WebSocketMessage::TypingStop { room_id, user_id } => {
+                self.route_typing_notification(*room_id, *user_id, &message).await
             }
-            MessageType::Error { code: _, message: _ } => {
+            WebSocketMessage::Error { .. } => {
                 // Error messages are typically responses, not routed
                 debug!("Error message received");
+                Ok(())
+            }
+            _ => {
+                // Other messages don't need routing by this method
+                debug!("Unsupported message type for routing");
                 Ok(())
             }
         }
     }
 
-    /// Route a chat message to all room participants
-    async fn route_chat_message(
+    /// Route a receive message to all room participants
+    async fn route_receive_message(
         &self,
-        chat_msg: &ChatMessage,
+        message: &WebSocketMessage,
         sender_connection_id: Option<String>,
     ) -> Result<()> {
-        // Get room participants
-        let participants = self.get_room_participants(chat_msg.room_id).await?;
-
-        if participants.is_empty() {
-            warn!("No participants found for room {}", chat_msg.room_id);
-            return Ok(());
-        }
-
-        // Create WebSocket message
-        let ws_message = WebSocketMessage {
-            id: Uuid::new_v4().to_string(),
-            message_type: MessageType::ChatMessage(chat_msg.clone()),
-            timestamp: chrono::Utc::now(),
+        let room_id = match message {
+            WebSocketMessage::ReceiveMessage { room_id, .. } => *room_id,
+            _ => return Err(AppError::Internal(anyhow::anyhow!("Invalid message type for route_receive_message"))),
         };
 
-        // Route to local and remote participants
-        self.route_to_participants(&ws_message, &participants, sender_connection_id).await
-    }
-
-    /// Route a typing notification to room participants
-    async fn route_typing_notification(&self, room_id: Uuid, typing_user_id: Uuid) -> Result<()> {
         // Get room participants
         let participants = self.get_room_participants(room_id).await?;
 
-        // Create typing notification message
-        let ws_message = WebSocketMessage {
-            id: Uuid::new_v4().to_string(),
-            message_type: MessageType::UserTyping {
-                room_id,
-                user_id: typing_user_id,
-            },
-            timestamp: chrono::Utc::now(),
-        };
+        if participants.is_empty() {
+            warn!("No participants found for room {}", room_id);
+            return Ok(());
+        }
+
+        // Route to local and remote participants
+        self.route_to_participants(message, &participants, sender_connection_id).await
+    }
+
+    /// Route a typing notification to room participants
+    async fn route_typing_notification(&self, room_id: Uuid, typing_user_id: Uuid, message: &WebSocketMessage) -> Result<()> {
+        // Get room participants
+        let participants = self.get_room_participants(room_id).await?;
 
         // Route to all participants except the typing user
         let filtered_participants: Vec<Uuid> = participants
@@ -131,7 +125,7 @@ impl MessageRouter {
             .filter(|&user_id| user_id != typing_user_id)
             .collect();
 
-        self.route_to_participants(&ws_message, &filtered_participants, None).await
+        self.route_to_participants(message, &filtered_participants, None).await
     }
 
     /// Route a message to a list of participants
@@ -171,7 +165,7 @@ impl MessageRouter {
     /// Send a message to a user's SQS queue
     async fn send_to_user_queue(&self, user_id: Uuid, message: &WebSocketMessage) -> Result<()> {
         let message_body = serde_json::to_string(message)
-            .map_err(|e| AppError::Serialization(format!("Failed to serialize message: {}", e)))?;
+            .map_err(AppError::Serialization)?;
 
         let send_result = self
             .sqs_client
@@ -196,7 +190,7 @@ impl MessageRouter {
             )
             .send()
             .await
-            .map_err(|e| AppError::External(format!("SQS send failed: {}", e)))?;
+            .map_err(|e| AppError::ExternalService(format!("SQS send failed: {}", e)))?;
 
         debug!(
             "Message queued for user {} with message ID {:?}",
@@ -210,7 +204,7 @@ impl MessageRouter {
     /// Publish a message to SNS for cross-instance delivery
     async fn publish_to_sns(&self, message: &WebSocketMessage) -> Result<()> {
         let message_body = serde_json::to_string(message)
-            .map_err(|e| AppError::Serialization(format!("Failed to serialize message: {}", e)))?;
+            .map_err(AppError::Serialization)?;
 
         let publish_result = self
             .sns_client
@@ -227,7 +221,7 @@ impl MessageRouter {
             )
             .send()
             .await
-            .map_err(|e| AppError::External(format!("SNS publish failed: {}", e)))?;
+            .map_err(|e| AppError::ExternalService(format!("SNS publish failed: {}", e)))?;
 
         debug!(
             "Message published to SNS with message ID {:?}",
@@ -297,7 +291,7 @@ impl MessageRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shared::models::chat::{ChatMessage, MessageType, WebSocketMessage};
+    use shared::models::chat::{MessageType, WebSocketMessage};
 
     #[tokio::test]
     async fn test_room_membership() {
@@ -331,23 +325,13 @@ mod tests {
 
     #[test]
     fn test_message_serialization() {
-        let chat_msg = ChatMessage {
+        let ws_message = WebSocketMessage::ReceiveMessage {
             id: Uuid::new_v4(),
             room_id: Uuid::new_v4(),
             sender_id: Uuid::new_v4(),
-            content: "test message".to_string(),
-            encrypted_content: None,
-            message_type: "text".to_string(),
+            encrypted_content: "encrypted_test_message".to_string(),
+            message_type: MessageType::Text,
             created_at: chrono::Utc::now(),
-            edited_at: None,
-            thread_id: None,
-            reply_to_id: None,
-        };
-
-        let ws_message = WebSocketMessage {
-            id: Uuid::new_v4().to_string(),
-            message_type: MessageType::ChatMessage(chat_msg),
-            timestamp: chrono::Utc::now(),
         };
 
         // Test serialization
@@ -356,6 +340,11 @@ mod tests {
 
         // Test deserialization
         let deserialized: WebSocketMessage = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(deserialized.id, ws_message.id);
+        match deserialized {
+            WebSocketMessage::ReceiveMessage { .. } => {
+                // Success
+            }
+            _ => panic!("Unexpected message type"),
+        }
     }
 }

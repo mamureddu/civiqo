@@ -76,9 +76,10 @@ async fn main() -> Result<()> {
     info!("AWS clients initialized");
 
     // Initialize Auth state
-    let auth_state = AuthState::new(&config.auth0_domain, &config.auth0_audience)
-        .await
-        .map_err(|e| AppError::Config(format!("Failed to initialize auth state: {}", e)))?;
+    let auth0_config = shared::auth::Auth0Config::from_env()
+        .map_err(|e| AppError::Config(format!("Failed to load Auth0 config: {}", e)))?;
+
+    let auth_state = AuthState::new(&auth0_config);
     info!("Auth0 state initialized");
 
     // Create application state

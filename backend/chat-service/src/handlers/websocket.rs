@@ -7,10 +7,10 @@ use axum::{
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use shared::{
-    auth::{extract_bearer_token, Claims},
     error::{AppError, Result},
-    models::chat::{WebSocketMessage, MessageType, ChatMessage},
+    models::{chat::{WebSocketMessage}, Claims},
 };
+use crate::middleware::auth::extract_token_from_headers;
 use tokio::{
     sync::mpsc,
     time::{interval, timeout},
@@ -30,14 +30,14 @@ pub async fn websocket_handler(
     headers: HeaderMap,
 ) -> Result<Response> {
     // Extract and validate JWT token
-    let token = extract_bearer_token(&headers)
-        .ok_or_else(|| AppError::Unauthorized("Missing authorization header".to_string()))?;
+    let token = extract_token_from_headers(&headers)
+        .ok_or_else(|| AppError::Auth("Missing authorization header".to_string()))?;
 
     let claims = state
         .auth_state()
         .validate_token(&token)
         .await
-        .map_err(|e| AppError::Unauthorized(format!("Invalid token: {}", e)))?;
+        .map_err(|e| AppError::Auth(format!("Invalid token: {}", e)))?;
 
     info!("WebSocket connection request from user: {}", claims.sub);
 
@@ -141,13 +141,9 @@ async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
                     error!("Error handling text message: {}", e);
 
                     // Send error response
-                    let error_message = WebSocketMessage {
-                        id: Uuid::new_v4().to_string(),
-                        message_type: MessageType::Error {
-                            code: "PROCESSING_ERROR".to_string(),
-                            message: "Failed to process message".to_string(),
-                        },
-                        timestamp: chrono::Utc::now(),
+                    let error_message = WebSocketMessage::Error {
+                        message: "Failed to process message".to_string(),
+                        code: "PROCESSING_ERROR".to_string(),
                     };
 
                     if let Err(e) = state
@@ -205,66 +201,70 @@ async fn handle_text_message(
     let ws_message: WebSocketMessage = serde_json::from_str(text)
         .map_err(|e| AppError::Validation(format!("Invalid message format: {}", e)))?;
 
-    debug!("Received message type: {:?} from connection {}", ws_message.message_type, connection_id);
+    debug!("Received message: {:?} from connection {}", ws_message, connection_id);
 
-    match &ws_message.message_type {
-        MessageType::ChatMessage(chat_msg) => {
-            handle_chat_message(chat_msg, connection_id, user_id, state, room_service).await
+    match ws_message {
+        WebSocketMessage::SendMessage { room_id, recipient_id, encrypted_content, message_type } => {
+            handle_send_message(room_id, recipient_id, encrypted_content, message_type, connection_id, user_id, state, room_service).await
         }
-        MessageType::JoinRoom { room_id } => {
-            handle_join_room(*room_id, connection_id, user_id, state, room_service).await
+        WebSocketMessage::JoinRoom { room_id } => {
+            handle_join_room(room_id, connection_id, user_id, state, room_service).await
         }
-        MessageType::LeaveRoom { room_id } => {
-            handle_leave_room(*room_id, connection_id, user_id, state, room_service).await
+        WebSocketMessage::LeaveRoom { room_id } => {
+            handle_leave_room(room_id, connection_id, user_id, state, room_service).await
         }
-        MessageType::Heartbeat => {
+        WebSocketMessage::Heartbeat => {
             handle_heartbeat(connection_id, state).await
         }
-        MessageType::UserTyping { room_id, user_id: typing_user_id } => {
-            handle_typing_notification(*room_id, *typing_user_id, connection_id, user_id, state, room_service).await
+        WebSocketMessage::TypingStart { room_id, user_id: typing_user_id } => {
+            handle_typing_notification(room_id, typing_user_id, true, connection_id, user_id, state, room_service).await
         }
-        MessageType::Error { .. } => {
-            // Clients shouldn't send error messages
-            warn!("Client sent error message from connection {}", connection_id);
+        WebSocketMessage::TypingStop { room_id, user_id: typing_user_id } => {
+            handle_typing_notification(room_id, typing_user_id, false, connection_id, user_id, state, room_service).await
+        }
+        WebSocketMessage::KeyExchange { sender_id, recipient_id, public_key } => {
+            handle_key_exchange(sender_id, recipient_id, public_key, connection_id, user_id, state).await
+        }
+        _ => {
+            // Other message types (Connect, Disconnect, ReceiveMessage, UserPresence, Error) are not handled by clients
+            warn!("Client sent unsupported message type from connection {}", connection_id);
             Ok(())
         }
     }
 }
 
-/// Handle chat message
-async fn handle_chat_message(
-    chat_msg: &ChatMessage,
+/// Handle send message
+async fn handle_send_message(
+    room_id: Uuid,
+    recipient_id: Option<Uuid>,
+    encrypted_content: String,
+    message_type: shared::models::chat::MessageType,
     connection_id: &str,
     user_id: Uuid,
     state: &AppState,
     room_service: &RoomService,
 ) -> Result<()> {
     // Verify user can send messages to this room
-    if !room_service.check_room_permission(user_id, chat_msg.room_id, "send_message").await? {
-        return Err(AppError::Forbidden("Not authorized to send messages to this room".to_string()));
+    if !room_service.check_room_permission(user_id, room_id, "send_message").await? {
+        return Err(AppError::Authorization("Not authorized to send messages to this room".to_string()));
     }
 
-    // Verify sender ID matches authenticated user
-    if chat_msg.sender_id != user_id {
-        return Err(AppError::Forbidden("Cannot send messages as another user".to_string()));
-    }
-
-    // TODO: Store message in database (if required for history)
-    // For now, we implement pure E2E with no server storage
-
-    // Route message to recipients
-    let ws_message = WebSocketMessage {
-        id: Uuid::new_v4().to_string(),
-        message_type: MessageType::ChatMessage(chat_msg.clone()),
-        timestamp: chrono::Utc::now(),
+    // Create receive message for routing to other participants
+    let receive_message = WebSocketMessage::ReceiveMessage {
+        id: Uuid::new_v4(),
+        room_id,
+        sender_id: user_id,
+        encrypted_content,
+        message_type,
+        created_at: chrono::Utc::now(),
     };
 
     state
         .message_router()
-        .route_message(ws_message, Some(connection_id.to_string()))
+        .route_message(receive_message, Some(connection_id.to_string()))
         .await?;
 
-    info!("Chat message routed from user {} in room {}", user_id, chat_msg.room_id);
+    info!("Message routed from user {} in room {}", user_id, room_id);
     Ok(())
 }
 
@@ -278,7 +278,7 @@ async fn handle_join_room(
 ) -> Result<()> {
     // Check if user can access this room
     if !room_service.can_user_access_room(user_id, room_id).await? {
-        return Err(AppError::Forbidden("Not authorized to join this room".to_string()));
+        return Err(AppError::Authorization("Not authorized to join this room".to_string()));
     }
 
     // Add user to room participants if not already there
@@ -323,6 +323,7 @@ async fn handle_heartbeat(connection_id: &str, state: &AppState) -> Result<()> {
 async fn handle_typing_notification(
     room_id: Uuid,
     typing_user_id: Uuid,
+    is_typing_start: bool,
     connection_id: &str,
     authenticated_user_id: Uuid,
     state: &AppState,
@@ -330,22 +331,25 @@ async fn handle_typing_notification(
 ) -> Result<()> {
     // Verify the typing user ID matches the authenticated user
     if typing_user_id != authenticated_user_id {
-        return Err(AppError::Forbidden("Cannot send typing notifications as another user".to_string()));
+        return Err(AppError::Authorization("Cannot send typing notifications as another user".to_string()));
     }
 
     // Check if user can access this room
     if !room_service.can_user_access_room(authenticated_user_id, room_id).await? {
-        return Err(AppError::Forbidden("Not authorized to send typing notifications to this room".to_string()));
+        return Err(AppError::Authorization("Not authorized to send typing notifications to this room".to_string()));
     }
 
     // Route typing notification
-    let ws_message = WebSocketMessage {
-        id: Uuid::new_v4().to_string(),
-        message_type: MessageType::UserTyping {
+    let ws_message = if is_typing_start {
+        WebSocketMessage::TypingStart {
             room_id,
             user_id: typing_user_id,
-        },
-        timestamp: chrono::Utc::now(),
+        }
+    } else {
+        WebSocketMessage::TypingStop {
+            room_id,
+            user_id: typing_user_id,
+        }
     };
 
     state
@@ -357,18 +361,45 @@ async fn handle_typing_notification(
     Ok(())
 }
 
+/// Handle key exchange for E2EE
+async fn handle_key_exchange(
+    sender_id: Uuid,
+    recipient_id: Uuid,
+    public_key: String,
+    connection_id: &str,
+    authenticated_user_id: Uuid,
+    state: &AppState,
+) -> Result<()> {
+    // Verify the sender ID matches the authenticated user
+    if sender_id != authenticated_user_id {
+        return Err(AppError::Authorization("Cannot send key exchange as another user".to_string()));
+    }
+
+    // Create key exchange message
+    let ws_message = WebSocketMessage::KeyExchange {
+        sender_id,
+        recipient_id,
+        public_key,
+    };
+
+    // Send directly to the recipient user
+    if let Err(_) = state.connection_manager().send_to_user(recipient_id, ws_message).await {
+        // If direct send fails, we could queue it for when the user comes online
+        warn!("Failed to send key exchange to user {}", recipient_id);
+    }
+
+    debug!("Key exchange sent from user {} to user {}", sender_id, recipient_id);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shared::models::chat::{WebSocketMessage, MessageType};
+    use shared::models::chat::WebSocketMessage;
 
     #[test]
     fn test_message_parsing() {
-        let ws_message = WebSocketMessage {
-            id: "test-id".to_string(),
-            message_type: MessageType::Heartbeat,
-            timestamp: chrono::Utc::now(),
-        };
+        let ws_message = WebSocketMessage::Heartbeat;
 
         // Test serialization
         let json = serde_json::to_string(&ws_message).unwrap();
@@ -376,8 +407,7 @@ mod tests {
 
         // Test deserialization
         let parsed: WebSocketMessage = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.id, ws_message.id);
-        assert!(matches!(parsed.message_type, MessageType::Heartbeat));
+        assert!(matches!(parsed, WebSocketMessage::Heartbeat));
     }
 
     #[test]

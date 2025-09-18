@@ -1,7 +1,7 @@
 use shared::{
     database::Database,
     error::{AppError, Result},
-    models::chat::{ChatRoom, RoomParticipant},
+    models::chat::{ChatRoom, RoomParticipant, RoomType, ParticipantRole},
 };
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -22,10 +22,10 @@ impl RoomService {
         let room = sqlx::query_as!(
             ChatRoom,
             r#"
-            SELECT room_id, community_id, name, description, room_type,
+            SELECT id, community_id, name, description, room_type as "room_type: RoomType",
                    is_private, created_by, created_at, updated_at
             FROM chat_rooms
-            WHERE room_id = $1
+            WHERE id = $1
             "#,
             room_id
         )
@@ -41,7 +41,7 @@ impl RoomService {
         let rooms = sqlx::query_as!(
             ChatRoom,
             r#"
-            SELECT room_id, community_id, name, description, room_type,
+            SELECT id, community_id, name, description, room_type as "room_type: RoomType",
                    is_private, created_by, created_at, updated_at
             FROM chat_rooms
             WHERE community_id = $1
@@ -76,10 +76,10 @@ impl RoomService {
         // and user is a member of the community
         let community_access = sqlx::query!(
             r#"
-            SELECT cr.room_id
+            SELECT cr.id
             FROM chat_rooms cr
             JOIN community_members cm ON cr.community_id = cm.community_id
-            WHERE cr.room_id = $1
+            WHERE cr.id = $1
               AND cm.user_id = $2
               AND cr.is_private = false
               AND cm.status = 'active'
@@ -97,7 +97,7 @@ impl RoomService {
     /// Get user's role in a room
     pub async fn get_user_room_role(&self, user_id: Uuid, room_id: Uuid) -> Result<Option<String>> {
         let participant = sqlx::query!(
-            "SELECT role FROM room_participants WHERE room_id = $1 AND user_id = $2",
+            "SELECT role::text FROM room_participants WHERE room_id = $1 AND user_id = $2",
             room_id,
             user_id
         )
@@ -105,7 +105,7 @@ impl RoomService {
         .await
         .map_err(AppError::Database)?;
 
-        Ok(participant.map(|p| p.role))
+        Ok(participant.and_then(|p| p.role))
     }
 
     /// Add a user to a room
@@ -167,10 +167,9 @@ impl RoomService {
 
     /// Get all participants in a room
     pub async fn get_room_participants(&self, room_id: Uuid) -> Result<Vec<RoomParticipant>> {
-        let participants = sqlx::query_as!(
-            RoomParticipant,
+        let rows = sqlx::query!(
             r#"
-            SELECT room_id, user_id, role, joined_at, last_read_at
+            SELECT id, room_id, user_id, role::text as role, joined_at, last_read_at
             FROM room_participants
             WHERE room_id = $1
             ORDER BY joined_at ASC
@@ -180,6 +179,23 @@ impl RoomService {
         .fetch_all(self.database.pool())
         .await
         .map_err(AppError::Database)?;
+
+        let participants = rows.into_iter().map(|row| {
+            let role = match row.role.as_str() {
+                "admin" => ParticipantRole::Admin,
+                "moderator" => ParticipantRole::Moderator,
+                "member" | _ => ParticipantRole::Member,
+            };
+
+            RoomParticipant {
+                id: row.id,
+                room_id: row.room_id,
+                user_id: row.user_id,
+                role,
+                joined_at: row.joined_at,
+                last_read_at: row.last_read_at,
+            }
+        }).collect();
 
         Ok(participants)
     }
@@ -207,21 +223,21 @@ impl RoomService {
         // Check if DM room already exists between these users
         let existing_room = sqlx::query!(
             r#"
-            SELECT cr.room_id
+            SELECT cr.id
             FROM chat_rooms cr
             WHERE cr.community_id = $1
               AND cr.room_type = 'direct_message'
               AND EXISTS (
                   SELECT 1 FROM room_participants rp1
-                  WHERE rp1.room_id = cr.room_id AND rp1.user_id = $2
+                  WHERE rp1.room_id = cr.id AND rp1.user_id = $2
               )
               AND EXISTS (
                   SELECT 1 FROM room_participants rp2
-                  WHERE rp2.room_id = cr.room_id AND rp2.user_id = $3
+                  WHERE rp2.room_id = cr.id AND rp2.user_id = $3
               )
               AND (
                   SELECT COUNT(*) FROM room_participants rp
-                  WHERE rp.room_id = cr.room_id
+                  WHERE rp.room_id = cr.id
               ) = 2
             "#,
             community_id,
@@ -233,8 +249,8 @@ impl RoomService {
         .map_err(AppError::Database)?;
 
         if let Some(existing) = existing_room {
-            debug!("Existing DM room found: {}", existing.room_id);
-            return Ok(existing.room_id);
+            debug!("Existing DM room found: {}", existing.id);
+            return Ok(existing.id);
         }
 
         // Create new DM room
@@ -248,7 +264,7 @@ impl RoomService {
         // Create room
         sqlx::query!(
             r#"
-            INSERT INTO chat_rooms (room_id, community_id, name, description, room_type, is_private, created_by)
+            INSERT INTO chat_rooms (id, community_id, name, description, room_type, is_private, created_by)
             VALUES ($1, $2, $3, $4, 'direct_message', true, $5)
             "#,
             room_id,
