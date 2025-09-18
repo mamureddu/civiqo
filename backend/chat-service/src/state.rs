@@ -10,6 +10,8 @@ use crate::{
     services::{
         connection_manager::ConnectionManager,
         message_router::MessageRouter,
+        message_validator::MessageValidator,
+        rate_limiter::RateLimiter,
     },
 };
 
@@ -30,6 +32,12 @@ pub struct AppState {
 
     /// Message routing service
     pub message_router: Arc<MessageRouter>,
+
+    /// Message validation service
+    pub message_validator: Arc<MessageValidator>,
+
+    /// Rate limiting service
+    pub rate_limiter: Arc<RateLimiter>,
 }
 
 impl AppState {
@@ -50,6 +58,15 @@ impl AppState {
             config.message_ttl_seconds,
         ));
 
+        // Create message validator
+        let message_validator = Arc::new(MessageValidator::new(config.max_message_size));
+
+        // Create rate limiter
+        let rate_limiter = Arc::new(RateLimiter::new(
+            config.rate_limit_messages_per_minute,
+            config.rate_limit_typing_per_minute,
+        ));
+
         // Create connection manager
         let connection_manager = Arc::new(ConnectionManager::new(
             database.clone(),
@@ -64,6 +81,8 @@ impl AppState {
             auth_state,
             connection_manager,
             message_router,
+            message_validator,
+            rate_limiter,
         }
     }
 
@@ -90,6 +109,16 @@ impl AppState {
     /// Get message router reference
     pub fn message_router(&self) -> &Arc<MessageRouter> {
         &self.message_router
+    }
+
+    /// Get message validator reference
+    pub fn message_validator(&self) -> &Arc<MessageValidator> {
+        &self.message_validator
+    }
+
+    /// Get rate limiter reference
+    pub fn rate_limiter(&self) -> &Arc<RateLimiter> {
+        &self.rate_limiter
     }
 }
 

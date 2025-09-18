@@ -54,10 +54,10 @@ pub async fn websocket_handler(
 
 /// Handle WebSocket connection lifecycle
 async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
-    let user_id = match Uuid::parse_str(&claims.sub.replace("auth0|", "")) {
+    let user_id = match parse_auth0_user_id(&claims.sub) {
         Ok(id) => id,
-        Err(_) => {
-            error!("Invalid user ID in JWT claims: {}", claims.sub);
+        Err(e) => {
+            error!("Invalid user ID in JWT claims '{}': {}", claims.sub, e);
             return;
         }
     };
@@ -251,6 +251,19 @@ pub async fn handle_send_message(
     state: &AppState,
     room_service: &RoomService,
 ) -> Result<()> {
+    // Rate limit check
+    if !state.rate_limiter().check_message_limit(user_id).await? {
+        return Err(AppError::RateLimit("Message rate limit exceeded".to_string()));
+    }
+
+    // Validate message content and parameters
+    state.message_validator().validate_message(
+        &encrypted_content,
+        Some(room_id),
+        recipient_id,
+        user_id,
+    )?;
+
     // Verify user can send messages to this room
     if !room_service.check_room_permission(user_id, room_id, "send_message").await? {
         return Err(AppError::Authorization("Not authorized to send messages to this room".to_string()));
@@ -336,10 +349,22 @@ async fn handle_typing_notification(
     state: &AppState,
     room_service: &RoomService,
 ) -> Result<()> {
+    // Rate limit typing notifications
+    if !state.rate_limiter().check_typing_limit(authenticated_user_id).await? {
+        return Err(AppError::RateLimit("Typing notification rate limit exceeded".to_string()));
+    }
+
     // Verify the typing user ID matches the authenticated user
     if typing_user_id != authenticated_user_id {
         return Err(AppError::Authorization("Cannot send typing notifications as another user".to_string()));
     }
+
+    // Validate typing notification parameters
+    state.message_validator().validate_typing_notification(
+        Some(room_id),
+        None,
+        typing_user_id,
+    )?;
 
     // Check if user can access this room
     if !room_service.can_user_access_room(authenticated_user_id, room_id).await? {
@@ -377,6 +402,13 @@ async fn handle_key_exchange(
     authenticated_user_id: Uuid,
     state: &AppState,
 ) -> Result<()> {
+    // Validate key exchange parameters
+    state.message_validator().validate_key_exchange(
+        recipient_id,
+        sender_id,
+        &public_key,
+    )?;
+
     // Verify the sender ID matches the authenticated user
     if sender_id != authenticated_user_id {
         return Err(AppError::Authorization("Cannot send key exchange as another user".to_string()));
@@ -397,6 +429,37 @@ async fn handle_key_exchange(
 
     debug!("Key exchange sent from user {} to user {}", sender_id, recipient_id);
     Ok(())
+}
+
+/// Parse Auth0 user ID from JWT subject claim
+///
+/// Auth0 user IDs can be in different formats:
+/// - "auth0|<uuid>" for database connections
+/// - "<uuid>" for direct UUID format
+/// - Other provider formats like "google-oauth2|<id>"
+pub fn parse_auth0_user_id(subject: &str) -> Result<Uuid> {
+    // Try different Auth0 ID formats
+    let uuid_part = if let Some(stripped) = subject.strip_prefix("auth0|") {
+        stripped
+    } else if let Some(stripped) = subject.strip_prefix("database|") {
+        stripped
+    } else if subject.contains('|') {
+        // For other providers (google-oauth2|, etc.), we might need a user lookup
+        return Err(AppError::Auth(format!(
+            "Unsupported Auth0 provider format: {}. Please ensure user is registered in the system.",
+            subject
+        )));
+    } else {
+        // Assume direct UUID format
+        subject
+    };
+
+    Uuid::parse_str(uuid_part).map_err(|e| {
+        AppError::Auth(format!(
+            "Invalid UUID format in Auth0 subject '{}': {}",
+            subject, e
+        ))
+    })
 }
 
 #[cfg(test)]

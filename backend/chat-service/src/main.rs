@@ -29,6 +29,9 @@ mod state;
 #[cfg(test)]
 mod integration_tests;
 
+#[cfg(test)]
+mod security_integration_tests;
+
 use config::Config;
 use handlers::websocket::websocket_handler;
 use state::AppState;

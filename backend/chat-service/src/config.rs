@@ -39,6 +39,15 @@ pub struct Config {
 
     /// Development mode flag
     pub development_mode: bool,
+
+    /// Maximum message size in bytes (64KB default)
+    pub max_message_size: usize,
+
+    /// Maximum messages per minute per user
+    pub rate_limit_messages_per_minute: u32,
+
+    /// Maximum typing notifications per minute per user
+    pub rate_limit_typing_per_minute: u32,
 }
 
 impl Config {
@@ -94,6 +103,21 @@ impl Config {
             .parse()
             .unwrap_or(false);
 
+        let max_message_size = env::var("MAX_MESSAGE_SIZE")
+            .unwrap_or_else(|_| "65536".to_string()) // 64KB
+            .parse()
+            .map_err(|e| AppError::Config(format!("Invalid MAX_MESSAGE_SIZE: {}", e)))?;
+
+        let rate_limit_messages_per_minute = env::var("RATE_LIMIT_MESSAGES_PER_MINUTE")
+            .unwrap_or_else(|_| "30".to_string())
+            .parse()
+            .map_err(|e| AppError::Config(format!("Invalid RATE_LIMIT_MESSAGES_PER_MINUTE: {}", e)))?;
+
+        let rate_limit_typing_per_minute = env::var("RATE_LIMIT_TYPING_PER_MINUTE")
+            .unwrap_or_else(|_| "60".to_string())
+            .parse()
+            .map_err(|e| AppError::Config(format!("Invalid RATE_LIMIT_TYPING_PER_MINUTE: {}", e)))?;
+
         Ok(Config {
             database_url,
             host,
@@ -107,6 +131,9 @@ impl Config {
             message_ttl_seconds,
             heartbeat_interval_seconds,
             development_mode,
+            max_message_size,
+            rate_limit_messages_per_minute,
+            rate_limit_typing_per_minute,
         })
     }
 }

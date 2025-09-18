@@ -34,6 +34,9 @@ pub enum AppError {
     #[error("Crypto error: {0}")]
     Crypto(String),
 
+    #[error("Rate limit exceeded: {0}")]
+    RateLimit(String),
+
     #[error("Internal error: {0}")]
     Internal(#[from] anyhow::Error),
 }
@@ -50,6 +53,7 @@ impl AppError {
             Self::ExternalService(_) => 502,
             Self::Config(_) => 500,
             Self::Crypto(_) => 500,
+            Self::RateLimit(_) => 429,
         }
     }
 
@@ -65,6 +69,7 @@ impl AppError {
             Self::ExternalService(_) => "EXTERNAL_SERVICE_ERROR",
             Self::Config(_) => "CONFIG_ERROR",
             Self::Crypto(_) => "CRYPTO_ERROR",
+            Self::RateLimit(_) => "RATE_LIMIT_ERROR",
             Self::Internal(_) => "INTERNAL_ERROR",
         }
     }
@@ -217,6 +222,19 @@ mod tests {
     }
 
     #[test]
+    fn test_rate_limit_error_handling() {
+        let rate_limit_error = AppError::RateLimit("Message rate limit exceeded".to_string());
+
+        // Test specific rate limit error properties
+        assert_eq!(rate_limit_error.status_code(), 429);
+        assert_eq!(rate_limit_error.error_code(), "RATE_LIMIT_ERROR");
+
+        let error_msg = rate_limit_error.to_string();
+        assert!(error_msg.contains("Rate limit exceeded"));
+        assert!(error_msg.contains("Message rate limit exceeded"));
+    }
+
+    #[test]
     fn test_error_chaining() {
         // Test that we can chain errors properly
         let original_error = std::io::Error::new(std::io::ErrorKind::NotFound, "File not found");
@@ -233,6 +251,14 @@ mod tests {
     }
 
     #[test]
+    fn test_rate_limit_error() {
+        let error = AppError::RateLimit("Too many requests".to_string());
+        assert_eq!(error.status_code(), 429);
+        assert_eq!(error.error_code(), "RATE_LIMIT_ERROR");
+        assert_eq!(error.to_string(), "Rate limit exceeded: Too many requests");
+    }
+
+    #[test]
     fn test_custom_error_messages() {
         let errors = vec![
             AppError::Auth("JWT expired".to_string()),
@@ -243,6 +269,7 @@ mod tests {
             AppError::ExternalService("Auth0 API unavailable".to_string()),
             AppError::Config("Missing S3_BUCKET environment variable".to_string()),
             AppError::Crypto("Key generation failed".to_string()),
+            AppError::RateLimit("Rate limit exceeded".to_string()),
         ];
 
         for error in errors {

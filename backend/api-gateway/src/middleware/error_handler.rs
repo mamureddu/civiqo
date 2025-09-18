@@ -41,6 +41,9 @@ pub async fn handle_error(err: AppError) -> Response {
         AppError::Crypto(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, "Cryptographic error".to_string(), true)
         }
+        AppError::RateLimit(_) => {
+            (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded".to_string(), false)
+        }
     };
 
     // Log sensitive errors with full details, but only show generic messages to users
