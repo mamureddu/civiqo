@@ -49,9 +49,9 @@ pub struct BusinessProduct {
     pub name: String,
     pub description: Option<String>,
     pub price: Option<Decimal>,
-    pub currency: Option<String>,
+    pub currency: String, // Has default 'USD' in DB, so never null
     pub unit: Option<String>,
-    pub is_available: bool,
+    pub is_available: bool, // Has default TRUE in DB, so never null
     pub image_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

@@ -3,6 +3,14 @@ name = "api-gateway"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "api-gateway"
+path = "src/main.rs"
+
+[lib]
+name = "api_gateway"
+path = "src/lib.rs"
+
 [dependencies]
 # Use workspace dependencies
 tokio = { workspace = true }
@@ -13,6 +21,9 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
+rust_decimal = { workspace = true }
+validator = { workspace = true }
+md5 = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Lambda and HTTP
@@ -27,13 +38,12 @@ aws-config = { workspace = true }
 aws-sdk-s3 = { workspace = true }
 
 # Shared library
-shared = { path = "../shared" }
+shared = { path = "../shared", features = ["testing"] }
 
 # HTTP client for external APIs
 reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
 
-# Validation
-validator = { version = "0.16", features = ["derive"] }
+# Validation (already included via workspace)
 lazy_static = "1.4"
 regex = "1.10"
 
@@ -50,3 +60,4 @@ mockall = { workspace = true }
 insta = { workspace = true }
 test-case = { workspace = true }
 axum-test = "14.0"
+jsonwebtoken = { workspace = true }

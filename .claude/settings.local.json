@@ -1,14 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"SELECT name, default_version FROM pg_available_extensions WHERE name LIKE ''%postgis%'';\")",
-      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"\\dt\")",
-      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"\\d chat_rooms\")",
-      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"\\d room_participants\")",
-      "Bash(export SQLX_OFFLINE=false)",
-      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"SELECT column_name, data_type, udt_name FROM information_schema.columns WHERE table_name = ''room_participants'' AND column_name = ''role'';\")",
-      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"SELECT enumlabel FROM pg_enum WHERE enumtypid = ''participant_role''::regtype ORDER BY enumsortorder;\")",
-      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"INSERT INTO room_participants (room_id, user_id, role, joined_at) VALUES (''00000000-0000-0000-0000-000000000000''::uuid, ''11111111-1111-1111-1111-111111111111''::uuid, ''member'', NOW()) ON CONFLICT DO NOTHING;\")"
+      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"\\d community_members\")",
+      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"\\d businesses\")"
     ],
     "deny": [],
     "ask": []
