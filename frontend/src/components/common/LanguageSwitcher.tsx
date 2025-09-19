@@ -143,7 +143,7 @@ export default function LanguageSwitcher({ compact = false }: LanguageSwitcherPr
             </ListItemIcon>
             <ListItemText
               primary={lang.name}
-              secondary={code === locale ? 'Current' : undefined}
+              secondary={code === i18n.language ? 'Current' : undefined}
             />
           </MenuItem>
         ))}
