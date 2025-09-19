@@ -316,7 +316,7 @@ export default function BusinessesPage() {
         {/* Search and Filters */}
         <Paper sx={{ p: 3, mb: 4 }}>
           <Grid container spacing={3} alignItems="center">
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <TextField
                 fullWidth
                 placeholder="Search businesses..."
@@ -328,7 +328,7 @@ export default function BusinessesPage() {
               />
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel>Category</InputLabel>
                 <Select
@@ -346,7 +346,7 @@ export default function BusinessesPage() {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid xs={12} md={3}>
               <ToggleButtonGroup
                 value={viewMode}
                 exclusive
@@ -365,7 +365,7 @@ export default function BusinessesPage() {
               </ToggleButtonGroup>
             </Grid>
 
-            <Grid item xs={12} md={2}>
+            <Grid xs={12} md={2}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -419,7 +419,7 @@ export default function BusinessesPage() {
               filteredBusinesses.length > 0 ? (
                 <Grid container spacing={3}>
                   {filteredBusinesses.map((business) => (
-                    <Grid item xs={12} sm={6} lg={4} key={business.id}>
+                    <Grid xs={12} sm={6} lg={4} key={business.id}>
                       <BusinessCard business={business} />
                     </Grid>
                   ))}

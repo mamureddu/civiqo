@@ -7,6 +7,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import theme from '@/theme/theme';
 import { CommunityProvider } from '@/contexts/CommunityContext';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -14,15 +15,17 @@ interface ProvidersProps {
 
 export default function Providers({ children }: ProvidersProps) {
   return (
-    <I18nProvider>
-      <AuthProvider>
-        <CommunityProvider>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            {children}
-          </ThemeProvider>
-        </CommunityProvider>
-      </AuthProvider>
-    </I18nProvider>
+    <ErrorBoundary showDetails={process.env.NODE_ENV === 'development'}>
+      <I18nProvider>
+        <AuthProvider>
+          <CommunityProvider>
+            <ThemeProvider theme={theme}>
+              <CssBaseline />
+              {children}
+            </ThemeProvider>
+          </CommunityProvider>
+        </AuthProvider>
+      </I18nProvider>
+    </ErrorBoundary>
   );
 }

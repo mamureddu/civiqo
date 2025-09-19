@@ -331,7 +331,7 @@ export default function GovernancePage() {
         <Card sx={{ mb: 4 }}>
           <CardContent>
             <Grid container spacing={3} alignItems="center">
-              <Grid item xs={12} md={4}>
+              <Grid xs={12} md={4}>
                 <TextField
                   fullWidth
                   placeholder="Search polls..."
@@ -343,7 +343,7 @@ export default function GovernancePage() {
                 />
               </Grid>
 
-              <Grid item xs={12} md={3}>
+              <Grid xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -359,7 +359,7 @@ export default function GovernancePage() {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={3}>
+              <Grid xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Category</InputLabel>
                   <Select
@@ -377,7 +377,7 @@ export default function GovernancePage() {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={2}>
+              <Grid xs={12} md={2}>
                 <Button
                   fullWidth
                   variant="outlined"
@@ -430,7 +430,7 @@ export default function GovernancePage() {
             {filteredPolls.length > 0 ? (
               <Grid container spacing={3}>
                 {filteredPolls.map((poll) => (
-                  <Grid item xs={12} md={6} lg={4} key={poll.id}>
+                  <Grid xs={12} md={6} lg={4} key={poll.id}>
                     <PollCard poll={poll} />
                   </Grid>
                 ))}

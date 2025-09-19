@@ -198,7 +198,7 @@ export default function CommunitiesPage() {
         {/* Filters */}
         <Box mb={4}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <TextField
                 fullWidth
                 placeholder="Search communities..."
@@ -213,7 +213,7 @@ export default function CommunitiesPage() {
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid xs={12} sm={6} md={4}>
               <FormControl fullWidth>
                 <InputLabel>Type</InputLabel>
                 <Select
@@ -229,7 +229,7 @@ export default function CommunitiesPage() {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid xs={12} sm={6} md={4}>
               <FormControl fullWidth>
                 <InputLabel>Visibility</InputLabel>
                 <Select
@@ -273,7 +273,7 @@ export default function CommunitiesPage() {
             {filteredCommunities.length > 0 ? (
               <Grid container spacing={3}>
                 {filteredCommunities.map((community) => (
-                  <Grid item xs={12} sm={6} lg={4} key={community.id}>
+                  <Grid xs={12} sm={6} lg={4} key={community.id}>
                     <CommunityCard community={community} />
                   </Grid>
                 ))}

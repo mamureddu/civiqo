@@ -245,7 +245,7 @@ export default function CreateBachecaPostPage() {
         <Paper sx={{ p: 4 }}>
           <Grid container spacing={3}>
             {/* Post Type Selection */}
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <FormControl fullWidth>
                 <InputLabel>Post Type</InputLabel>
                 <Select
@@ -282,7 +282,7 @@ export default function CreateBachecaPostPage() {
             </Grid>
 
             {/* Title */}
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <TextField
                 fullWidth
                 label="Post Title"
@@ -294,7 +294,7 @@ export default function CreateBachecaPostPage() {
             </Grid>
 
             {/* Content */}
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <TextField
                 fullWidth
                 multiline
@@ -308,7 +308,7 @@ export default function CreateBachecaPostPage() {
             </Grid>
 
             {/* Image Upload */}
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <Box>
                 <Typography variant="subtitle2" gutterBottom>
                   Image (Optional)
@@ -347,7 +347,7 @@ export default function CreateBachecaPostPage() {
 
             {/* Event Date (for events) */}
             {formData.type === 'event' && (
-              <Grid item xs={12} md={6}>
+              <Grid xs={12} md={6}>
                 <LocalizationProvider dateAdapter={AdapterDateFns}>
                   <DateTimePicker
                     label="Event Date & Time"
@@ -366,7 +366,7 @@ export default function CreateBachecaPostPage() {
 
             {/* Offer Valid Until (for offers) */}
             {formData.type === 'offer' && (
-              <Grid item xs={12} md={6}>
+              <Grid xs={12} md={6}>
                 <LocalizationProvider dateAdapter={AdapterDateFns}>
                   <DateTimePicker
                     label="Valid Until"
@@ -384,7 +384,7 @@ export default function CreateBachecaPostPage() {
             )}
 
             {/* Options */}
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <Divider sx={{ my: 2 }} />
               <Typography variant="subtitle2" gutterBottom>
                 Post Options
@@ -412,7 +412,7 @@ export default function CreateBachecaPostPage() {
             </Grid>
 
             {/* Actions */}
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <Divider sx={{ my: 2 }} />
               <Stack direction="row" spacing={2} justifyContent="space-between">
                 <Button

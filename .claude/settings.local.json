@@ -10,7 +10,10 @@
       "WebFetch(domain:localhost)",
       "Bash(curl:*)",
       "WebSearch",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

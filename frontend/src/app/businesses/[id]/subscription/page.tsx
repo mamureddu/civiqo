@@ -268,7 +268,7 @@ export default function BusinessSubscriptionPage() {
                   This Month's Performance
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h5" fontWeight="bold" color="primary.main">
                         {usageStats.viewsThisMonth}
@@ -278,7 +278,7 @@ export default function BusinessSubscriptionPage() {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h5" fontWeight="bold" color="success.main">
                         {usageStats.engagementRate}%
@@ -288,7 +288,7 @@ export default function BusinessSubscriptionPage() {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h5" fontWeight="bold" color="info.main">
                         {usageStats.postsThisMonth}
@@ -298,7 +298,7 @@ export default function BusinessSubscriptionPage() {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <Paper sx={{ p: 2, textAlign: 'center' }}>
                       <Typography variant="h5" fontWeight="bold" color="secondary.main">
                         12

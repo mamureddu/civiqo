@@ -36,7 +36,7 @@ import {
   Business as BusinessIcon,
   Event as EventIcon,
   Poll as PollIcon,
-  Priority as PriorityIcon,
+  PriorityHigh as PriorityIcon,
   Support as SupportIcon,
   Badge as BadgeIcon,
   Verified as VerifiedIcon,
@@ -348,7 +348,7 @@ export default function CommunitySubscriptionTiers({
       {/* Subscription Tiers */}
       <Grid container spacing={3} justifyContent="center">
         {availableTiers.map((tier) => (
-          <Grid item xs={12} md={4} key={tier.id}>
+          <Grid xs={12} md={4} key={tier.id}>
             <SubscriptionCard tier={tier} />
           </Grid>
         ))}
@@ -415,7 +415,7 @@ export default function CommunitySubscriptionTiers({
                 Payment Method
               </Typography>
               <Grid container spacing={2} mb={3}>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Button
                     fullWidth
                     variant={paymentMethod === 'card' ? 'contained' : 'outlined'}
@@ -424,7 +424,7 @@ export default function CommunitySubscriptionTiers({
                     Credit Card
                   </Button>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Button
                     fullWidth
                     variant={paymentMethod === 'paypal' ? 'contained' : 'outlined'}
@@ -445,7 +445,7 @@ export default function CommunitySubscriptionTiers({
                     disabled={isProcessing}
                   />
                   <Grid container spacing={2}>
-                    <Grid item xs={6}>
+                    <Grid xs={6}>
                       <TextField
                         fullWidth
                         label="Expiry Date"
@@ -453,7 +453,7 @@ export default function CommunitySubscriptionTiers({
                         disabled={isProcessing}
                       />
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid xs={6}>
                       <TextField
                         fullWidth
                         label="CVV"

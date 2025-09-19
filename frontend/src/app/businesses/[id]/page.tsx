@@ -319,7 +319,7 @@ export default function BusinessDetailPage() {
         {/* Business Header */}
         <Paper elevation={2} sx={{ p: 4, mb: 4 }}>
           <Grid container spacing={4}>
-            <Grid item xs={12} md={8}>
+            <Grid xs={12} md={8}>
               <Box display="flex" alignItems="flex-start" gap={3}>
                 {business.image_url && (
                   <Avatar
@@ -390,7 +390,7 @@ export default function BusinessDetailPage() {
               </Box>
             </Grid>
 
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Stack spacing={2}>
                 <Button
                   variant="contained"
@@ -437,13 +437,13 @@ export default function BusinessDetailPage() {
 
           {bachecaPosts.length > 0 ? (
             <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
+              <Grid xs={12} md={8}>
                 {bachecaPosts.map((post) => (
                   <BachecaPostCard key={post.id} post={post} />
                 ))}
               </Grid>
 
-              <Grid item xs={12} md={4}>
+              <Grid xs={12} md={4}>
                 <Paper sx={{ p: 3, position: 'sticky', top: 20 }}>
                   <Typography variant="h6" fontWeight="bold" gutterBottom>
                     About This Business

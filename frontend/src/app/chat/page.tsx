@@ -301,7 +301,7 @@ export default function ChatPage() {
 
         <Grid container sx={{ height: '100%' }}>
           {/* Chat Rooms Sidebar */}
-          <Grid item xs={12} md={4} lg={3}>
+          <Grid xs={12} md={4} lg={3}>
             <Paper sx={{ height: '100%', p: 2 }}>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
                 Chat Rooms
@@ -316,7 +316,7 @@ export default function ChatPage() {
           </Grid>
 
           {/* Chat Area */}
-          <Grid item xs={12} md={8} lg={9}>
+          <Grid xs={12} md={8} lg={9}>
             <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column', ml: { md: 2 } }}>
               {selectedRoom ? (
                 <>

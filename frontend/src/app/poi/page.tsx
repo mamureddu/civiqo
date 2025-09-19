@@ -380,7 +380,7 @@ export default function POIPage() {
         {/* Search and Filters */}
         <Paper sx={{ p: 3, mb: 4 }}>
           <Grid container spacing={3} alignItems="center">
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <TextField
                 fullWidth
                 placeholder="Search points of interest..."
@@ -392,7 +392,7 @@ export default function POIPage() {
               />
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel>Category</InputLabel>
                 <Select
@@ -413,7 +413,7 @@ export default function POIPage() {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid xs={12} md={3}>
               <ToggleButtonGroup
                 value={viewMode}
                 exclusive
@@ -432,7 +432,7 @@ export default function POIPage() {
               </ToggleButtonGroup>
             </Grid>
 
-            <Grid item xs={12} md={2}>
+            <Grid xs={12} md={2}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -497,7 +497,7 @@ export default function POIPage() {
             filteredPOIs.length > 0 ? (
               <Grid container spacing={3}>
                 {filteredPOIs.map((poi) => (
-                  <Grid item xs={12} sm={6} lg={4} key={poi.id}>
+                  <Grid xs={12} sm={6} lg={4} key={poi.id}>
                     <POICard poi={poi} />
                   </Grid>
                 ))}

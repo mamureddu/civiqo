@@ -345,7 +345,7 @@ export default function HomePage() {
 
         <Grid container spacing={3}>
           {mockCommunities.map((community) => (
-            <Grid item xs={12} sm={6} lg={4} key={community.id}>
+            <Grid xs={12} sm={6} lg={4} key={community.id}>
               <CommunityCard community={community} />
             </Grid>
           ))}
@@ -356,7 +356,7 @@ export default function HomePage() {
       <Box sx={{ bgcolor: 'grey.50', py: 6 }}>
         <Container maxWidth="lg">
           <Grid container spacing={4} textAlign="center">
-            <Grid item xs={12} sm={3}>
+            <Grid xs={12} sm={3}>
               <Typography variant="h3" fontWeight="bold" color="primary.main">
                 50+
               </Typography>
@@ -364,7 +364,7 @@ export default function HomePage() {
                 Active Communities
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={3}>
+            <Grid xs={12} sm={3}>
               <Typography variant="h3" fontWeight="bold" color="primary.main">
                 10k+
               </Typography>
@@ -372,7 +372,7 @@ export default function HomePage() {
                 Community Members
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={3}>
+            <Grid xs={12} sm={3}>
               <Typography variant="h3" fontWeight="bold" color="primary.main">
                 2k+
               </Typography>
@@ -380,7 +380,7 @@ export default function HomePage() {
                 Local Businesses
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={3}>
+            <Grid xs={12} sm={3}>
               <Typography variant="h3" fontWeight="bold" color="primary.main">
                 500+
               </Typography>
@@ -449,7 +449,7 @@ export default function HomePage() {
       >
         <Container maxWidth="lg">
           <Grid container spacing={4}>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Typography variant="h6" color="white" gutterBottom>
                 Community Manager
               </Typography>
@@ -457,7 +457,7 @@ export default function HomePage() {
                 Connecting communities through secure, local social networks
               </Typography>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Typography variant="h6" color="white" gutterBottom>
                 Features
               </Typography>
@@ -468,7 +468,7 @@ export default function HomePage() {
                 <Typography variant="body2">Community Governance</Typography>
               </Stack>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid xs={12} md={4}>
               <Typography variant="h6" color="white" gutterBottom>
                 Support
               </Typography>
