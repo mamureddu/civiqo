@@ -2,10 +2,10 @@
 
 import React from 'react';
 import AuthProvider from './AuthProvider';
+import I18nProvider from './I18nProvider';
 import { ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import theme from '@/theme/theme';
-import { LocaleProvider } from '@/contexts/LocaleContext';
 import { CommunityProvider } from '@/contexts/CommunityContext';
 
 interface ProvidersProps {
@@ -14,7 +14,7 @@ interface ProvidersProps {
 
 export default function Providers({ children }: ProvidersProps) {
   return (
-    <LocaleProvider>
+    <I18nProvider>
       <AuthProvider>
         <CommunityProvider>
           <ThemeProvider theme={theme}>
@@ -23,6 +23,6 @@ export default function Providers({ children }: ProvidersProps) {
           </ThemeProvider>
         </CommunityProvider>
       </AuthProvider>
-    </LocaleProvider>
+    </I18nProvider>
   );
 }

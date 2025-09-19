@@ -38,84 +38,21 @@ import CommunityFeed from '@/components/community/CommunityFeed';
 import CommunitySelector from '@/components/community/CommunitySelector';
 import { useSession } from 'next-auth/react';
 import { useCommunity } from '@/contexts/CommunityContext';
-import { useLocale } from '@/contexts/LocaleContext';
+import { useTranslation } from 'react-i18next';
+import { mockUserCommunities } from '@/data/mockCommunities';
+import { mockStats, mockRecentActivity } from '@/data/mockFeedData';
 
-// Mock stats data
-const mockStats = {
-  communities: 3,
-  businesses: 127,
-  activePolls: 5,
-  unreadMessages: 12,
-};
-
-// Mock recent activity data
-const mockRecentActivity = [
-  {
-    id: '1',
-    icon: <BusinessIcon />,
-    title: 'Nuovo business aggiunto',
-    description: 'Milano Coffee Roasters si è unito alla comunità',
-    time: '2 ore fa',
-  },
-  {
-    id: '2',
-    icon: <GovernanceIcon />,
-    title: 'Nuova votazione',
-    description: 'Votazione per il nuovo parco comunitario',
-    time: '4 ore fa',
-  },
-  {
-    id: '3',
-    icon: <GroupsIcon />,
-    title: '5 nuovi membri',
-    description: 'La tua comunità sta crescendo!',
-    time: '1 giorno fa',
-  },
-];
 
 export default function Dashboard() {
   const { data: session } = useSession();
   const user = session?.user;
   const { activeCommunity, userCommunities, setUserCommunities } = useCommunity();
-  const { t } = useLocale();
+  const { t } = useTranslation('common');
   const [loading, setLoading] = useState(false);
   const [communities, setCommunities] = useState<any[]>([]);
 
-  // Mock user communities - in real app, this would come from API
+  // Load user communities - in real app, this would come from API
   useEffect(() => {
-    const mockUserCommunities = [
-      {
-        id: '1',
-        name: 'Centro Milano',
-        description: 'Il cuore del distretto commerciale e culturale di Milano',
-        member_count: 2847,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        subscription_status: 'supporter' as const,
-        member_since: '2024-01-01T00:00:00Z',
-      },
-      {
-        id: '2',
-        name: 'Quartiere Brera',
-        description: 'Centro creativo con gallerie, caffè e comunità artistiche',
-        member_count: 1204,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        subscription_status: 'free' as const,
-        member_since: '2024-01-05T00:00:00Z',
-      },
-      {
-        id: '3',
-        name: 'Navigli',
-        description: 'Zona storica dei canali con vita notturna e attività locali',
-        member_count: 3156,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        subscription_status: 'vip' as const,
-        member_since: '2024-01-10T00:00:00Z',
-      },
-    ];
-
     setUserCommunities(mockUserCommunities);
     setCommunities(mockUserCommunities);
 

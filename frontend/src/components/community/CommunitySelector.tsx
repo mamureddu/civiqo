@@ -22,7 +22,7 @@ import {
 } from '@mui/icons-material';
 import Link from 'next/link';
 import { useCommunity, Community } from '@/contexts/CommunityContext';
-import { useLocale } from '@/contexts/LocaleContext';
+import { useTranslation } from 'react-i18next';
 
 interface CommunitySelectorProps {
   compact?: boolean;
@@ -30,7 +30,7 @@ interface CommunitySelectorProps {
 
 export default function CommunitySelector({ compact = false }: CommunitySelectorProps) {
   const { activeCommunity, userCommunities, setActiveCommunity } = useCommunity();
-  const { t } = useLocale();
+  const { t } = useTranslation('common');
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
 

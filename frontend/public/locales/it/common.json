@@ -259,6 +259,58 @@
     "poll": "Sondaggio",
     "event": "Evento",
     "chat": "Chat",
-    "activity": "Attività"
+    "activity": "Attività",
+    "time": {
+      "hoursAgo": "{{count}} ore fa",
+      "daysAgo": "{{count}} giorni fa",
+      "minutesAgo": "{{count}} minuti fa"
+    }
+  },
+  "community": {
+    "feed": {
+      "businessPost": {
+        "specialOffer": "Sconto Speciale del 20% sui Pranzi",
+        "specialOfferContent": "Milano Coffee Roasters offre uno sconto del 20% su tutti i pranzi speciali questa settimana! Vieni a provare i nostri nuovi panini artigianali."
+      },
+      "announcement": {
+        "newGuidelines": "Nuove Linee Guida della Comunità",
+        "newGuidelinesContent": "Abbiamo aggiornato le linee guida della comunità per garantire un ambiente più sicuro e inclusivo per tutti i membri. Vi preghiamo di leggerle."
+      },
+      "newMembers": {
+        "title": "Nuovi Membri si Sono Uniti",
+        "content": "{{count}} nuovi membri si sono uniti alla nostra comunità oggi! Diamo loro il benvenuto."
+      },
+      "event": {
+        "monthlyMeeting": "Riunione Mensile della Comunità",
+        "monthlyMeetingContent": "Non perdete la riunione mensile di domani sera alle 19:00 presso il Centro Civico. Discuteremo i prossimi progetti per il miglioramento del quartiere."
+      },
+      "poll": {
+        "newPark": "Votazione: Nuovo Parco della Comunità",
+        "newParkContent": "È tempo di votare per la proposta del nuovo parco nel centro del quartiere. La vostra opinione è importante per prendere questa decisione insieme."
+      },
+      "author": {
+        "administration": "Amministrazione Comunità",
+        "system": "Sistema Comunità"
+      },
+      "activity": {
+        "newBusiness": "Nuovo business aggiunto",
+        "newBusinessDesc": "Milano Coffee Roasters si è unito alla comunità",
+        "newPoll": "Nuova votazione",
+        "newPollDesc": "Votazione per il nuovo parco comunitario",
+        "newMembers": "{{count}} nuovi membri",
+        "newMembersDesc": "La tua comunità sta crescendo!"
+      },
+      "actions": {
+        "like": "Mi Piace",
+        "comment": "Commenta",
+        "interactions": "{{count}} interazioni",
+        "eventDate": "Data Evento",
+        "newMembers": "{{count}} nuovi membri"
+      },
+      "empty": {
+        "title": "Nessuna Attività Recente",
+        "description": "Quando ci sarà nuova attività nella tua comunità, apparirà qui."
+      }
+    }
   }
 }

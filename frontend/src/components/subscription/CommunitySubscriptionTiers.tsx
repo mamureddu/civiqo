@@ -30,7 +30,7 @@ import {
   Check as CheckIcon,
   Star as StarIcon,
   Diamond as DiamondIcon,
-  Crown as CrownIcon,
+  Stars as CrownIcon,
   Lock as LockIcon,
   Chat as ChatIcon,
   Business as BusinessIcon,

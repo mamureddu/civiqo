@@ -18,7 +18,6 @@ import {
   MenuItem,
   Divider,
   useTheme,
-  useMediaQuery,
   Badge,
 } from '@mui/material';
 import {
@@ -39,7 +38,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import CommunitySelector from '@/components/community/CommunitySelector';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
-import { useLocale } from '@/contexts/LocaleContext';
+import { useTranslation } from 'react-i18next';
 import { useCommunity } from '@/contexts/CommunityContext';
 
 const drawerWidth = 240;
@@ -64,8 +63,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { t } = useLocale();
+  const { t } = useTranslation('common');
   const { activeCommunity } = useCommunity();
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -227,7 +225,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             aria-haspopup="true"
           >
             <Avatar
-              src={user.picture || undefined}
+              src={user.image || undefined}
               alt={user.name || 'User'}
               sx={{ width: 32, height: 32 }}
             >

@@ -394,7 +394,7 @@ export default function HomePage() {
 
       {/* Call to Action */}
       <Box sx={{ py: 8 }}>
-        <Container maxWidth="md" textAlign="center">
+        <Container maxWidth="md" sx={{ textAlign: 'center' }}>
           <Typography variant="h4" fontWeight="bold" gutterBottom>
             Ready to Join Your Community?
           </Typography>

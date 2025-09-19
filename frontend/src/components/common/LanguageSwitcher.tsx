@@ -13,7 +13,9 @@ import {
   Language as LanguageIcon,
   ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
-import { useLocale, type Locale } from '@/contexts/LocaleContext';
+import { useTranslation } from 'react-i18next';
+
+type Locale = 'it' | 'en';
 
 interface LanguageSwitcherProps {
   compact?: boolean;
@@ -31,7 +33,7 @@ const languages = {
 };
 
 export default function LanguageSwitcher({ compact = false }: LanguageSwitcherProps) {
-  const { locale, setLocale } = useLocale();
+  const { i18n } = useTranslation();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
 
@@ -43,12 +45,21 @@ export default function LanguageSwitcher({ compact = false }: LanguageSwitcherPr
     setAnchorEl(null);
   };
 
-  const handleLanguageSelect = (newLocale: Locale) => {
-    setLocale(newLocale);
+  const handleLanguageSelect = async (newLocale: Locale) => {
+    try {
+      await i18n.changeLanguage(newLocale);
+      // Save to localStorage with SSR safety
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('i18nextLng', newLocale);
+      }
+    } catch (error) {
+      console.error('Failed to change language:', error);
+    }
     handleClose();
   };
 
-  const currentLanguage = languages[locale];
+  const currentLocale = i18n.language as Locale;
+  const currentLanguage = languages[currentLocale] || languages.it;
 
   if (compact) {
     return (
@@ -82,7 +93,7 @@ export default function LanguageSwitcher({ compact = false }: LanguageSwitcherPr
             <MenuItem
               key={code}
               onClick={() => handleLanguageSelect(code as Locale)}
-              selected={locale === code}
+              selected={i18n.language === code}
             >
               <ListItemIcon>
                 <Typography variant="body1">{lang.flag}</Typography>
@@ -125,7 +136,7 @@ export default function LanguageSwitcher({ compact = false }: LanguageSwitcherPr
           <MenuItem
             key={code}
             onClick={() => handleLanguageSelect(code as Locale)}
-            selected={locale === code}
+            selected={i18n.language === code}
           >
             <ListItemIcon>
               <Typography variant="h6">{lang.flag}</Typography>

@@ -43,8 +43,10 @@ export function CommunityProvider({ children }: CommunityProviderProps) {
   const [userCommunities, setUserCommunities] = useState<Community[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load active community from localStorage on mount
+  // Load active community from localStorage on mount (SSR-safe)
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     try {
       const saved = localStorage.getItem('activeCommunity');
       if (saved) {
@@ -56,9 +58,12 @@ export function CommunityProvider({ children }: CommunityProviderProps) {
     }
   }, []);
 
-  // Save active community to localStorage when it changes
+  // Save active community to localStorage when it changes (SSR-safe)
   const setActiveCommunity = (community: Community | null) => {
     setActiveCommunityState(community);
+
+    if (typeof window === 'undefined') return;
+
     try {
       if (community) {
         localStorage.setItem('activeCommunity', JSON.stringify(community));

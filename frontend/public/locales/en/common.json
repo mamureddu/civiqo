@@ -259,6 +259,58 @@
     "poll": "Poll",
     "event": "Event",
     "chat": "Chat",
-    "activity": "Activity"
+    "activity": "Activity",
+    "time": {
+      "hoursAgo": "{{count}} hours ago",
+      "daysAgo": "{{count}} days ago",
+      "minutesAgo": "{{count}} minutes ago"
+    }
+  },
+  "community": {
+    "feed": {
+      "businessPost": {
+        "specialOffer": "Special 20% Discount on Lunch",
+        "specialOfferContent": "Milano Coffee Roasters offers a 20% discount on all special lunches this week! Come try our new artisanal sandwiches."
+      },
+      "announcement": {
+        "newGuidelines": "New Community Guidelines",
+        "newGuidelinesContent": "We have updated the community guidelines to ensure a safer and more inclusive environment for all members. Please read them."
+      },
+      "newMembers": {
+        "title": "New Members Have Joined",
+        "content": "{{count}} new members have joined our community today! Let's welcome them."
+      },
+      "event": {
+        "monthlyMeeting": "Monthly Community Meeting",
+        "monthlyMeetingContent": "Don't miss tomorrow evening's monthly meeting at 7:00 PM at the Civic Center. We'll discuss upcoming projects for neighborhood improvement."
+      },
+      "poll": {
+        "newPark": "Vote: New Community Park",
+        "newParkContent": "It's time to vote on the proposal for the new park in the center of the neighborhood. Your opinion is important for making this decision together."
+      },
+      "author": {
+        "administration": "Community Administration",
+        "system": "Community System"
+      },
+      "activity": {
+        "newBusiness": "New business added",
+        "newBusinessDesc": "Milano Coffee Roasters has joined the community",
+        "newPoll": "New poll",
+        "newPollDesc": "Vote for the new community park",
+        "newMembers": "{{count}} new members",
+        "newMembersDesc": "Your community is growing!"
+      },
+      "actions": {
+        "like": "Like",
+        "comment": "Comment",
+        "interactions": "{{count}} interactions",
+        "eventDate": "Event Date",
+        "newMembers": "{{count}} new members"
+      },
+      "empty": {
+        "title": "No Recent Activity",
+        "description": "When there's new activity in your community, it will appear here."
+      }
+    }
   }
 }
