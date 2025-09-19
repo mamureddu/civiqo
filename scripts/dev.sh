@@ -76,11 +76,6 @@ check_prerequisites() {
         missing=true
     fi
 
-    if ! command_exists node; then
-        print_error "Node.js not found. Please install Node.js."
-        missing=true
-    fi
-
     if [ "$missing" = true ]; then
         exit 1
     fi
@@ -389,35 +384,11 @@ start_backend_services() {
     sleep 3
 }
 
-# Start frontend
+# Start frontend (disabled - using Next.js dev server directly)
 start_frontend() {
-    print_status "Starting Next.js frontend..."
-
-    if [ ! -d "frontend" ]; then
-        print_warning "Frontend directory not found, skipping frontend startup"
-        return 0
-    fi
-
-    cd frontend
-    if [ ! -d "node_modules" ]; then
-        print_status "Installing frontend dependencies..."
-        if ! npm install; then
-            print_warning "Frontend dependency installation failed, skipping frontend startup"
-            cd ..
-            return 0
-        fi
-    fi
-
-    npm run dev > ../logs/frontend.log 2>&1 &
-    FRONTEND_PID=$!
-    if [ $? -eq 0 ]; then
-        echo $FRONTEND_PID > ../logs/frontend.pid
-        print_success "Frontend started"
-    else
-        print_warning "Frontend startup failed, continuing without frontend"
-    fi
-
-    cd ..
+    print_status "Frontend runs separately with 'npm run dev' in the frontend directory"
+    print_success "To start frontend: cd frontend && npm run dev"
+    return 0
 }
 
 # Cleanup function
@@ -436,10 +407,7 @@ cleanup() {
         rm -f logs/chat-service.pid
     fi
 
-    if [ -f "logs/frontend.pid" ]; then
-        kill "$(cat logs/frontend.pid)" 2>/dev/null || true
-        rm -f logs/frontend.pid
-    fi
+    # Frontend now runs independently with Next.js dev server
 
     # Stop Docker services
     docker compose down
@@ -495,17 +463,20 @@ main() {
     print_success "🎉 Development environment is running!"
     echo ""
     echo "Services:"
-    echo "  📱 Frontend (Next.js):     http://localhost:3000"
     echo "  🔌 API Gateway (Rust):     http://localhost:9001"
     echo "  💬 Chat Service (Rust):    http://localhost:9002"
     echo "  🗄️  Database (PostgreSQL): localhost:5433 (PostGIS 3.4 enabled)"
     echo "  📊 Adminer (DB UI):        http://localhost:8080"
     echo "  ☁️  LocalStack (AWS):       http://localhost:4566"
     echo ""
+    echo "Frontend:"
+    echo "  📱 To start Next.js frontend separately:"
+    echo "     cd frontend && npm run dev"
+    echo "  📱 Frontend will run at:   http://localhost:3000"
+    echo ""
     echo "Logs:"
     echo "  API Gateway: logs/api-gateway.log"
     echo "  Chat Service: logs/chat-service.log"
-    echo "  Frontend: logs/frontend.log"
     echo ""
     print_status "Press Ctrl+C to stop all services"
 

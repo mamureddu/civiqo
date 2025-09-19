@@ -29,7 +29,7 @@ import {
   Event as EventIcon,
 } from '@mui/icons-material';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { useUser } from '@auth0/nextjs-auth0/client';
+import { useUser } from '@auth0/nextjs-auth0';
 import apiClient from '@/lib/api-client';
 import type { Community, ApiResponse } from '@/types/api';
 

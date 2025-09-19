@@ -279,3 +279,4 @@ SQS_QUEUE_URL=http://localhost:4566/000000000000/chat-queue
 ---
 *Last Updated: Current session achievements and revised development strategy - Foundation phase complete, backend service development phase initiated*
 - Remember, there is a script for launching (and others to manage) the run up of the local development stack. Use that one. If it is not up to date, then use the correct agent to update it with all the needed services
+- We now switched to opus model for complex tasks, always remeber there are subagests which wirk with sonnet, which costs less. Use them if the task is simple enough. So I invite you to make a check of available agents and use them (Even in parallel) if needed. Otherwis use the general purpose agent.

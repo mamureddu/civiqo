@@ -1,4 +1,4 @@
-import { handleAuth, handleLogin, handleLogout, handleCallback, handleProfile } from '@auth0/nextjs-auth0';
+import { handleAuth, handleLogin, handleLogout, handleCallback } from '@auth0/nextjs-auth0';
 
 export const GET = handleAuth({
   login: handleLogin({
@@ -7,6 +7,5 @@ export const GET = handleAuth({
   logout: handleLogout({
     returnTo: '/'
   }),
-  callback: handleCallback(),
-  profile: handleProfile()
+  callback: handleCallback()
 });

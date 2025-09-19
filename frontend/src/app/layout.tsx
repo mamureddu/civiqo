@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { UserProvider } from '@auth0/nextjs-auth0/client';
-import { ThemeProvider } from '@mui/material/styles';
-import { CssBaseline } from '@mui/material';
-import theme from '@/theme/theme';
+import Providers from '@/components/providers/Providers';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -13,7 +10,11 @@ export const metadata: Metadata = {
   description: "Local community management platform with real-time chat, business directory, and democratic governance tools",
   keywords: ["community", "local", "governance", "business", "chat", "democracy"],
   authors: [{ name: "Community Manager Team" }],
-  viewport: "width=device-width, initial-scale=1",
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -24,12 +25,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <UserProvider>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            {children}
-          </ThemeProvider>
-        </UserProvider>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );
