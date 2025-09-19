@@ -1,0 +1,264 @@
+{
+  "navigation": {
+    "dashboard": "Community Feed",
+    "communities": "My Communities",
+    "businesses": "Local Businesses",
+    "poi": "Points of Interest",
+    "governance": "Governance",
+    "chat": "Messages",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "actions": {
+    "join": "Join",
+    "subscribe": "Subscribe",
+    "view": "View",
+    "explore": "Explore",
+    "chat": "Chat",
+    "share": "Share",
+    "favorite": "Favorite",
+    "favorited": "Favorited",
+    "search": "Search",
+    "filter": "Filter",
+    "clear": "Clear",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "add": "Add",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "retry": "Retry",
+    "logout": "Logout"
+  },
+  "pages": {
+    "home": {
+      "title": "Discover Your Local Community",
+      "subtitle": "Connect with neighbors, support local businesses, and participate in your community",
+      "searchPlaceholder": "Search communities by location or name...",
+      "searchButton": "Search",
+      "featuredCommunities": "Featured Communities",
+      "viewAll": "View All",
+      "stats": {
+        "activeCommunities": "Active Communities",
+        "communityMembers": "Community Members",
+        "localBusinesses": "Local Businesses",
+        "pointsOfInterest": "Points of Interest"
+      },
+      "cta": {
+        "title": "Ready to Join Your Community?",
+        "subtitle": "Connect with your neighbors and discover what's happening around you",
+        "joinCommunity": "Join a Community",
+        "exploreCommunities": "Explore Communities",
+        "goToCommunities": "Go to My Communities"
+      }
+    },
+    "dashboard": {
+      "title": "Community Feed",
+      "subtitle": "Stay updated with your community",
+      "welcome": "Welcome",
+      "noCommunity": "No Community Selected",
+      "selectCommunity": "Select a community to see the feed",
+      "selectCommunityDescription": "Choose one of your communities to see the activity feed and interact with members.",
+      "recentActivity": "Recent Activity",
+      "quickActions": "Quick Actions",
+      "communityStats": "Community Stats"
+    },
+    "communities": {
+      "title": "My Communities",
+      "subtitle": "Manage your community memberships",
+      "joinNew": "Join New Community",
+      "noCommunitiesTitle": "No Communities",
+      "noCommunitiesText": "You haven't joined any communities yet. Start by exploring and joining local communities!",
+      "memberSince": "Member since",
+      "members": "members",
+      "subscription": "Subscription",
+      "activeCommunity": "Active Community"
+    },
+    "businesses": {
+      "title": "Local Business Network",
+      "subtitle": "Connect with local businesses through their bulletin boards and start secure conversations",
+      "addBusiness": "Add Business",
+      "addFirstBusiness": "Add First Business",
+      "searchPlaceholder": "Search businesses...",
+      "category": "Category",
+      "allCategories": "All Categories",
+      "viewBacheca": "View Bacheca",
+      "contactBusiness": "Contact Business",
+      "latestFromBacheca": "Latest from Bacheca",
+      "noBusinessesTitle": "No businesses found",
+      "noBusinessesText": "Try adjusting your search criteria",
+      "noBusinessesEmpty": "Be the first to add a business to this community!"
+    },
+    "poi": {
+      "title": "Points of Interest",
+      "subtitle": "Discover interesting places in your community",
+      "categories": {
+        "all": "All",
+        "monument": "Monuments",
+        "park": "Parks",
+        "library": "Libraries",
+        "church": "Churches",
+        "museum": "Museums",
+        "stadium": "Stadiums",
+        "theater": "Theaters",
+        "restaurant": "Restaurants"
+      }
+    }
+  },
+  "subscription": {
+    "community": {
+      "tiers": {
+        "free": {
+          "name": "Community Member",
+          "description": "Basic community access with essential features"
+        },
+        "supporter": {
+          "name": "Community Supporter",
+          "description": "Enhanced community experience with additional perks"
+        },
+        "vip": {
+          "name": "Community VIP",
+          "description": "Premium access with exclusive benefits and priority"
+        }
+      },
+      "features": {
+        "basicAccess": "Basic access",
+        "communityDiscussions": "Community discussions",
+        "publicEvents": "Public events",
+        "prioritySupport": "Priority support",
+        "exclusiveEvents": "Exclusive events",
+        "communityBadge": "Community badge",
+        "vipBadge": "VIP badge",
+        "privateChannels": "Private channels",
+        "personalConcierge": "Personal concierge"
+      }
+    },
+    "business": {
+      "tiers": {
+        "basic": {
+          "name": "Basic Bacheca",
+          "description": "Essential features for local business presence"
+        },
+        "professional": {
+          "name": "Professional Bacheca",
+          "description": "Enhanced visibility and engagement tools"
+        },
+        "premium": {
+          "name": "Premium Bacheca Plus",
+          "description": "Maximum exposure with premium features"
+        }
+      },
+      "features": {
+        "postsPerMonth": "{{count}} bacheca posts per month",
+        "unlimitedPosts": "Unlimited bacheca posts",
+        "basicPostTypes": "Basic post types (text, announcements)",
+        "allPostTypes": "All post types (text, images, events, offers)",
+        "priorityPlacement": "Priority placement in listings",
+        "analytics": "Advanced analytics dashboard",
+        "customBranding": "Custom business branding",
+        "reviewManagement": "Customer review management",
+        "featuredBadge": "Featured business badge",
+        "topPlacement": "Top search placement",
+        "campaignTools": "Advanced promotional campaigns",
+        "accountManager": "Dedicated account manager"
+      }
+    },
+    "billing": {
+      "monthly": "Monthly",
+      "annual": "Annual",
+      "annualSave": "Save {{percent}}%",
+      "currentPlan": "Current Plan",
+      "upgrade": "Upgrade",
+      "downgrade": "Downgrade",
+      "manageSuscription": "Manage Subscription",
+      "cancelSubscription": "Cancel Subscription",
+      "billingHistory": "Billing History",
+      "nextBilling": "Next billing",
+      "paymentMethod": "Payment Method"
+    }
+  },
+  "forms": {
+    "placeholders": {
+      "email": "Your email",
+      "password": "Password",
+      "name": "Name",
+      "title": "Title",
+      "description": "Description",
+      "search": "Search...",
+      "cardNumber": "1234 5678 9012 3456",
+      "expiryDate": "MM/YY",
+      "cvv": "123",
+      "cardholderName": "Cardholder Name"
+    },
+    "validation": {
+      "required": "This field is required",
+      "email": "Please enter a valid email",
+      "minLength": "Minimum {{count}} characters",
+      "maxLength": "Maximum {{count}} characters"
+    }
+  },
+  "messages": {
+    "success": {
+      "subscriptionUpdated": "Subscription updated successfully!",
+      "profileUpdated": "Profile updated successfully",
+      "businessAdded": "Business added successfully",
+      "postCreated": "Post created successfully"
+    },
+    "error": {
+      "generic": "An error occurred. Please try again.",
+      "network": "Network error. Please check your internet connection.",
+      "notFound": "Resource not found",
+      "unauthorized": "Not authorized to access this resource",
+      "paymentFailed": "Payment failed. Please try again.",
+      "subscriptionFailed": "Subscription failed. Please try again."
+    }
+  },
+  "common": {
+    "appName": "Community Manager",
+    "language": "Language",
+    "or": "or",
+    "and": "and",
+    "of": "of",
+    "in": "in",
+    "at": "at",
+    "by": "by",
+    "with": "with",
+    "from": "from",
+    "to": "to",
+    "for": "for",
+    "active": "Active",
+    "inactive": "Inactive",
+    "online": "Online",
+    "offline": "Offline",
+    "yes": "Yes",
+    "no": "No",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "week": "week",
+    "month": "month",
+    "year": "year",
+    "hour": "hour",
+    "minute": "minute",
+    "second": "second",
+    "ago": "ago",
+    "new": "New",
+    "recent": "Recent",
+    "popular": "Popular",
+    "featured": "Featured",
+    "recommended": "Recommended",
+    "business": "Business",
+    "announcement": "Announcement",
+    "newMember": "New Member",
+    "poll": "Poll",
+    "event": "Event",
+    "chat": "Chat",
+    "activity": "Activity"
+  }
+}

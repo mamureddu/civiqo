@@ -37,6 +37,10 @@ import {
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import CommunitySelector from '@/components/community/CommunitySelector';
+import LanguageSwitcher from '@/components/common/LanguageSwitcher';
+import { useLocale } from '@/contexts/LocaleContext';
+import { useCommunity } from '@/contexts/CommunityContext';
 
 const drawerWidth = 240;
 
@@ -47,39 +51,7 @@ interface NavigationItem {
   badge?: number;
 }
 
-const navigationItems: NavigationItem[] = [
-  {
-    label: 'Dashboard',
-    icon: <DashboardIcon />,
-    href: '/dashboard',
-  },
-  {
-    label: 'Communities',
-    icon: <GroupsIcon />,
-    href: '/communities',
-  },
-  {
-    label: 'Business Directory',
-    icon: <BusinessIcon />,
-    href: '/businesses',
-  },
-  {
-    label: 'Points of Interest',
-    icon: <MuseumIcon />,
-    href: '/poi',
-  },
-  {
-    label: 'Governance',
-    icon: <GovernanceIcon />,
-    href: '/governance',
-  },
-  {
-    label: 'Chat',
-    icon: <ChatIcon />,
-    href: '/chat',
-    badge: 3, // Example badge for unread messages
-  },
-];
+// Navigation items will be translated in the component
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -93,9 +65,46 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { t } = useLocale();
+  const { activeCommunity } = useCommunity();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  // Navigation items with translations
+  const navigationItems: NavigationItem[] = [
+    {
+      label: t('navigation.dashboard'),
+      icon: <DashboardIcon />,
+      href: '/dashboard',
+    },
+    {
+      label: t('navigation.communities'),
+      icon: <GroupsIcon />,
+      href: '/communities',
+    },
+    {
+      label: t('navigation.businesses'),
+      icon: <BusinessIcon />,
+      href: '/businesses',
+    },
+    {
+      label: t('navigation.poi'),
+      icon: <MuseumIcon />,
+      href: '/poi',
+    },
+    {
+      label: t('navigation.governance'),
+      icon: <GovernanceIcon />,
+      href: '/governance',
+    },
+    {
+      label: t('navigation.chat'),
+      icon: <ChatIcon />,
+      href: '/chat',
+      badge: 3, // Example badge for unread messages
+    },
+  ];
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -117,10 +126,20 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <Box>
       <Toolbar>
         <Typography variant="h6" noWrap component="div" color="primary" fontWeight="bold">
-          Community Manager
+          {t('common.appName')}
         </Typography>
       </Toolbar>
       <Divider />
+
+      {/* Community Selector in Sidebar */}
+      <Box sx={{ p: 2 }}>
+        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+          {t('pages.communities.activeCommunity')}
+        </Typography>
+        <CommunitySelector compact />
+      </Box>
+      <Divider />
+
       <List>
         {navigationItems.map((item) => (
           <ListItem key={item.label} disablePadding>
@@ -186,8 +205,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </IconButton>
 
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {navigationItems.find(item => item.href === pathname)?.label || 'Community Manager'}
+            {activeCommunity ? activeCommunity.name : (navigationItems.find(item => item.href === pathname)?.label || t('common.appName'))}
           </Typography>
+
+          {/* Language Switcher */}
+          <Box sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}>
+            <LanguageSwitcher compact />
+          </Box>
 
           <IconButton color="inherit" sx={{ mr: 1 }}>
             <Badge badgeContent={4} color="error">
@@ -238,14 +262,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <ListItemIcon>
             <SettingsIcon fontSize="small" />
           </ListItemIcon>
-          Profile Settings
+          {t('navigation.profile')}
         </MenuItem>
         <Divider />
+        {/* Language Switcher for Mobile */}
+        <Box sx={{ p: 2, display: { xs: 'block', sm: 'none' } }}>
+          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            {t('common.language')}
+          </Typography>
+          <LanguageSwitcher />
+        </Box>
+        <Divider sx={{ display: { xs: 'block', sm: 'none' } }} />
         <MenuItem onClick={handleLogout}>
           <ListItemIcon>
             <LogoutIcon fontSize="small" />
           </ListItemIcon>
-          Logout
+          {t('actions.logout')}
         </MenuItem>
       </Menu>
 

@@ -9,95 +9,123 @@ import {
   Typography,
   Button,
   Chip,
-  IconButton,
+  Stack,
+  Paper,
+  Avatar,
+  Divider,
+  CircularProgress,
   List,
   ListItem,
-  ListItemText,
   ListItemIcon,
-  Divider,
-  Avatar,
-  CircularProgress,
+  ListItemText,
+  IconButton,
 } from '@mui/material';
 import {
   Groups as GroupsIcon,
   Business as BusinessIcon,
+  Museum as MuseumIcon,
   HowToVote as GovernanceIcon,
   Chat as ChatIcon,
   Add as AddIcon,
   TrendingUp as TrendingUpIcon,
-  Notifications as NotificationsIcon,
   Event as EventIcon,
+  Announcement as AnnouncementIcon,
+  Notifications as NotificationsIcon,
 } from '@mui/icons-material';
+import Link from 'next/link';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import CommunityFeed from '@/components/community/CommunityFeed';
+import CommunitySelector from '@/components/community/CommunitySelector';
 import { useSession } from 'next-auth/react';
-import apiClient from '@/lib/api-client';
-import type { Community, ApiResponse } from '@/types/api';
+import { useCommunity } from '@/contexts/CommunityContext';
+import { useLocale } from '@/contexts/LocaleContext';
 
-// Mock data for demonstration
+// Mock stats data
 const mockStats = {
   communities: 3,
-  businesses: 12,
-  activePolls: 2,
-  unreadMessages: 5,
+  businesses: 127,
+  activePolls: 5,
+  unreadMessages: 12,
 };
 
+// Mock recent activity data
 const mockRecentActivity = [
   {
-    id: 1,
-    type: 'poll',
-    title: 'New community park proposal',
-    description: 'Vote on the new park construction in downtown area',
-    time: '2 hours ago',
-    icon: <GovernanceIcon />,
-  },
-  {
-    id: 2,
-    type: 'business',
-    title: 'New business: Green Coffee Shop',
-    description: 'A new local coffee shop has joined our community',
-    time: '4 hours ago',
+    id: '1',
     icon: <BusinessIcon />,
+    title: 'Nuovo business aggiunto',
+    description: 'Milano Coffee Roasters si è unito alla comunità',
+    time: '2 ore fa',
   },
   {
-    id: 3,
-    type: 'message',
-    title: 'Message from Sarah M.',
-    description: 'Thanks for organizing the community cleanup!',
-    time: '1 day ago',
-    icon: <ChatIcon />,
+    id: '2',
+    icon: <GovernanceIcon />,
+    title: 'Nuova votazione',
+    description: 'Votazione per il nuovo parco comunitario',
+    time: '4 ore fa',
   },
   {
-    id: 4,
-    type: 'event',
-    title: 'Community Meeting Tomorrow',
-    description: 'Monthly community meeting at 7 PM',
-    time: '2 days ago',
-    icon: <EventIcon />,
+    id: '3',
+    icon: <GroupsIcon />,
+    title: '5 nuovi membri',
+    description: 'La tua comunità sta crescendo!',
+    time: '1 giorno fa',
   },
 ];
 
 export default function Dashboard() {
   const { data: session } = useSession();
   const user = session?.user;
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { activeCommunity, userCommunities, setUserCommunities } = useCommunity();
+  const { t } = useLocale();
+  const [loading, setLoading] = useState(false);
+  const [communities, setCommunities] = useState<any[]>([]);
 
+  // Mock user communities - in real app, this would come from API
   useEffect(() => {
-    const fetchCommunities = async () => {
-      try {
-        const response: ApiResponse<Community[]> = await apiClient.getCommunities({ limit: 5 });
-        if (response.success && response.data) {
-          setCommunities(response.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch communities:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const mockUserCommunities = [
+      {
+        id: '1',
+        name: 'Centro Milano',
+        description: 'Il cuore del distretto commerciale e culturale di Milano',
+        member_count: 2847,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        subscription_status: 'supporter' as const,
+        member_since: '2024-01-01T00:00:00Z',
+      },
+      {
+        id: '2',
+        name: 'Quartiere Brera',
+        description: 'Centro creativo con gallerie, caffè e comunità artistiche',
+        member_count: 1204,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        subscription_status: 'free' as const,
+        member_since: '2024-01-05T00:00:00Z',
+      },
+      {
+        id: '3',
+        name: 'Navigli',
+        description: 'Zona storica dei canali con vita notturna e attività locali',
+        member_count: 3156,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        subscription_status: 'vip' as const,
+        member_since: '2024-01-10T00:00:00Z',
+      },
+    ];
 
-    fetchCommunities();
-  }, []);
+    setUserCommunities(mockUserCommunities);
+    setCommunities(mockUserCommunities);
+
+    // Set first community as active if none selected
+    if (!activeCommunity && mockUserCommunities.length > 0) {
+      setTimeout(() => {
+        // Small delay to avoid hydration issues
+      }, 100);
+    }
+  }, [setUserCommunities, activeCommunity]);
 
   const StatCard = ({ title, value, icon, color, action }: {
     title: string;
@@ -125,225 +153,74 @@ export default function Dashboard() {
     </Card>
   );
 
-  return (
-    <DashboardLayout>
-      <Box>
-        {/* Welcome Section */}
-        <Box mb={4}>
-          <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
-            Welcome back, {user?.name || user?.email}!
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Here's what's happening in your communities today.
-          </Typography>
-        </Box>
+  // If no active community, show community selection
+  if (!activeCommunity) {
+    return (
+      <DashboardLayout>
+        <Box>
+          {/* Welcome Section */}
+          <Box mb={4} textAlign="center">
+            <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
+              {t('pages.dashboard.welcome')}, {user?.name || user?.email}!
+            </Typography>
+            <Typography variant="body1" color="text.secondary" mb={3}>
+              {t('pages.dashboard.selectCommunityDescription')}
+            </Typography>
+            <CommunitySelector />
+          </Box>
 
-        {/* Stats Cards */}
-        <Grid container spacing={3} mb={4}>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Communities"
-              value={mockStats.communities}
-              icon={<GroupsIcon sx={{ fontSize: 40 }} />}
-              color="primary.main"
-              action={() => window.location.href = '/communities'}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Local Businesses"
-              value={mockStats.businesses}
-              icon={<BusinessIcon sx={{ fontSize: 40 }} />}
-              color="secondary.main"
-              action={() => window.location.href = '/businesses'}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Active Polls"
-              value={mockStats.activePolls}
-              icon={<GovernanceIcon sx={{ fontSize: 40 }} />}
-              color="success.main"
-              action={() => window.location.href = '/governance'}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Unread Messages"
-              value={mockStats.unreadMessages}
-              icon={<ChatIcon sx={{ fontSize: 40 }} />}
-              color="warning.main"
-              action={() => window.location.href = '/chat'}
-            />
-          </Grid>
-        </Grid>
-
-        <Grid container spacing={3}>
-          {/* My Communities */}
-          <Grid item xs={12} md={6}>
-            <Card>
+          {/* My Communities List */}
+          {userCommunities.length > 0 && (
+            <Card sx={{ maxWidth: 800, mx: 'auto' }}>
               <CardContent>
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                  <Typography variant="h6" component="h2" fontWeight="bold">
-                    My Communities
-                  </Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    href="/communities/create"
-                  >
-                    Create
-                  </Button>
-                </Box>
-
-                {loading ? (
-                  <Box display="flex" justifyContent="center" py={2}>
-                    <CircularProgress />
-                  </Box>
-                ) : communities.length > 0 ? (
-                  <List>
-                    {communities.slice(0, 3).map((community, index) => (
-                      <div key={community.id}>
-                        <ListItem
-                          sx={{
-                            px: 0,
-                            '&:hover': { backgroundColor: 'action.hover' },
-                            cursor: 'pointer',
-                          }}
-                          onClick={() => window.location.href = `/communities/${community.id}`}
-                        >
-                          <ListItemIcon>
-                            <Avatar sx={{ bgcolor: 'primary.main' }}>
-                              <GroupsIcon />
-                            </Avatar>
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={community.name}
-                            secondary={`${community.member_count} members • ${community.community_type}`}
-                          />
-                          <Chip
-                            label={community.is_public ? 'Public' : 'Private'}
-                            size="small"
-                            color={community.is_public ? 'success' : 'default'}
-                          />
-                        </ListItem>
-                        {index < Math.min(communities.length, 3) - 1 && <Divider />}
-                      </div>
-                    ))}
-                  </List>
-                ) : (
-                  <Typography color="text.secondary" textAlign="center" py={3}>
-                    No communities yet. Create or join your first community!
-                  </Typography>
-                )}
-
-                <Box mt={2}>
-                  <Button variant="text" size="small" href="/communities" fullWidth>
-                    View All Communities
-                  </Button>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Recent Activity */}
-          <Grid item xs={12} md={6}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                  <Typography variant="h6" component="h2" fontWeight="bold">
-                    Recent Activity
-                  </Typography>
-                  <IconButton size="small">
-                    <NotificationsIcon />
-                  </IconButton>
-                </Box>
-
+                <Typography variant="h6" component="h2" fontWeight="bold" mb={2}>
+                  {t('pages.communities.title')}
+                </Typography>
                 <List>
-                  {mockRecentActivity.map((activity, index) => (
-                    <div key={activity.id}>
-                      <ListItem sx={{ px: 0 }}>
+                  {userCommunities.map((community, index) => (
+                    <div key={community.id}>
+                      <ListItem
+                        sx={{
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => {
+                          setUserCommunities(userCommunities);
+                        }}
+                      >
                         <ListItemIcon>
-                          <Avatar sx={{ bgcolor: 'secondary.main', width: 32, height: 32 }}>
-                            {activity.icon}
+                          <Avatar sx={{ bgcolor: 'primary.main' }}>
+                            <GroupsIcon />
                           </Avatar>
                         </ListItemIcon>
                         <ListItemText
-                          primary={activity.title}
-                          secondary={
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">
-                                {activity.description}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {activity.time}
-                              </Typography>
-                            </Box>
-                          }
+                          primary={community.name}
+                          secondary={`${community.member_count.toLocaleString()} ${t('pages.communities.members')} • ${community.description}`}
+                        />
+                        <Chip
+                          label={community.subscription_status === 'free' ? t('subscription.community.tiers.free.name') : t(`subscription.community.tiers.${community.subscription_status}.name`)}
+                          size="small"
+                          color={community.subscription_status === 'free' ? 'default' : 'primary'}
                         />
                       </ListItem>
-                      {index < mockRecentActivity.length - 1 && <Divider />}
+                      {index < userCommunities.length - 1 && <Divider />}
                     </div>
                   ))}
                 </List>
               </CardContent>
             </Card>
-          </Grid>
-        </Grid>
-
-        {/* Quick Actions */}
-        <Box mt={4}>
-          <Typography variant="h6" component="h2" fontWeight="bold" mb={2}>
-            Quick Actions
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<GroupsIcon />}
-                href="/communities/create"
-                sx={{ py: 1.5 }}
-              >
-                Create Community
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<BusinessIcon />}
-                href="/businesses/create"
-                sx={{ py: 1.5 }}
-              >
-                Add Business
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<GovernanceIcon />}
-                href="/governance/polls/create"
-                sx={{ py: 1.5 }}
-              >
-                Create Poll
-              </Button>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<ChatIcon />}
-                href="/chat"
-                sx={{ py: 1.5 }}
-              >
-                Open Chat
-              </Button>
-            </Grid>
-          </Grid>
+          )}
         </Box>
+      </DashboardLayout>
+    );
+  }
+
+  // Show community feed when community is selected
+  return (
+    <DashboardLayout>
+      <Box>
+        {/* Community Feed */}
+        <CommunityFeed communityId={activeCommunity.id} />
       </Box>
     </DashboardLayout>
   );
