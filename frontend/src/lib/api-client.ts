@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { getAccessToken } from '@auth0/nextjs-auth0';
+import { getSession } from 'next-auth/react';
 import type {
   ApiResponse,
   Community,
@@ -68,7 +68,7 @@ class ApiClient {
         if (error.response?.status === 401) {
           // Redirect to login on unauthorized
           if (typeof window !== 'undefined') {
-            window.location.href = '/api/auth/login';
+            window.location.href = '/';
           }
         }
         return Promise.reject(error);

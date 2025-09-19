@@ -1,11 +1,15 @@
-import { getAccessToken } from '@auth0/nextjs-auth0';
+import { getServerSession } from 'next-auth';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    const { accessToken } = await getAccessToken();
+    const session = await getServerSession();
 
-    return NextResponse.json({ accessToken });
+    if (!session) {
+      return NextResponse.json({ accessToken: null }, { status: 401 });
+    }
+
+    return NextResponse.json({ accessToken: session.accessToken || null });
   } catch (error) {
     console.error('Error getting access token:', error);
     return NextResponse.json({ accessToken: null }, { status: 401 });

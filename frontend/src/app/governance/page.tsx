@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser } from '@auth0/nextjs-auth0';
+import { useSession } from 'next-auth/react';
 import {
   Box,
   Container,
@@ -132,7 +132,8 @@ const mockPolls: Poll[] = [
 ];
 
 export default function GovernancePage() {
-  const { user } = useUser();
+  const { data: session } = useSession();
+  const user = session?.user;
   const [polls, setPolls] = useState<Poll[]>(mockPolls);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

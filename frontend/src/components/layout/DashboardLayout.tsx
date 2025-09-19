@@ -33,7 +33,7 @@ import {
   Logout as LogoutIcon,
   Notifications as NotificationsIcon,
 } from '@mui/icons-material';
-import { useUser } from '@auth0/nextjs-auth0/client';
+import { useSession, signOut } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 
@@ -80,7 +80,9 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { user, isLoading } = useUser();
+  const { data: session, status } = useSession();
+  const user = session?.user;
+  const isLoading = status === 'loading';
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
@@ -102,7 +104,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   const handleLogout = () => {
-    router.push('/api/auth/logout');
+    signOut();
   };
 
   const drawer = (
@@ -153,7 +155,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   if (!user) {
-    router.push('/api/auth/login');
+    router.push('/');
     return null;
   }
 

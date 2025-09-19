@@ -1,6 +1,6 @@
 'use client';
 
-import { useUser } from '@auth0/nextjs-auth0';
+import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import {
   Box,
@@ -28,7 +28,10 @@ import {
 } from '@mui/icons-material';
 
 export default function HomePage() {
-  const { user, error, isLoading } = useUser();
+  const { data: session, status } = useSession();
+  const user = session?.user;
+  const isLoading = status === 'loading';
+  const error = status === 'unauthenticated' ? null : null;
 
   const features = [
     {
@@ -129,8 +132,7 @@ export default function HomePage() {
                     Dashboard
                   </Button>
                   <Button
-                    component="a"
-                    href="/api/auth/logout"
+                    onClick={() => signOut()}
                     variant="outlined"
                   >
                     Logout
@@ -138,8 +140,7 @@ export default function HomePage() {
                 </>
               ) : (
                 <Button
-                  component="a"
-                  href="/api/auth/login"
+                  onClick={() => signIn('auth0')}
                   variant="contained"
                   startIcon={<LoginIcon />}
                 >
@@ -189,8 +190,7 @@ export default function HomePage() {
                 ) : (
                   <>
                     <Button
-                      component="a"
-                      href="/api/auth/login"
+                      onClick={() => signIn('auth0')}
                       variant="contained"
                       size="large"
                       sx={{
@@ -301,8 +301,7 @@ export default function HomePage() {
               Join thousands of communities already using our platform
             </Typography>
             <Button
-              component="a"
-              href="/api/auth/login"
+              onClick={() => signIn('auth0')}
               variant="contained"
               size="large"
               sx={{

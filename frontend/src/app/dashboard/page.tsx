@@ -29,7 +29,7 @@ import {
   Event as EventIcon,
 } from '@mui/icons-material';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { useUser } from '@auth0/nextjs-auth0';
+import { useSession } from 'next-auth/react';
 import apiClient from '@/lib/api-client';
 import type { Community, ApiResponse } from '@/types/api';
 
@@ -77,7 +77,8 @@ const mockRecentActivity = [
 ];
 
 export default function Dashboard() {
-  const { user } = useUser();
+  const { data: session } = useSession();
+  const user = session?.user;
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useUser } from '@auth0/nextjs-auth0';
+import { useSession } from 'next-auth/react';
 import {
   Box,
   Container,
@@ -120,7 +120,8 @@ const mockMessages: Message[] = [
 ];
 
 export default function ChatPage() {
-  const { user } = useUser();
+  const { data: session } = useSession();
+  const user = session?.user;
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(mockRooms[0]);
   const [messages, setMessages] = useState<Message[]>(mockMessages);
   const [newMessage, setNewMessage] = useState('');
