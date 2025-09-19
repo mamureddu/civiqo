@@ -2,6 +2,7 @@
 
 import { useSession, signIn, signOut } from 'next-auth/react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   Box,
   Container,
@@ -15,6 +16,12 @@ import {
   CircularProgress,
   Alert,
   Paper,
+  TextField,
+  InputAdornment,
+  Fab,
+  Badge,
+  Avatar,
+  CardMedia,
 } from '@mui/material';
 import {
   Groups as GroupsIcon,
@@ -25,52 +32,161 @@ import {
   Security as SecurityIcon,
   Login as LoginIcon,
   Dashboard as DashboardIcon,
+  Search as SearchIcon,
+  Map as MapIcon,
+  Explore as ExploreIcon,
+  People as PeopleIcon,
+  Store as StoreIcon,
+  Museum as MuseumIcon,
 } from '@mui/icons-material';
+
+// Dynamically import map to avoid SSR issues
+const CommunityDiscoveryMap = dynamic(() => import('@/components/map/CommunityDiscoveryMap'), {
+  ssr: false,
+  loading: () => (
+    <Box
+      sx={{
+        height: '500px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'grey.100',
+        borderRadius: 2,
+      }}
+    >
+      <CircularProgress />
+    </Box>
+  ),
+});
+
+// Mock data for community discovery
+const mockCommunities = [
+  {
+    id: '1',
+    name: 'Downtown Milan',
+    description: 'The heart of Milan\'s business and cultural district',
+    memberCount: 2847,
+    businessCount: 156,
+    location: { lat: 45.4642, lng: 9.1900 },
+    image: 'https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=400',
+    subscription: { hasSubscription: true, startingPrice: 15 },
+    category: 'Urban'
+  },
+  {
+    id: '2',
+    name: 'Brera Arts District',
+    description: 'Creative hub with galleries, cafes and artistic communities',
+    memberCount: 1204,
+    businessCount: 89,
+    location: { lat: 45.4719, lng: 9.1881 },
+    image: 'https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?w=400',
+    subscription: { hasSubscription: false },
+    category: 'Arts'
+  },
+  {
+    id: '3',
+    name: 'Navigli Canals',
+    description: 'Historic canals area with nightlife and local businesses',
+    memberCount: 3156,
+    businessCount: 203,
+    location: { lat: 45.4481, lng: 9.1803 },
+    image: 'https://images.unsplash.com/photo-1551632436-cbf8dd35adfa?w=400',
+    subscription: { hasSubscription: true, startingPrice: 12 },
+    category: 'Entertainment'
+  }
+];
 
 export default function HomePage() {
   const { data: session, status } = useSession();
   const user = session?.user;
   const isLoading = status === 'loading';
-  const error = status === 'unauthenticated' ? null : null;
 
-  const features = [
-    {
-      icon: <GroupsIcon sx={{ fontSize: 40 }} />,
-      title: 'Community Management',
-      description: 'Create and join location-based communities with role-based access control',
-      color: 'primary',
-    },
-    {
-      icon: <BusinessIcon sx={{ fontSize: 40 }} />,
-      title: 'Local Business Directory',
-      description: 'Discover and support local businesses in your community',
-      color: 'secondary',
-    },
-    {
-      icon: <GovernanceIcon sx={{ fontSize: 40 }} />,
-      title: 'Democratic Governance',
-      description: 'Participate in community decisions through polls and voting systems',
-      color: 'success',
-    },
-    {
-      icon: <ChatIcon sx={{ fontSize: 40 }} />,
-      title: 'Secure Chat',
-      description: 'End-to-end encrypted messaging with no server-side storage',
-      color: 'info',
-    },
-    {
-      icon: <LocationIcon sx={{ fontSize: 40 }} />,
-      title: 'Geographic Communities',
-      description: 'Location-based communities with interactive mapping features',
-      color: 'warning',
-    },
-    {
-      icon: <SecurityIcon sx={{ fontSize: 40 }} />,
-      title: 'Privacy First',
-      description: 'Your data stays secure with enterprise-grade encryption',
-      color: 'error',
-    },
-  ];
+  const CommunityCard = ({ community }: { community: typeof mockCommunities[0] }) => (
+    <Card
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        '&:hover': {
+          transform: 'translateY(-4px)',
+          boxShadow: 6,
+        },
+      }}
+    >
+      <CardMedia
+        component="img"
+        height="200"
+        image={community.image}
+        alt={community.name}
+      />
+      <CardContent sx={{ flexGrow: 1 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <Typography variant="h6" fontWeight="bold">
+            {community.name}
+          </Typography>
+          <Chip
+            label={community.category}
+            size="small"
+            color="primary"
+            variant="outlined"
+          />
+        </Box>
+
+        <Typography variant="body2" color="text.secondary" paragraph>
+          {community.description}
+        </Typography>
+
+        <Stack direction="row" spacing={2} mb={2}>
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <PeopleIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="caption" color="text.secondary">
+              {community.memberCount.toLocaleString()} members
+            </Typography>
+          </Stack>
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <StoreIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography variant="caption" color="text.secondary">
+              {community.businessCount} businesses
+            </Typography>
+          </Stack>
+        </Stack>
+
+        {community.subscription.hasSubscription && (
+          <Chip
+            label={`From €${community.subscription.startingPrice}/month`}
+            size="small"
+            color="secondary"
+            sx={{ mb: 2 }}
+          />
+        )}
+      </CardContent>
+
+      <Box sx={{ p: 2, pt: 0 }}>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            size="small"
+            component={Link}
+            href={`/communities/${community.id}`}
+            sx={{ flexGrow: 1 }}
+          >
+            Explore
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            component={user ? 'a' : 'button'}
+            href={user ? `/communities/${community.id}/subscription` : undefined}
+            onClick={user ? undefined : () => signIn('auth0')}
+            sx={{ flexGrow: 1 }}
+          >
+            {user ? 'View Membership' : 'Sign Up'}
+          </Button>
+        </Stack>
+      </Box>
+    </Card>
+  );
 
   if (isLoading) {
     return (
@@ -88,20 +204,10 @@ export default function HomePage() {
     );
   }
 
-  if (error) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">
-          Authentication error: {error.message}
-        </Alert>
-      </Box>
-    );
-  }
-
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Navigation Bar */}
-      <Paper elevation={1} sx={{ py: 2, px: 3 }}>
+      <Paper elevation={1} sx={{ py: 2, px: 3, position: 'sticky', top: 0, zIndex: 100 }}>
         <Container maxWidth="lg">
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h5" fontWeight="bold" color="primary">
@@ -113,11 +219,7 @@ export default function HomePage() {
                   <Chip
                     avatar={
                       user.picture ? (
-                        <Box
-                          component="img"
-                          src={user.picture}
-                          sx={{ width: 24, height: 24, borderRadius: '50%' }}
-                        />
+                        <Avatar src={user.picture} sx={{ width: 24, height: 24 }} />
                       ) : undefined
                     }
                     label={user.name || user.email}
@@ -129,192 +231,211 @@ export default function HomePage() {
                     variant="contained"
                     startIcon={<DashboardIcon />}
                   >
-                    Dashboard
+                    My Communities
                   </Button>
-                  <Button
-                    onClick={() => signOut()}
-                    variant="outlined"
-                  >
+                  <Button onClick={() => signOut()} variant="outlined">
                     Logout
                   </Button>
                 </>
               ) : (
-                <Button
-                  onClick={() => signIn('auth0')}
-                  variant="contained"
-                  startIcon={<LoginIcon />}
-                >
-                  Login / Sign Up
-                </Button>
+                <>
+                  <Button
+                    component={Link}
+                    href="/explore"
+                    variant="outlined"
+                    startIcon={<ExploreIcon />}
+                  >
+                    Explore
+                  </Button>
+                  <Button
+                    onClick={() => signIn('auth0')}
+                    variant="contained"
+                    startIcon={<LoginIcon />}
+                  >
+                    Join Community
+                  </Button>
+                </>
               )}
             </Stack>
           </Box>
         </Container>
       </Paper>
 
-      {/* Hero Section */}
+      {/* Hero Section with Search */}
       <Box
         sx={{
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           color: 'white',
-          py: { xs: 8, md: 12 },
+          py: { xs: 6, md: 8 },
           px: 3,
         }}
       >
         <Container maxWidth="lg">
-          <Grid container spacing={4} alignItems="center">
-            <Grid item xs={12} md={6}>
-              <Typography variant="h2" fontWeight="bold" gutterBottom>
-                Connect Your Local Community
-              </Typography>
-              <Typography variant="h5" sx={{ mb: 4, opacity: 0.9 }}>
-                Empowering communities with secure communication, local business support,
-                and democratic decision-making tools.
-              </Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                {user ? (
-                  <Button
-                    component={Link}
-                    href="/dashboard"
-                    variant="contained"
-                    size="large"
-                    sx={{
-                      bgcolor: 'white',
-                      color: 'primary.main',
-                      '&:hover': { bgcolor: 'grey.100' },
-                    }}
-                    startIcon={<DashboardIcon />}
-                  >
-                    Go to Dashboard
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      onClick={() => signIn('auth0')}
-                      variant="contained"
-                      size="large"
-                      sx={{
-                        bgcolor: 'white',
-                        color: 'primary.main',
-                        '&:hover': { bgcolor: 'grey.100' },
-                      }}
-                    >
-                      Get Started Free
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="large"
-                      sx={{
-                        borderColor: 'white',
-                        color: 'white',
-                        '&:hover': {
-                          borderColor: 'white',
-                          bgcolor: 'rgba(255, 255, 255, 0.1)',
-                        },
-                      }}
-                    >
-                      Learn More
-                    </Button>
-                  </>
-                )}
-              </Stack>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Box
+          <Box textAlign="center" mb={4}>
+            <Typography variant="h2" fontWeight="bold" gutterBottom>
+              Discover Your Local Community
+            </Typography>
+            <Typography variant="h5" sx={{ mb: 4, opacity: 0.9 }}>
+              Connect with neighbors, support local businesses, and participate in your community
+            </Typography>
+
+            <Box maxWidth="600px" mx="auto">
+              <TextField
+                fullWidth
+                placeholder="Search communities by location or name..."
+                variant="outlined"
                 sx={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  opacity: 0.9,
+                  bgcolor: 'white',
+                  borderRadius: 2,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                  },
                 }}
-              >
-                <GroupsIcon sx={{ fontSize: 300 }} />
-              </Box>
-            </Grid>
-          </Grid>
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Button variant="contained" sx={{ borderRadius: 1 }}>
+                        Search
+                      </Button>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Box>
+          </Box>
         </Container>
       </Box>
 
-      {/* Features Section */}
-      <Container maxWidth="lg" sx={{ py: 8 }}>
-        <Typography variant="h3" align="center" fontWeight="bold" gutterBottom>
-          Everything Your Community Needs
-        </Typography>
-        <Typography variant="h6" align="center" color="text.secondary" sx={{ mb: 6 }}>
-          A comprehensive platform designed for modern local communities
-        </Typography>
+      {/* Interactive Map Section */}
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box mb={4}>
+          <Typography variant="h4" fontWeight="bold" gutterBottom>
+            Explore Communities Near You
+          </Typography>
+          <Typography variant="body1" color="text.secondary" mb={3}>
+            Discover vibrant local communities with businesses, events, and engaged members
+          </Typography>
+        </Box>
 
-        <Grid container spacing={4}>
-          {features.map((feature, index) => (
-            <Grid item xs={12} sm={6} md={4} key={index}>
-              <Card
-                sx={{
-                  height: '100%',
-                  transition: 'transform 0.3s, box-shadow 0.3s',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 4,
-                  },
-                }}
-              >
-                <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                  <Box
-                    sx={{
-                      display: 'inline-flex',
-                      p: 2,
-                      borderRadius: '50%',
-                      bgcolor: `${feature.color}.light`,
-                      color: `${feature.color}.main`,
-                      mb: 2,
-                    }}
-                  >
-                    {feature.icon}
-                  </Box>
-                  <Typography variant="h6" fontWeight="bold" gutterBottom>
-                    {feature.title}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {feature.description}
-                  </Typography>
-                </CardContent>
-              </Card>
+        <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden', mb: 4 }}>
+          <CommunityDiscoveryMap communities={mockCommunities} />
+        </Paper>
+      </Container>
+
+      {/* Featured Communities */}
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+          <Typography variant="h4" fontWeight="bold">
+            Featured Communities
+          </Typography>
+          <Button
+            component={Link}
+            href="/explore"
+            variant="outlined"
+            startIcon={<ExploreIcon />}
+          >
+            View All
+          </Button>
+        </Box>
+
+        <Grid container spacing={3}>
+          {mockCommunities.map((community) => (
+            <Grid item xs={12} sm={6} lg={4} key={community.id}>
+              <CommunityCard community={community} />
             </Grid>
           ))}
         </Grid>
       </Container>
 
-      {/* CTA Section */}
-      {!user && (
-        <Box
-          sx={{
-            bgcolor: 'primary.main',
-            color: 'white',
-            py: 8,
-            px: 3,
-            textAlign: 'center',
-          }}
-        >
-          <Container maxWidth="md">
-            <Typography variant="h4" fontWeight="bold" gutterBottom>
-              Ready to Transform Your Community?
-            </Typography>
-            <Typography variant="h6" sx={{ mb: 4, opacity: 0.9 }}>
-              Join thousands of communities already using our platform
-            </Typography>
-            <Button
-              onClick={() => signIn('auth0')}
-              variant="contained"
-              size="large"
-              sx={{
-                bgcolor: 'white',
-                color: 'primary.main',
-                '&:hover': { bgcolor: 'grey.100' },
-              }}
-            >
-              Start Your Community Today
-            </Button>
-          </Container>
-        </Box>
-      )}
+      {/* Stats Section */}
+      <Box sx={{ bgcolor: 'grey.50', py: 6 }}>
+        <Container maxWidth="lg">
+          <Grid container spacing={4} textAlign="center">
+            <Grid item xs={12} sm={3}>
+              <Typography variant="h3" fontWeight="bold" color="primary.main">
+                50+
+              </Typography>
+              <Typography variant="h6" color="text.secondary">
+                Active Communities
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <Typography variant="h3" fontWeight="bold" color="primary.main">
+                10k+
+              </Typography>
+              <Typography variant="h6" color="text.secondary">
+                Community Members
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <Typography variant="h3" fontWeight="bold" color="primary.main">
+                2k+
+              </Typography>
+              <Typography variant="h6" color="text.secondary">
+                Local Businesses
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <Typography variant="h3" fontWeight="bold" color="primary.main">
+                500+
+              </Typography>
+              <Typography variant="h6" color="text.secondary">
+                Points of Interest
+              </Typography>
+            </Grid>
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* Call to Action */}
+      <Box sx={{ py: 8 }}>
+        <Container maxWidth="md" textAlign="center">
+          <Typography variant="h4" fontWeight="bold" gutterBottom>
+            Ready to Join Your Community?
+          </Typography>
+          <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
+            Connect with your neighbors and discover what's happening around you
+          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center">
+            {user ? (
+              <Button
+                component={Link}
+                href="/dashboard"
+                variant="contained"
+                size="large"
+                startIcon={<DashboardIcon />}
+              >
+                Go to My Communities
+              </Button>
+            ) : (
+              <>
+                <Button
+                  onClick={() => signIn('auth0')}
+                  variant="contained"
+                  size="large"
+                  startIcon={<LoginIcon />}
+                >
+                  Join a Community
+                </Button>
+                <Button
+                  component={Link}
+                  href="/explore"
+                  variant="outlined"
+                  size="large"
+                  startIcon={<MapIcon />}
+                >
+                  Explore Communities
+                </Button>
+              </>
+            )}
+          </Stack>
+        </Container>
+      </Box>
 
       {/* Footer */}
       <Box
@@ -324,7 +445,6 @@ export default function HomePage() {
           color: 'grey.400',
           py: 4,
           px: 3,
-          mt: 'auto',
         }}
       >
         <Container maxWidth="lg">
@@ -333,8 +453,8 @@ export default function HomePage() {
               <Typography variant="h6" color="white" gutterBottom>
                 Community Manager
               </Typography>
-              <Typography variant="body2">
-                Building stronger communities through technology
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                Connecting communities through secure, local social networks
               </Typography>
             </Grid>
             <Grid item xs={12} md={4}>
@@ -342,26 +462,27 @@ export default function HomePage() {
                 Features
               </Typography>
               <Stack spacing={1}>
-                <Typography variant="body2">Community Management</Typography>
-                <Typography variant="body2">Business Directory</Typography>
-                <Typography variant="body2">Secure Messaging</Typography>
-                <Typography variant="body2">Democratic Governance</Typography>
+                <Typography variant="body2">Local Business Discovery</Typography>
+                <Typography variant="body2">Secure Community Chat</Typography>
+                <Typography variant="body2">Points of Interest</Typography>
+                <Typography variant="body2">Community Governance</Typography>
               </Stack>
             </Grid>
             <Grid item xs={12} md={4}>
               <Typography variant="h6" color="white" gutterBottom>
-                Legal
+                Support
               </Typography>
               <Stack spacing={1}>
+                <Typography variant="body2">Help Center</Typography>
                 <Typography variant="body2">Privacy Policy</Typography>
                 <Typography variant="body2">Terms of Service</Typography>
-                <Typography variant="body2">Cookie Policy</Typography>
+                <Typography variant="body2">Contact Us</Typography>
               </Stack>
             </Grid>
           </Grid>
           <Box sx={{ mt: 4, pt: 4, borderTop: 1, borderColor: 'grey.800' }}>
             <Typography variant="body2" align="center">
-              © 2024 Community Manager. All rights reserved.
+              © 2024 Community Manager. Building stronger local connections.
             </Typography>
           </Box>
         </Container>

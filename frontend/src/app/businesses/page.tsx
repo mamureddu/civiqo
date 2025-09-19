@@ -46,6 +46,7 @@ import {
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import ChatInitiator from '@/components/chat/ChatInitiator';
 import apiClient from '@/lib/api-client';
 import type { Business, ApiResponse } from '@/types/api';
 
@@ -90,6 +91,8 @@ export default function BusinessesPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
+  const [chatDialogOpen, setChatDialogOpen] = useState(false);
+  const [chatBusiness, setChatBusiness] = useState<Business | null>(null);
 
   const fetchBusinesses = async () => {
     try {
@@ -133,6 +136,21 @@ export default function BusinessesPage() {
     if (newViewMode !== null) {
       setViewMode(newViewMode);
     }
+  };
+
+  const handleStartChat = (business: Business) => {
+    setChatBusiness(business);
+    setChatDialogOpen(true);
+  };
+
+  const handleChatStarted = (chatId: string) => {
+    console.log('Chat started with ID:', chatId);
+    // TODO: Navigate to chat interface or show success message
+  };
+
+  const handleChatClose = () => {
+    setChatDialogOpen(false);
+    setChatBusiness(null);
   };
 
   const filteredBusinesses = businesses.filter(business => {
@@ -201,6 +219,34 @@ export default function BusinessesPage() {
           {business.description}
         </Typography>
 
+        {/* Bacheca Preview with Subscription Status */}
+        <Box
+          sx={{
+            bgcolor: 'action.hover',
+            borderRadius: 1,
+            p: 1.5,
+            mb: 2,
+            border: '1px solid',
+            borderColor: 'divider'
+          }}
+        >
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+            <Typography variant="caption" color="primary" fontWeight="bold">
+              📌 Latest from Bacheca
+            </Typography>
+            <Chip
+              label="Pro"
+              size="small"
+              color="success"
+              variant="filled"
+              sx={{ fontSize: '0.7rem', height: '18px' }}
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary">
+            "20% off lunch specials this week!" • 2 days ago
+          </Typography>
+        </Box>
+
         <Stack spacing={1}>
           {business.address && (
             <Stack direction="row" spacing={1} alignItems="center">
@@ -235,23 +281,21 @@ export default function BusinessesPage() {
         <Button
           component={Link}
           href={`/businesses/${business.id}`}
+          variant="contained"
+          size="small"
+          sx={{ flex: 2 }}
+        >
+          View Bacheca
+        </Button>
+        <Button
           variant="outlined"
           size="small"
-          fullWidth
+          startIcon={<ChatIcon />}
+          sx={{ flex: 1 }}
+          onClick={() => handleStartChat(business)}
         >
-          View Details
+          Chat
         </Button>
-        {business.website && (
-          <IconButton
-            component="a"
-            href={business.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            size="small"
-          >
-            <OpenIcon />
-          </IconButton>
-        )}
       </CardActions>
     </Card>
   );
@@ -262,10 +306,10 @@ export default function BusinessesPage() {
         {/* Header */}
         <Box mb={4}>
           <Typography variant="h4" component="h1" fontWeight="bold" gutterBottom>
-            Local Businesses
+            Local Business Network
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Discover and support local businesses in your community
+            Connect with local businesses through their bacheca (bulletin boards) and start secure conversations
           </Typography>
         </Box>
 
@@ -430,6 +474,25 @@ export default function BusinessesPage() {
         >
           <AddIcon />
         </Fab>
+
+        {/* Chat Initiator */}
+        {chatBusiness && (
+          <ChatInitiator
+            open={chatDialogOpen}
+            onClose={handleChatClose}
+            recipient={{
+              id: chatBusiness.id,
+              name: chatBusiness.name,
+              type: 'business',
+              category: chatBusiness.category,
+              avatar: chatBusiness.image_url
+            }}
+            context={{
+              type: 'general'
+            }}
+            onChatStarted={handleChatStarted}
+          />
+        )}
       </Container>
     </DashboardLayout>
   );

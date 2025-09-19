@@ -13,6 +13,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.2",
     "@mui/material": "^7.3.2",
+    "@mui/x-date-pickers": "^8.11.3",
     "@types/leaflet": "^1.9.20",
     "axios": "^1.12.2",
     "date-fns": "^4.1.0",

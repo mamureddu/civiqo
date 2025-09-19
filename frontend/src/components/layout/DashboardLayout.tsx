@@ -26,6 +26,7 @@ import {
   Dashboard as DashboardIcon,
   Groups as GroupsIcon,
   Business as BusinessIcon,
+  Museum as MuseumIcon,
   HowToVote as GovernanceIcon,
   Chat as ChatIcon,
   Person as PersonIcon,
@@ -61,6 +62,11 @@ const navigationItems: NavigationItem[] = [
     label: 'Business Directory',
     icon: <BusinessIcon />,
     href: '/businesses',
+  },
+  {
+    label: 'Points of Interest',
+    icon: <MuseumIcon />,
+    href: '/poi',
   },
   {
     label: 'Governance',

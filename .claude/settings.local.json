@@ -9,7 +9,8 @@
       "Bash(npm run dev:*)",
       "WebFetch(domain:localhost)",
       "Bash(curl:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []
