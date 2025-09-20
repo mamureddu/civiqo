@@ -10,7 +10,7 @@ import {
   Button,
   Card,
   CardContent,
-  Grid2,
+  Grid,
   Chip,
   Stack,
   CircularProgress,
@@ -343,52 +343,52 @@ export default function HomePage() {
           </Button>
         </Box>
 
-        <Grid2 container spacing={3}>
+        <Grid container spacing={3}>
           {mockCommunities.map((community) => (
-            <Grid2 xs={12} sm={6} lg={4} key={community.id}>
+            <Grid item xs={12} sm={6} lg={4} key={community.id}>
               <CommunityCard community={community} />
-            </Grid2>
+            </Grid>
           ))}
-        </Grid2>
+        </Grid>
       </Container>
 
       {/* Stats Section */}
       <Box sx={{ bgcolor: 'grey.50', py: 6 }}>
         <Container maxWidth="lg">
-          <Grid2 container spacing={4} sx={{ textAlign: 'center' }}>
-            <Grid2 xs={12} sm={3}>
+          <Grid container spacing={4} sx={{ textAlign: 'center' }}>
+            <Grid item xs={12} sm={3}>
               <Typography variant="h3" fontWeight="bold" color="primary.main">
                 50+
               </Typography>
               <Typography variant="h6" color="text.secondary">
                 Active Communities
               </Typography>
-            </Grid2>
-            <Grid2 xs={12} sm={3}>
+            </Grid>
+            <Grid item xs={12} sm={3}>
               <Typography variant="h3" fontWeight="bold" color="primary.main">
                 10k+
               </Typography>
               <Typography variant="h6" color="text.secondary">
                 Community Members
               </Typography>
-            </Grid2>
-            <Grid2 xs={12} sm={3}>
+            </Grid>
+            <Grid item xs={12} sm={3}>
               <Typography variant="h3" fontWeight="bold" color="primary.main">
                 2k+
               </Typography>
               <Typography variant="h6" color="text.secondary">
                 Local Businesses
               </Typography>
-            </Grid2>
-            <Grid2 xs={12} sm={3}>
+            </Grid>
+            <Grid item xs={12} sm={3}>
               <Typography variant="h3" fontWeight="bold" color="primary.main">
                 500+
               </Typography>
               <Typography variant="h6" color="text.secondary">
                 Points of Interest
               </Typography>
-            </Grid2>
-          </Grid2>
+            </Grid>
+          </Grid>
         </Container>
       </Box>
 
@@ -448,16 +448,16 @@ export default function HomePage() {
         }}
       >
         <Container maxWidth="lg">
-          <Grid2 container spacing={4}>
-            <Grid2 xs={12} md={4}>
+          <Grid container spacing={4}>
+            <Grid item xs={12} md={4}>
               <Typography variant="h6" color="white" gutterBottom>
                 Community Manager
               </Typography>
               <Typography variant="body2" sx={{ mb: 2 }}>
                 Connecting communities through secure, local social networks
               </Typography>
-            </Grid2>
-            <Grid2 xs={12} md={4}>
+            </Grid>
+            <Grid item xs={12} md={4}>
               <Typography variant="h6" color="white" gutterBottom>
                 Features
               </Typography>
@@ -467,8 +467,8 @@ export default function HomePage() {
                 <Typography variant="body2">Points of Interest</Typography>
                 <Typography variant="body2">Community Governance</Typography>
               </Stack>
-            </Grid2>
-            <Grid2 xs={12} md={4}>
+            </Grid>
+            <Grid item xs={12} md={4}>
               <Typography variant="h6" color="white" gutterBottom>
                 Support
               </Typography>
@@ -478,8 +478,8 @@ export default function HomePage() {
                 <Typography variant="body2">Terms of Service</Typography>
                 <Typography variant="body2">Contact Us</Typography>
               </Stack>
-            </Grid2>
-          </Grid2>
+            </Grid>
+          </Grid>
           <Box sx={{ mt: 4, pt: 4, borderTop: 1, borderColor: 'grey.800' }}>
             <Typography variant="body2" align="center">
               © 2024 Community Manager. Building stronger local connections.
