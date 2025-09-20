@@ -3,7 +3,7 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use validator::Validate;
 use uuid::Uuid;
 use shared::{
@@ -230,7 +230,7 @@ pub async fn get_community(
 
     // Check if user can view this community
     if !community.is_public {
-        let user = user.ok_or_else(|| AppError::Auth("Authentication required".to_string()))?;
+        let _user = user.ok_or_else(|| AppError::Auth("Authentication required".to_string()))?;
         if !community.is_member {
             return Err(AppError::Authorization("Access denied".to_string()));
         }
@@ -311,7 +311,7 @@ pub async fn join_community(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     headers: HeaderMap,
-    Json(request): Json<JoinCommunityRequest>,
+    Json(_request): Json<JoinCommunityRequest>,
 ) -> Result<Json<ApiResponse<String>>> {
     let user = extract_user(&state, &headers).await?;
 

@@ -9,7 +9,7 @@ use shared::{
 };
 use tokio::{
     sync::mpsc,
-    time::{interval, sleep},
+    time::interval,
 };
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;

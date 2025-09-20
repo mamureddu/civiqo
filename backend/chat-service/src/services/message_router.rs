@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use shared::{
     error::{AppError, Result},
-    models::chat::{WebSocketMessage, MessageType},
+    models::chat::WebSocketMessage,
 };
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
@@ -56,7 +56,7 @@ impl MessageRouter {
         sender_connection_id: Option<String>,
     ) -> Result<()> {
         match &message {
-            WebSocketMessage::ReceiveMessage { room_id, .. } => {
+            WebSocketMessage::ReceiveMessage {  .. } => {
                 self.route_receive_message(&message, sender_connection_id).await
             }
             WebSocketMessage::JoinRoom { room_id } => {

@@ -1,4 +1,4 @@
-use shared::error::{AppError, Result};
+use shared::error::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

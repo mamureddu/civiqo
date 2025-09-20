@@ -3,10 +3,7 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use chrono::{DateTime, Utc};
-use serde::Deserialize;
 use uuid::Uuid;
-use validator::Validate;
 use shared::{
     models::{
         ApiResponse, PaginationParams,
@@ -14,12 +11,7 @@ use shared::{
     },
     error::{AppError, Result},
 };
-use crate::{
-    AppState,
-    middleware::auth::extract_user,
-};
-use rust_decimal::Decimal;
-use tracing::{debug, info, warn};
+use crate::AppState;
 
 // Temporary stub implementations to get compilation working
 // TODO: Implement proper business logic after core type issues are resolved

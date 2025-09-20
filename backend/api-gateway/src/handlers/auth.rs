@@ -4,10 +4,9 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
-use validator::{Validate, ValidationError};
+use validator::Validate;
 use shared::{
-    auth::{extract_bearer_token, JwtValidator, AuthenticatedUser},
-    models::{ApiResponse, CreateUserRequest, UpdateUserProfileRequest, UserWithProfile},
+    models::{ApiResponse, UpdateUserProfileRequest, UserWithProfile},
     error::{AppError, Result},
 };
 use crate::{AppState, middleware::auth::extract_user};

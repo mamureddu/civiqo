@@ -247,7 +247,6 @@ mod tests {
     #[test]
     fn test_auth0_config_validation() {
         // Test configuration validation without modifying environment
-        use config::ConfigError;
 
         // Test that empty strings would be invalid (simulating missing env vars)
         let invalid_config = Auth0Config {

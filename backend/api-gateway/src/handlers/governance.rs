@@ -11,12 +11,7 @@ use shared::{
     },
     error::{AppError, Result},
 };
-use crate::{
-    AppState,
-    middleware::auth::extract_user,
-};
-use tracing::{debug, info, warn};
-use chrono::Utc;
+use crate::AppState;
 
 // Temporary stub implementations to get compilation working
 // TODO: Implement proper governance logic after core type issues are resolved

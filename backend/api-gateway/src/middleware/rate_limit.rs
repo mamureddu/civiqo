@@ -79,7 +79,7 @@ impl RateLimiter {
 
 pub async fn rate_limit_middleware(
     headers: HeaderMap,
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {

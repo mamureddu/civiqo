@@ -1,8 +1,6 @@
 // Temporary stub implementations to get compilation working
-use axum::{extract::State, response::Json};
+use axum::response::Json;
 use serde_json::json;
-use shared::error::Result;
-use crate::AppState;
 
 pub async fn health_check() -> Json<serde_json::Value> {
     Json(json!({

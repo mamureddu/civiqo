@@ -13,7 +13,7 @@ use shared::{
 use crate::middleware::auth::extract_token_from_headers;
 use tokio::{
     sync::mpsc,
-    time::{interval, timeout},
+    time::interval,
 };
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -320,7 +320,7 @@ async fn handle_leave_room(
     connection_id: &str,
     user_id: Uuid,
     state: &AppState,
-    room_service: &RoomService,
+    _room_service: &RoomService,
 ) -> Result<()> {
     // Leave room in connection manager
     state.connection_manager().leave_room(connection_id, room_id).await?;
@@ -398,7 +398,7 @@ async fn handle_key_exchange(
     sender_id: Uuid,
     recipient_id: Uuid,
     public_key: String,
-    connection_id: &str,
+    _connection_id: &str,
     authenticated_user_id: Uuid,
     state: &AppState,
 ) -> Result<()> {

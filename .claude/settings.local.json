@@ -23,7 +23,8 @@
       "Bash(DATABASE_URL=\"postgresql://dev:dev123@localhost:5433/community_manager_test?sslmode=prefer&connect_timeout=30\" sqlx migrate run)",
       "Bash(cargo test)",
       "Bash(cargo test:*)",
-      "Bash(RUST_BACKTRACE=1 cargo test --package chat-service test_valid_room_message --quiet)"
+      "Bash(RUST_BACKTRACE=1 cargo test --package chat-service test_valid_room_message --quiet)",
+      "Bash(cargo fix:*)"
     ],
     "deny": [],
     "ask": []

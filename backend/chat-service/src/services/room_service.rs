@@ -3,7 +3,7 @@ use shared::{
     error::{AppError, Result},
     models::chat::{ChatRoom, RoomParticipant, RoomType, ParticipantRole},
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Service for managing chat rooms and participants

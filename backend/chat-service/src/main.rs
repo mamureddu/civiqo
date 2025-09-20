@@ -1,9 +1,5 @@
-use std::sync::Arc;
-
 use axum::{
-    extract::State,
     http::StatusCode,
-    response::Response,
     routing::get,
     Router,
 };
@@ -18,7 +14,7 @@ use tower_http::{
     cors::CorsLayer,
     trace::TraceLayer,
 };
-use tracing::{info, warn};
+use tracing::info;
 
 mod config;
 mod handlers;
