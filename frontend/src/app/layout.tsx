@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from '@/components/providers/Providers';
+import DynamicHtmlLang from '@/components/common/DynamicHtmlLang';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,9 +24,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="it">
       <body className={inter.className}>
         <Providers>
+          <DynamicHtmlLang />
           {children}
         </Providers>
       </body>

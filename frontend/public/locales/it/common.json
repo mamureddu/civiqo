@@ -8,7 +8,20 @@
     "chat": "Messaggi",
     "profile": "Profilo",
     "settings": "Impostazioni",
-    "logout": "Esci"
+    "logout": "Esci",
+    "appLayout": "Layout Applicazione",
+    "header": "Intestazione",
+    "openMenu": "Apri Menu",
+    "notifications": "Notifiche",
+    "unreadNotifications": "{{count}} notifiche non lette",
+    "userMenu": "Menu Utente",
+    "main": "Navigazione Principale",
+    "desktop": "Navigazione Desktop",
+    "mainContent": "Contenuto Principale",
+    "menuItems": "Voci Menu",
+    "menuItemWithBadge": "{{label}} - {{count}} nuovi",
+    "badge": "{{count}} nuovi",
+    "skipToMain": "Vai al contenuto principale"
   },
   "actions": {
     "join": "Unisciti",
@@ -34,7 +47,9 @@
     "confirm": "Conferma",
     "loading": "Caricamento...",
     "retry": "Riprova",
-    "logout": "Esci"
+    "logout": "Esci",
+    "refreshPage": "Aggiorna Pagina",
+    "goHome": "Vai alla Home"
   },
   "pages": {
     "home": {
@@ -219,9 +234,18 @@
       "subscriptionFailed": "Abbonamento fallito. Riprova."
     }
   },
+  "errors": {
+    "somethingWentWrong": "Oops! Qualcosa è andato storto",
+    "unexpectedError": "Ci dispiace, ma si è verificato un errore inaspettato. Prova ad aggiornare la pagina o torna alla homepage.",
+    "errorDetails": "Dettagli Errore",
+    "loadingFailed": "Caricamento Fallito",
+    "retryMessage": "Si è verificato un errore durante il caricamento. Riprova.",
+    "generic": "Si è verificato un errore. Riprova."
+  },
   "common": {
     "appName": "Community Manager",
     "language": "Lingua",
+    "developmentMode": "Modalità Sviluppo",
     "or": "o",
     "and": "e",
     "of": "di",

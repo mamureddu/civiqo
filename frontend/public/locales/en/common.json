@@ -8,7 +8,20 @@
     "chat": "Messages",
     "profile": "Profile",
     "settings": "Settings",
-    "logout": "Logout"
+    "logout": "Logout",
+    "appLayout": "Application Layout",
+    "header": "Header",
+    "openMenu": "Open Menu",
+    "notifications": "Notifications",
+    "unreadNotifications": "{{count}} unread notifications",
+    "userMenu": "User Menu",
+    "main": "Main Navigation",
+    "desktop": "Desktop Navigation",
+    "mainContent": "Main Content",
+    "menuItems": "Menu Items",
+    "menuItemWithBadge": "{{label}} - {{count}} new",
+    "badge": "{{count}} new",
+    "skipToMain": "Skip to main content"
   },
   "actions": {
     "join": "Join",
@@ -34,7 +47,9 @@
     "confirm": "Confirm",
     "loading": "Loading...",
     "retry": "Retry",
-    "logout": "Logout"
+    "logout": "Logout",
+    "refreshPage": "Refresh Page",
+    "goHome": "Go Home"
   },
   "pages": {
     "home": {
@@ -219,9 +234,18 @@
       "subscriptionFailed": "Subscription failed. Please try again."
     }
   },
+  "errors": {
+    "somethingWentWrong": "Oops! Something went wrong",
+    "unexpectedError": "We're sorry, but something unexpected happened. Please try refreshing the page or go back to the homepage.",
+    "errorDetails": "Error Details",
+    "loadingFailed": "Loading Failed",
+    "retryMessage": "An error occurred while loading. Please try again.",
+    "generic": "An error occurred. Please try again."
+  },
   "common": {
     "appName": "Community Manager",
     "language": "Language",
+    "developmentMode": "Development Mode",
     "or": "or",
     "and": "and",
     "of": "of",

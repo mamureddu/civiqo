@@ -17,6 +17,7 @@ import {
   Home as HomeIcon,
 } from '@mui/icons-material';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   children: ReactNode;
@@ -24,13 +25,101 @@ interface Props {
   showDetails?: boolean;
 }
 
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
 }
 
-class ErrorBoundary extends Component<Props, State> {
+// Translation hook wrapper component
+function ErrorBoundaryContent({ error, errorInfo, showDetails, onReset, onReload }: {
+  error: Error | null;
+  errorInfo: ErrorInfo | null;
+  showDetails?: boolean;
+  onReset: () => void;
+  onReload: () => void;
+}) {
+  const { t } = useTranslation('common');
+
+  return (
+    <Box
+      sx={{
+        minHeight: '50vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 3,
+      }}
+    >
+      <Card sx={{ maxWidth: 600, width: '100%' }}>
+        <CardContent sx={{ textAlign: 'center', p: 4 }}>
+          <ErrorIcon
+            sx={{
+              fontSize: 64,
+              color: 'error.main',
+              mb: 2,
+            }}
+          />
+
+          <Typography variant="h5" fontWeight="bold" gutterBottom>
+            {t('errors.somethingWentWrong')}
+          </Typography>
+
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            {t('errors.unexpectedError')}
+          </Typography>
+
+          <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 3 }}>
+            <Button
+              variant="contained"
+              startIcon={<RefreshIcon />}
+              onClick={onReload}
+            >
+              {t('actions.refreshPage')}
+            </Button>
+
+            <Button
+              variant="outlined"
+              startIcon={<HomeIcon />}
+              component={Link}
+              href="/"
+            >
+              {t('actions.goHome')}
+            </Button>
+          </Stack>
+
+          {showDetails && error && (
+            <Alert severity="error" sx={{ textAlign: 'left', mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                {t('errors.errorDetails')}:
+              </Typography>
+              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                {error.toString()}
+              </Typography>
+              {errorInfo && (
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', mt: 1 }}>
+                  {errorInfo.componentStack}
+                </Typography>
+              )}
+            </Alert>
+          )}
+
+          {process.env.NODE_ENV === 'development' && (
+            <Chip
+              label={t('common.developmentMode')}
+              size="small"
+              color="warning"
+              sx={{ mt: 2 }}
+            />
+          )}
+        </CardContent>
+      </Card>
+    </Box>
+  );
+}
+
+
+class ErrorBoundary extends Component<Props, ErrorBoundaryState> {
   constructor(props: Props) {
     super(props);
     this.state = {
@@ -40,7 +129,7 @@ class ErrorBoundary extends Component<Props, State> {
     };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return {
       hasError: true,
       error,
@@ -80,81 +169,15 @@ class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
-      // Default error UI
+      // Default error UI with translations
       return (
-        <Box
-          sx={{
-            minHeight: '50vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            p: 3,
-          }}
-        >
-          <Card sx={{ maxWidth: 600, width: '100%' }}>
-            <CardContent sx={{ textAlign: 'center', p: 4 }}>
-              <ErrorIcon
-                sx={{
-                  fontSize: 64,
-                  color: 'error.main',
-                  mb: 2,
-                }}
-              />
-
-              <Typography variant="h5" fontWeight="bold" gutterBottom>
-                Oops! Something went wrong
-              </Typography>
-
-              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-                We're sorry, but something unexpected happened. Please try refreshing the page or go back to the homepage.
-              </Typography>
-
-              <Stack direction="row" spacing={2} justifyContent="center" sx={{ mb: 3 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<RefreshIcon />}
-                  onClick={this.handleReload}
-                >
-                  Refresh Page
-                </Button>
-
-                <Button
-                  variant="outlined"
-                  startIcon={<HomeIcon />}
-                  component={Link}
-                  href="/"
-                >
-                  Go Home
-                </Button>
-              </Stack>
-
-              {this.props.showDetails && this.state.error && (
-                <Alert severity="error" sx={{ textAlign: 'left', mt: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Error Details:
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                    {this.state.error.toString()}
-                  </Typography>
-                  {this.state.errorInfo && (
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', mt: 1 }}>
-                      {this.state.errorInfo.componentStack}
-                    </Typography>
-                  )}
-                </Alert>
-              )}
-
-              {process.env.NODE_ENV === 'development' && (
-                <Chip
-                  label="Development Mode"
-                  size="small"
-                  color="warning"
-                  sx={{ mt: 2 }}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </Box>
+        <ErrorBoundaryContent
+          error={this.state.error}
+          errorInfo={this.state.errorInfo}
+          showDetails={this.props.showDetails}
+          onReset={this.handleReset}
+          onReload={this.handleReload}
+        />
       );
     }
 

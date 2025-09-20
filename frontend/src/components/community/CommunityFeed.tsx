@@ -17,6 +17,8 @@ import { useCommunity } from '@/contexts/CommunityContext';
 import { mockFeedItems } from '@/data/mockFeedData';
 import FeedItem from './feed/FeedItem';
 import CommunityHeader from './feed/CommunityHeader';
+import { FeedItemSkeleton, HeaderSkeleton } from '@/components/common/SkeletonLoaders';
+import ErrorRetry from '@/components/common/ErrorRetry';
 
 interface CommunityFeedProps {
   communityId: string;
@@ -27,17 +29,29 @@ export default function CommunityFeed({ communityId }: CommunityFeedProps) {
   const { t } = useTranslation('common');
   const [feedItems, setFeedItems] = useState(mockFeedItems);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadFeed = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // Simulate API call with potential error
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Simulate random error for testing
+      if (Math.random() < 0.1) {
+        throw new Error('Failed to load feed');
+      }
+
+      setFeedItems(mockFeedItems);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate loading feed items
-    const loadFeed = async () => {
-      setLoading(true);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setFeedItems(mockFeedItems);
-      setLoading(false);
-    };
-
     if (communityId) {
       loadFeed();
     }
@@ -66,11 +80,24 @@ export default function CommunityFeed({ communityId }: CommunityFeedProps) {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" py={4}>
-        <Typography variant="body2" color="text.secondary">
-          {t('actions.loading')}
-        </Typography>
+      <Box>
+        <HeaderSkeleton />
+        <Stack spacing={3}>
+          {Array.from({ length: 3 }).map((_, index) => (
+            <FeedItemSkeleton key={index} />
+          ))}
+        </Stack>
       </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <ErrorRetry
+        onRetry={loadFeed}
+        title={t('errors.loadingFailed')}
+        message={error}
+      />
     );
   }
 

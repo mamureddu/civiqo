@@ -170,7 +170,7 @@ export default function FeedItem({ item }: FeedItemProps) {
           <Box
             component="img"
             src={item.image_url}
-            alt={getTranslatedTitle(item.title)}
+            alt={`Image for ${getTranslatedTitle(item.title)}`}
             sx={{
               width: '100%',
               maxHeight: 300,
