@@ -370,7 +370,7 @@ export default function ChatPage() {
                       flexGrow: 1,
                       p: 2,
                       overflow: 'auto',
-                      bgcolor: 'grey.50',
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(26, 26, 26, 0.95)' : 'grey.50',
                     }}
                   >
                     {messages.map((message) => (

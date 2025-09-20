@@ -264,10 +264,29 @@ export default function HomePage() {
       {/* Hero Section with Search */}
       <Box
         sx={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: (theme) => theme.palette.mode === 'dark'
+            ? 'linear-gradient(135deg, var(--mediterranean-900) 0%, #1A1A1A 100%)'
+            : 'linear-gradient(135deg, var(--mediterranean-500) 0%, var(--mediterranean-700) 100%)',
           color: 'white',
           py: { xs: 6, md: 8 },
           px: 3,
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: (theme) => theme.palette.mode === 'dark'
+              ? 'rgba(0, 0, 0, 0.3)'
+              : 'rgba(255, 255, 255, 0.1)',
+            zIndex: 1
+          },
+          '& > *': {
+            position: 'relative',
+            zIndex: 2
+          }
         }}
       >
         <Container maxWidth="lg">
@@ -285,11 +304,24 @@ export default function HomePage() {
                 placeholder="Search communities by location or name..."
                 variant="outlined"
                 sx={{
-                  bgcolor: 'white',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(42, 42, 42, 0.95)' : 'white',
                   borderRadius: 2,
+                  backdropFilter: 'blur(10px)',
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
+                    '& fieldset': {
+                      borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                    },
+                    '&:hover fieldset': {
+                      borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'var(--mediterranean-400)',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: 'var(--mediterranean-500)',
+                    }
                   },
+                  '& .MuiInputBase-input': {
+                    color: (theme) => theme.palette.mode === 'dark' ? 'white' : 'inherit',
+                  }
                 }}
                 InputProps={{
                   startAdornment: (
@@ -299,7 +331,17 @@ export default function HomePage() {
                   ),
                   endAdornment: (
                     <InputAdornment position="end">
-                      <Button variant="contained" sx={{ borderRadius: 1 }}>
+                      <Button
+                        variant="contained"
+                        sx={{
+                          borderRadius: 1,
+                          background: 'linear-gradient(135deg, var(--mediterranean-500), var(--mediterranean-600))',
+                          color: 'white',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, var(--mediterranean-600), var(--mediterranean-700))',
+                          }
+                        }}
+                      >
                         Search
                       </Button>
                     </InputAdornment>
@@ -353,7 +395,29 @@ export default function HomePage() {
       </Container>
 
       {/* Stats Section */}
-      <Box sx={{ bgcolor: 'grey.50', py: 6 }}>
+      <Box
+        sx={{
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(42, 42, 42, 0.95)' : 'grey.50',
+          py: 6,
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: (theme) => theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, rgba(0, 102, 204, 0.05), rgba(107, 142, 35, 0.05))'
+              : 'linear-gradient(135deg, rgba(0, 102, 204, 0.02), rgba(230, 126, 34, 0.02))',
+            zIndex: 1
+          },
+          '& > *': {
+            position: 'relative',
+            zIndex: 2
+          }
+        }}
+      >
         <Container maxWidth="lg">
           <Grid container spacing={4} sx={{ textAlign: 'center' }}>
             <Grid item xs={12} sm={3}>
@@ -441,16 +505,26 @@ export default function HomePage() {
       <Box
         component="footer"
         sx={{
-          bgcolor: 'grey.900',
-          color: 'grey.400',
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0a0a0a' : 'grey.900',
+          color: (theme) => theme.palette.mode === 'dark' ? 'grey.300' : 'grey.400',
           py: 4,
           px: 3,
+          borderTop: (theme) => theme.palette.mode === 'dark'
+            ? '1px solid rgba(255, 255, 255, 0.1)'
+            : '1px solid rgba(0, 0, 0, 0.1)',
         }}
       >
         <Container maxWidth="lg">
           <Grid container spacing={4}>
             <Grid item xs={12} md={4}>
-              <Typography variant="h6" color="white" gutterBottom>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: (theme) => theme.palette.mode === 'dark' ? 'white' : 'white',
+                  fontWeight: 600
+                }}
+                gutterBottom
+              >
                 Community Manager
               </Typography>
               <Typography variant="body2" sx={{ mb: 2 }}>
@@ -458,7 +532,14 @@ export default function HomePage() {
               </Typography>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Typography variant="h6" color="white" gutterBottom>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: (theme) => theme.palette.mode === 'dark' ? 'white' : 'white',
+                  fontWeight: 600
+                }}
+                gutterBottom
+              >
                 Features
               </Typography>
               <Stack spacing={1}>
@@ -469,7 +550,14 @@ export default function HomePage() {
               </Stack>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Typography variant="h6" color="white" gutterBottom>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: (theme) => theme.palette.mode === 'dark' ? 'white' : 'white',
+                  fontWeight: 600
+                }}
+                gutterBottom
+              >
                 Support
               </Typography>
               <Stack spacing={1}>

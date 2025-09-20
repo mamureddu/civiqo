@@ -647,7 +647,7 @@ export default function BusinessesPage() {
                     variant="body1"
                     className="font-body"
                     sx={{
-                      color: 'var(--text-secondary)',
+                      color: (theme) => theme.palette.text.secondary,
                       mb: 4,
                       maxWidth: '400px',
                       margin: '0 auto 32px'

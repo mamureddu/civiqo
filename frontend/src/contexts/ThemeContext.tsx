@@ -157,6 +157,45 @@ export default function ThemeContextProvider({ children }: ThemeContextProviderP
             },
           },
         },
+        MuiTextField: {
+          styleOverrides: {
+            root: {
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: 'rgba(42, 42, 42, 0.8)',
+                '& fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.2)',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'rgba(255, 255, 255, 0.4)',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#42A5F5',
+                },
+              },
+              '& .MuiInputBase-input': {
+                color: '#FEFDFB',
+              },
+              '& .MuiInputLabel-root': {
+                color: '#F5E6D3',
+                '&.Mui-focused': {
+                  color: '#42A5F5',
+                },
+              },
+            },
+          },
+        },
+        MuiButton: {
+          styleOverrides: {
+            outlined: {
+              borderColor: 'rgba(255, 255, 255, 0.3)',
+              color: '#FEFDFB',
+              '&:hover': {
+                borderColor: '#42A5F5',
+                backgroundColor: 'rgba(66, 165, 245, 0.1)',
+              },
+            },
+          },
+        },
       }),
     },
   });
