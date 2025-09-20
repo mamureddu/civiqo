@@ -12,7 +12,7 @@ pub mod handlers;
 pub mod middleware;
 
 // Re-export main types from main.rs
-use config::Config;
+pub use config::Config;
 
 pub type AppState = Arc<ApiState>;
 

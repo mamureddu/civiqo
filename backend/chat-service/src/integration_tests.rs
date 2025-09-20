@@ -37,6 +37,9 @@ async fn create_test_server() -> Result<(TestServer, AppState), Box<dyn std::err
         message_ttl_seconds: 3600,
         heartbeat_interval_seconds: 30,
         development_mode: true,
+        max_message_size: 65536,
+        rate_limit_messages_per_minute: 30,
+        rate_limit_typing_per_minute: 60,
     };
 
     let auth0_config = shared::auth::Auth0Config {

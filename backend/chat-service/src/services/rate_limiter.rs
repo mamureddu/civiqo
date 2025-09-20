@@ -157,6 +157,21 @@ impl RateLimiter {
 
         (message_count, typing_count)
     }
+
+    /// Get maximum messages per window (for testing)
+    pub fn max_messages_per_window(&self) -> u32 {
+        self.max_messages_per_window
+    }
+
+    /// Get maximum typing notifications per window (for testing)
+    pub fn max_typing_per_window(&self) -> u32 {
+        self.max_typing_per_window
+    }
+
+    /// Get window duration (for testing)
+    pub fn window_duration(&self) -> Duration {
+        self.window_duration
+    }
 }
 
 #[cfg(test)]

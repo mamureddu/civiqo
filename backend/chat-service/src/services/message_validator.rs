@@ -78,7 +78,7 @@ impl MessageValidator {
         }
 
         // Basic format check - should be base64 or similar encoding
-        if !public_key.chars().all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '=') {
+        if !public_key.chars().all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '=' || c == '_') {
             return Err(AppError::Validation(
                 "Public key contains invalid characters".to_string(),
             ));
@@ -151,11 +151,20 @@ impl MessageValidator {
             }
         }
 
-        // Basic format check for encrypted content (should be base64-like)
-        let non_whitespace: String = content.chars().filter(|c| !c.is_whitespace()).collect();
-        let valid_chars = non_whitespace
+        // Basic format check for encrypted content (should be base64-like or JSON-like)
+        // Allow normal whitespace (space, \n, \t) but reject control characters like \0, \r
+        let valid_chars = content
             .chars()
-            .all(|c| c.is_alphanumeric() || c == '+' || c == '/' || c == '=' || c == '{' || c == '}' || c == '"' || c == ':' || c == ',');
+            .all(|c| {
+                if c.is_whitespace() {
+                    c == ' ' || c == '\n' || c == '\t'
+                } else {
+                    c.is_alphanumeric() ||
+                    c == '+' || c == '/' || c == '=' ||
+                    c == '{' || c == '}' || c == '"' || c == ':' || c == ',' ||
+                    c == '_' || c == '-' || c == '.'
+                }
+            });
 
         if !valid_chars {
             return Err(AppError::Validation(
@@ -164,6 +173,11 @@ impl MessageValidator {
         }
 
         Ok(())
+    }
+
+    /// Get maximum message size (for testing)
+    pub fn max_message_size(&self) -> usize {
+        self.max_message_size
     }
 }
 

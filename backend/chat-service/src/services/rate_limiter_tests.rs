@@ -6,9 +6,9 @@ use std::sync::Arc;
 #[tokio::test]
 async fn test_rate_limiter_creation() {
     let rate_limiter = RateLimiter::new(30, 60);
-    assert_eq!(rate_limiter.max_messages_per_window, 30);
-    assert_eq!(rate_limiter.max_typing_per_window, 60);
-    assert_eq!(rate_limiter.window_duration, Duration::from_secs(60));
+    assert_eq!(rate_limiter.max_messages_per_window(), 30);
+    assert_eq!(rate_limiter.max_typing_per_window(), 60);
+    assert_eq!(rate_limiter.window_duration(), Duration::from_secs(60));
 }
 
 #[tokio::test]
@@ -279,8 +279,8 @@ async fn test_error_conditions() {
 
     // get_user_status should always work
     let status = rate_limiter.get_user_status(user_id).await;
-    assert!(status.0 <= rate_limiter.max_messages_per_window);
-    assert!(status.1 <= rate_limiter.max_typing_per_window);
+    assert!(status.0 <= rate_limiter.max_messages_per_window());
+    assert!(status.1 <= rate_limiter.max_typing_per_window());
 }
 
 // Note: Testing window expiration would require either:

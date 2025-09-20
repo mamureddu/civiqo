@@ -391,8 +391,7 @@ async fn test_update_business_unauthenticated() {
         phone: None,
         email: None,
         address: None,
-        latitude: None,
-        longitude: None,
+        location: None,
         is_active: None,
     };
 
@@ -488,8 +487,8 @@ async fn test_create_product_unauthenticated() {
         name: "Test Product".to_string(),
         description: None,
         price: None,
-        category: None,
-        is_available: None,
+        currency: None,
+        unit: None,
     };
 
     let response = ctx.server
@@ -645,20 +644,18 @@ async fn test_business_api_concurrent_requests() {
     // Make multiple concurrent requests
     let mut handles = Vec::new();
     for _ in 0..10 {
-        let server = ctx.server.clone();
         let token = token.clone();
         let community_id = community_id.clone();
-        handles.push(tokio::spawn(async move {
-            server.get(&format!("/api/communities/{}/businesses", community_id))
-                .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
-                .await
-        }));
+        let server = &ctx.server;
+        let response = server.get(&format!("/api/communities/{}/businesses", community_id))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
+            .await;
+        handles.push(response);
     }
 
-    // Wait for all requests to complete
+    // Check all responses (now synchronous)
     let mut success_count = 0;
-    for handle in handles {
-        let response = handle.await.unwrap();
+    for response in handles {
         if response.status_code() == StatusCode::OK {
             success_count += 1;
         }

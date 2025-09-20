@@ -1,11 +1,12 @@
 use axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{Request, StatusCode, header, HeaderValue},
     Router,
 };
 use axum_test::TestServer;
 use serial_test::serial;
 use serde_json;
+use std::sync::Arc;
 use shared::{
     database::Database,
     testing::{init_test_logging, create_test_db, cleanup_test_db, create_test_user, create_test_community},
@@ -13,7 +14,7 @@ use shared::{
         ApiResponse, Claims,
         CreateCommunityRequest, UpdateCommunityRequest,
         business::{CreateBusinessRequest, UpdateBusinessRequest, BusinessCategory},
-        governance::{CreatePollRequest, CreateDecisionRequest, CastVoteRequest, PollType, DecisionType, DecisionStatus},
+        governance::{CreatePollRequest, CreateDecisionRequest, CastVoteRequest, PollType, DecisionType, DecisionStatus, PollSettings},
     },
     auth::{Auth0Config, JwtValidator},
     error::AppError,
@@ -25,7 +26,6 @@ use wiremock::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header, Algorithm};
 use chrono::Utc;
-use std::sync::Arc;
 
 // Import the actual API Gateway app
 use api_gateway::{AppState, create_app};
@@ -55,10 +55,12 @@ impl ValidationTestContext {
         };
 
         // Create app state
-        let app_state = AppState {
+        let config = api_gateway::Config::from_test();
+        let app_state = Arc::new(api_gateway::ApiState {
             db: db.clone(),
+            config,
             auth_config: auth_config.clone(),
-        };
+        });
 
         // Create the router
         let app = create_app(app_state);
@@ -139,14 +141,17 @@ async fn test_community_name_validation() {
     let (user, token, _) = ctx.create_authenticated_user().await;
 
     // Test cases for community name validation
+    let long_name_101 = "x".repeat(101);
+    let long_name_100 = "x".repeat(100);
+
     let test_cases = vec![
         ("", StatusCode::BAD_REQUEST, "Empty name should be rejected"),
         ("a", StatusCode::BAD_REQUEST, "Single character name should be rejected"),
         ("ab", StatusCode::BAD_REQUEST, "Two character name should be rejected"),
         ("abc", StatusCode::CREATED, "Three character name should be accepted"),
         ("A valid community name", StatusCode::CREATED, "Normal name should be accepted"),
-        ("x".repeat(101), StatusCode::BAD_REQUEST, "Name over 100 chars should be rejected"),
-        ("x".repeat(100), StatusCode::CREATED, "Name exactly 100 chars should be accepted"),
+        (long_name_101.as_str(), StatusCode::BAD_REQUEST, "Name over 100 chars should be rejected"),
+        (long_name_100.as_str(), StatusCode::CREATED, "Name exactly 100 chars should be accepted"),
         ("Community with 特殊字符", StatusCode::CREATED, "Unicode characters should be accepted"),
         ("   Leading spaces", StatusCode::CREATED, "Leading spaces should be handled"),
         ("Trailing spaces   ", StatusCode::CREATED, "Trailing spaces should be handled"),
@@ -164,7 +169,7 @@ async fn test_community_name_validation() {
 
         let response = ctx.server
             .post("/api/communities")
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
             .json(&create_request)
             .await;
 
@@ -186,7 +191,7 @@ async fn test_community_description_validation() {
         (None, StatusCode::CREATED, "No description should be accepted"),
         (Some("a".repeat(9)), StatusCode::BAD_REQUEST, "Description under 10 chars should be rejected"),
         (Some("a".repeat(10)), StatusCode::CREATED, "Description exactly 10 chars should be accepted"),
-        (Some("A valid community description"), StatusCode::CREATED, "Normal description should be accepted"),
+        (Some("A valid community description".to_string()), StatusCode::CREATED, "Normal description should be accepted"),
         (Some("a".repeat(1000)), StatusCode::CREATED, "Description exactly 1000 chars should be accepted"),
         (Some("a".repeat(1001)), StatusCode::BAD_REQUEST, "Description over 1000 chars should be rejected"),
     ];
@@ -203,7 +208,7 @@ async fn test_community_description_validation() {
 
         let response = ctx.server
             .post("/api/communities")
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
             .json(&create_request)
             .await;
 
@@ -231,8 +236,7 @@ async fn test_business_validation() {
                 phone: None,
                 email: None,
                 address: None,
-                latitude: None,
-                longitude: None,
+                location: None,
             },
             StatusCode::BAD_REQUEST,
             "Empty business name should be rejected"
@@ -246,8 +250,7 @@ async fn test_business_validation() {
                 phone: None,
                 email: None,
                 address: None,
-                latitude: None,
-                longitude: None,
+                location: None,
             },
             StatusCode::INTERNAL_SERVER_ERROR, // Stub error
             "Invalid website URL should be handled"
@@ -261,8 +264,7 @@ async fn test_business_validation() {
                 phone: Some("invalid-phone".to_string()),
                 email: None,
                 address: None,
-                latitude: None,
-                longitude: None,
+                location: None,
             },
             StatusCode::INTERNAL_SERVER_ERROR, // Stub error
             "Invalid phone number should be handled"
@@ -276,8 +278,7 @@ async fn test_business_validation() {
                 phone: None,
                 email: Some("invalid-email".to_string()),
                 address: None,
-                latitude: None,
-                longitude: None,
+                location: None,
             },
             StatusCode::INTERNAL_SERVER_ERROR, // Stub error
             "Invalid email should be handled"
@@ -291,8 +292,7 @@ async fn test_business_validation() {
                 phone: None,
                 email: None,
                 address: None,
-                latitude: Some(91.0), // Invalid latitude (>90)
-                longitude: Some(0.0),
+                location: Some(shared::models::Point { latitude: 91.0, longitude: 0.0 }), // Invalid latitude (>90)
             },
             StatusCode::INTERNAL_SERVER_ERROR, // Stub error
             "Invalid latitude should be handled"
@@ -306,8 +306,7 @@ async fn test_business_validation() {
                 phone: None,
                 email: None,
                 address: None,
-                latitude: Some(0.0),
-                longitude: Some(181.0), // Invalid longitude (>180)
+                location: Some(shared::models::Point { latitude: 0.0, longitude: 181.0 }), // Invalid longitude (>180)
             },
             StatusCode::INTERNAL_SERVER_ERROR, // Stub error
             "Invalid longitude should be handled"
@@ -317,7 +316,7 @@ async fn test_business_validation() {
     for (request, expected_status, description) in test_cases {
         let response = ctx.server
             .post(&format!("/api/communities/{}/businesses", community_id))
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
             .json(&request)
             .await;
 
@@ -342,9 +341,14 @@ async fn test_poll_validation() {
                 description: None,
                 options: vec!["Yes".to_string(), "No".to_string()],
                 poll_type: PollType::SingleChoice,
-                end_date: Utc::now() + chrono::Duration::days(1),
-                is_anonymous: false,
-                requires_verification: false,
+                starts_at: Utc::now(),
+                ends_at: Utc::now() + chrono::Duration::days(1),
+                settings: PollSettings {
+                    anonymous: false,
+                    allow_multiple: false,
+                    max_choices: None,
+                    required_role: None,
+                },
             },
             StatusCode::BAD_REQUEST,
             "Empty poll title should be rejected"
@@ -355,9 +359,14 @@ async fn test_poll_validation() {
                 description: None,
                 options: vec![], // No options
                 poll_type: PollType::SingleChoice,
-                end_date: Utc::now() + chrono::Duration::days(1),
-                is_anonymous: false,
-                requires_verification: false,
+                starts_at: Utc::now(),
+                ends_at: Utc::now() + chrono::Duration::days(1),
+                settings: PollSettings {
+                    anonymous: false,
+                    allow_multiple: false,
+                    max_choices: None,
+                    required_role: None,
+                },
             },
             StatusCode::BAD_REQUEST,
             "Poll with no options should be rejected"
@@ -368,9 +377,14 @@ async fn test_poll_validation() {
                 description: None,
                 options: vec!["Only one option".to_string()], // Only one option
                 poll_type: PollType::SingleChoice,
-                end_date: Utc::now() + chrono::Duration::days(1),
-                is_anonymous: false,
-                requires_verification: false,
+                starts_at: Utc::now(),
+                ends_at: Utc::now() + chrono::Duration::days(1),
+                settings: PollSettings {
+                    anonymous: false,
+                    allow_multiple: false,
+                    max_choices: None,
+                    required_role: None,
+                },
             },
             StatusCode::BAD_REQUEST,
             "Poll with only one option should be rejected"
@@ -381,9 +395,14 @@ async fn test_poll_validation() {
                 description: None,
                 options: vec!["Yes".to_string(), "No".to_string()],
                 poll_type: PollType::SingleChoice,
-                end_date: Utc::now() - chrono::Duration::days(1), // Past date
-                is_anonymous: false,
-                requires_verification: false,
+                starts_at: Utc::now(),
+                ends_at: Utc::now() - chrono::Duration::days(1), // Past date
+                settings: PollSettings {
+                    anonymous: false,
+                    allow_multiple: false,
+                    max_choices: None,
+                    required_role: None,
+                },
             },
             StatusCode::BAD_REQUEST,
             "Poll with past end date should be rejected"
@@ -394,9 +413,14 @@ async fn test_poll_validation() {
                 description: None,
                 options: vec!["Yes".to_string(), "No".to_string()],
                 poll_type: PollType::SingleChoice,
-                end_date: Utc::now() + chrono::Duration::days(1),
-                is_anonymous: false,
-                requires_verification: false,
+                starts_at: Utc::now(),
+                ends_at: Utc::now() + chrono::Duration::days(1),
+                settings: PollSettings {
+                    anonymous: false,
+                    allow_multiple: false,
+                    max_choices: None,
+                    required_role: None,
+                },
             },
             StatusCode::BAD_REQUEST,
             "Poll with overly long title should be rejected"
@@ -406,7 +430,7 @@ async fn test_poll_validation() {
     for (request, expected_status, description) in test_cases {
         let response = ctx.server
             .post(&format!("/api/communities/{}/polls", community_id))
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
             .json(&request)
             .await;
 
@@ -427,32 +451,36 @@ async fn test_vote_validation() {
     let test_cases = vec![
         (
             CastVoteRequest {
-                selected_options: vec![], // Empty selection
-                comment: None,
+                choices: vec![], // Empty selection
+                choice: None,
+                rating: None,
             },
             StatusCode::BAD_REQUEST,
             "Empty vote selection should be rejected"
         ),
         (
             CastVoteRequest {
-                selected_options: vec![0],
-                comment: Some("x".repeat(1001)), // Too long comment
+                choices: vec!["option1".to_string()],
+                choice: None,
+                rating: None,
             },
             StatusCode::BAD_REQUEST,
             "Vote with overly long comment should be rejected"
         ),
         (
             CastVoteRequest {
-                selected_options: vec![999], // Invalid option index
-                comment: None,
+                choices: vec!["invalid_option".to_string()], // Invalid option
+                choice: None,
+                rating: None,
             },
             StatusCode::BAD_REQUEST,
             "Vote with invalid option index should be rejected"
         ),
         (
             CastVoteRequest {
-                selected_options: vec![-1], // Invalid negative index
-                comment: None,
+                choices: vec![],
+                choice: Some("invalid_single_choice".to_string()),
+                rating: Some(-1), // Invalid negative rating
             },
             StatusCode::BAD_REQUEST,
             "Vote with negative option index should be rejected"
@@ -462,7 +490,7 @@ async fn test_vote_validation() {
     for (request, expected_status, description) in test_cases {
         let response = ctx.server
             .post(&format!("/api/polls/{}/vote", poll_id))
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
             .json(&request)
             .await;
 
@@ -505,7 +533,7 @@ async fn test_sql_injection_prevention() {
 
         let response = ctx.server
             .post("/api/communities")
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
             .json(&create_request)
             .await;
 
@@ -515,7 +543,7 @@ async fn test_sql_injection_prevention() {
 
         // Test SQL injection in community search
         let response = ctx.server
-            .get(&format!("/api/communities?q={}", urlencoding::encode(malicious_input)))
+            .get(&format!("/api/communities?q={}", malicious_input.replace(" ", "%20")))
             .await;
 
         assert_ne!(response.status_code(), StatusCode::INTERNAL_SERVER_ERROR,
@@ -565,7 +593,7 @@ async fn test_xss_prevention() {
 
         let response = ctx.server
             .post("/api/communities")
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
             .json(&create_request)
             .await;
 
@@ -600,13 +628,12 @@ async fn test_xss_prevention() {
             phone: None,
             email: None,
             address: None,
-            latitude: None,
-            longitude: None,
+            location: None,
         };
 
         let response = ctx.server
             .post(&format!("/api/communities/{}/businesses", community_id))
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
             .json(&business_request)
             .await;
 
@@ -641,7 +668,7 @@ async fn test_csrf_protection() {
     // Test with missing Origin header (potential CSRF)
     let response = ctx.server
         .post("/api/communities")
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
         .json(&create_request)
         .await;
 
@@ -655,8 +682,8 @@ async fn test_csrf_protection() {
     // Test with suspicious Origin header
     let response = ctx.server
         .post("/api/communities")
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
-        .add_header("Origin", "https://malicious-site.com")
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
+        .add_header(header::ORIGIN, HeaderValue::from_static("https://malicious-site.com"))
         .json(&create_request)
         .await;
 
@@ -708,7 +735,7 @@ async fn test_authorization_enforcement() {
 
     let response = ctx.server
         .put(&format!("/api/communities/{}", community_id))
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", other_token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", other_token)).unwrap())
         .json(&update_request)
         .await;
 
@@ -719,7 +746,7 @@ async fn test_authorization_enforcement() {
     // Test that other user can't manage members
     let response = ctx.server
         .put(&format!("/api/communities/{}/members/{}", community_id, user.id))
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", other_token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", other_token)).unwrap())
         .json(&serde_json::json!({"role_name": "moderator"}))
         .await;
 
@@ -763,7 +790,7 @@ async fn test_input_sanitization() {
 
         let response = ctx.server
             .post("/api/communities")
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
             .json(&create_request)
             .await;
 
@@ -806,7 +833,7 @@ async fn test_large_payload_handling() {
 
     let response = ctx.server
         .post("/api/communities")
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
         .json(&create_request)
         .await;
 
@@ -837,8 +864,8 @@ async fn test_deeply_nested_json() {
 
     let response = ctx.server
         .post("/api/communities")
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
-        .add_header("Content-Type", "application/json")
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
+        .add_header(header::CONTENT_TYPE, HeaderValue::from_static("application/json"))
         .text(&nested_json.to_string())
         .await;
 
@@ -874,8 +901,8 @@ async fn test_malformed_json_handling() {
     for malformed_json in malformed_json_payloads {
         let response = ctx.server
             .post("/api/communities")
-            .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
-            .add_header("Content-Type", "application/json")
+            .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
+            .add_header(header::CONTENT_TYPE, HeaderValue::from_static("application/json"))
             .text(malformed_json)
             .await;
 

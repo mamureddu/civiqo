@@ -524,78 +524,117 @@ async fn test_security_error_consistency() {
     let room_id = Uuid::new_v4();
 
     // Test that all security errors return consistent error types
-    let security_violations = vec![
-        // Rate limiting error
-        ("rate_limit_violation", async {
-            // First exhaust the rate limit
-            for _ in 0..5 {
-                let _ = handle_text_message(
-                    &json!({
-                        "type": "SendMessage",
-                        "room_id": room_id,
-                        "encrypted_content": "exhaust_quota",
-                        "message_type": "Text"
-                    }).to_string(),
-                    "test_conn",
-                    user.id,
-                    &state,
-                    &room_service,
-                ).await;
-            }
 
-            // This should be rate limited
-            handle_text_message(
+    // Rate limiting error
+    {
+        let test_name = "rate_limit_violation";
+        // First exhaust the rate limit
+        for _ in 0..5 {
+            let _ = handle_text_message(
                 &json!({
                     "type": "SendMessage",
                     "room_id": room_id,
-                    "encrypted_content": "rate_limited",
+                    "encrypted_content": "exhaust_quota",
                     "message_type": "Text"
                 }).to_string(),
                 "test_conn",
                 user.id,
                 &state,
                 &room_service,
-            ).await
-        }),
+            ).await;
+        }
 
-        // Validation error
-        ("validation_error", async {
-            handle_text_message(
-                &json!({
-                    "type": "SendMessage",
-                    "room_id": room_id,
-                    "encrypted_content": "", // Empty content
-                    "message_type": "Text"
-                }).to_string(),
-                "test_conn",
-                user.id,
-                &state,
-                &room_service,
-            ).await
-        }),
+        // This should be rate limited
+        let result = handle_text_message(
+            &json!({
+                "type": "SendMessage",
+                "room_id": room_id,
+                "encrypted_content": "rate_limited",
+                "message_type": "Text"
+            }).to_string(),
+            "test_conn",
+            user.id,
+            &state,
+            &room_service,
+        ).await;
 
-        // Authorization error (spoofing attempt)
-        ("authorization_error", async {
-            handle_text_message(
-                &json!({
-                    "type": "TypingStart",
-                    "room_id": room_id,
-                    "user_id": Uuid::new_v4() // Different user ID
-                }).to_string(),
-                "test_conn",
-                user.id,
-                &state,
-                &room_service,
-            ).await
-        }),
-    ];
-
-    for (test_name, test_future) in security_violations {
-        let result = test_future.await;
         assert!(result.is_err(), "{} should result in error", test_name);
-
         let error = result.unwrap_err();
-        // Verify error has proper structure and messaging
+        let error_msg = error.to_string();
+        assert!(!error_msg.is_empty(), "{} should have non-empty error message", test_name);
+
+        // Verify error can be properly categorized
+        match error {
+            AppError::RateLimit(_) => {
+                assert_eq!(test_name, "rate_limit_violation", "Rate limit error type mismatch");
+            },
+            AppError::Validation(_) => {
+                assert_eq!(test_name, "validation_error", "Validation error type mismatch");
+            },
+            AppError::Authorization(_) => {
+                assert_eq!(test_name, "authorization_error", "Authorization error type mismatch");
+            },
+            _ => {
+                // Some errors might be wrapped or different types, that's OK as long as they're errors
+            }
+        }
+    }
+
+    // Validation error
+    {
+        let test_name = "validation_error";
+        let result = handle_text_message(
+            &json!({
+                "type": "SendMessage",
+                "room_id": room_id,
+                "encrypted_content": "", // Empty content
+                "message_type": "Text"
+            }).to_string(),
+            "test_conn",
+            user.id,
+            &state,
+            &room_service,
+        ).await;
+
+        assert!(result.is_err(), "{} should result in error", test_name);
+        let error = result.unwrap_err();
+        let error_msg = error.to_string();
+        assert!(!error_msg.is_empty(), "{} should have non-empty error message", test_name);
+
+        // Verify error can be properly categorized
+        match error {
+            AppError::RateLimit(_) => {
+                assert_eq!(test_name, "rate_limit_violation", "Rate limit error type mismatch");
+            },
+            AppError::Validation(_) => {
+                assert_eq!(test_name, "validation_error", "Validation error type mismatch");
+            },
+            AppError::Authorization(_) => {
+                assert_eq!(test_name, "authorization_error", "Authorization error type mismatch");
+            },
+            _ => {
+                // Some errors might be wrapped or different types, that's OK as long as they're errors
+            }
+        }
+    }
+
+    // Authorization error (spoofing attempt)
+    {
+        let test_name = "authorization_error";
+        let result = handle_text_message(
+            &json!({
+                "type": "TypingStart",
+                "room_id": room_id,
+                "user_id": Uuid::new_v4() // Different user ID
+            }).to_string(),
+            "test_conn",
+            user.id,
+            &state,
+            &room_service,
+        ).await;
+
+        assert!(result.is_err(), "{} should result in error", test_name);
+        let error = result.unwrap_err();
         let error_msg = error.to_string();
         assert!(!error_msg.is_empty(), "{} should have non-empty error message", test_name);
 

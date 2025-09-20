@@ -1,12 +1,13 @@
 use axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{Request, StatusCode, header, HeaderValue},
     Router,
     routing::{get, post, put, delete},
 };
 use axum_test::TestServer;
 use serial_test::serial;
 use serde_json;
+use std::sync::Arc;
 use shared::{
     database::Database,
     testing::{init_test_logging, create_test_db, cleanup_test_db, create_test_user, create_test_community},
@@ -27,79 +28,11 @@ use wiremock::{
 };
 use jsonwebtoken::{encode, EncodingKey, Header, Algorithm};
 use chrono::Utc;
-use std::sync::Arc;
-use tower_http::{
-    cors::{Any, CorsLayer},
-    trace::TraceLayer,
-};
 
 // Import the actual API Gateway app components
-use api_gateway::{AppState, handlers};
+use api_gateway::{AppState, create_app};
 
 /// Create a test version of the router with all routes enabled
-fn create_test_app(state: AppState) -> Router {
-    // Create CORS layer
-    let cors = CorsLayer::new()
-        .allow_origin("http://localhost:3000".parse::<axum::http::HeaderValue>().unwrap())
-        .allow_methods([
-            axum::http::Method::GET,
-            axum::http::Method::POST,
-            axum::http::Method::PUT,
-            axum::http::Method::DELETE,
-            axum::http::Method::OPTIONS,
-        ])
-        .allow_headers([
-            axum::http::header::AUTHORIZATION,
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::ACCEPT,
-        ])
-        .allow_credentials(true)
-        .max_age(std::time::Duration::from_secs(3600));
-
-    // Build the router with all routes enabled for testing
-    Router::new()
-        // Health check
-        .route("/health", get(handlers::health_check))
-        .route("/", get(handlers::root))
-
-        // Authentication routes
-        .route("/api/auth/me", get(handlers::auth::get_current_user))
-        .route("/api/auth/sync", post(handlers::auth::sync_user_from_auth0))
-        .route("/api/auth/profile", put(handlers::auth::update_user_profile))
-
-        // Community routes
-        .route("/api/communities", get(handlers::communities::list_communities))
-        .route("/api/communities", post(handlers::communities::create_community))
-        .route("/api/communities/:id", get(handlers::communities::get_community))
-        .route("/api/communities/:id", put(handlers::communities::update_community))
-        .route("/api/communities/:id/join", post(handlers::communities::join_community))
-        .route("/api/communities/:id/members", get(handlers::communities::list_members))
-        .route("/api/communities/:id/members/:user_id", put(handlers::communities::update_member_role))
-
-        // Business routes
-        .route("/api/communities/:id/businesses", get(handlers::businesses::list_businesses))
-        .route("/api/communities/:id/businesses", post(handlers::businesses::create_business))
-        .route("/api/businesses/:id", get(handlers::businesses::get_business))
-        .route("/api/businesses/:id", put(handlers::businesses::update_business))
-        .route("/api/businesses/:id/products", get(handlers::businesses::list_products))
-        .route("/api/businesses/:id/products", post(handlers::businesses::create_product))
-
-        // Governance routes
-        .route("/api/communities/:id/polls", get(handlers::governance::list_polls))
-        .route("/api/communities/:id/polls", post(handlers::governance::create_poll))
-        .route("/api/polls/:id", get(handlers::governance::get_poll))
-        .route("/api/polls/:id/vote", post(handlers::governance::cast_vote))
-        .route("/api/polls/:id/results", get(handlers::governance::get_poll_results))
-        .route("/api/communities/:id/decisions", get(handlers::governance::list_decisions))
-        .route("/api/communities/:id/decisions", post(handlers::governance::create_decision))
-
-        // File upload routes
-        .route("/api/upload/presigned-url", post(handlers::uploads::get_presigned_url))
-
-        .layer(cors)
-        .layer(TraceLayer::new_for_http())
-        .with_state(state)
-}
 
 /// Comprehensive test configuration for all API endpoints
 struct ComprehensiveTestContext {
@@ -126,13 +59,15 @@ impl ComprehensiveTestContext {
         };
 
         // Create app state
-        let app_state = AppState {
+        let config = api_gateway::Config::from_test();
+        let app_state = Arc::new(api_gateway::ApiState {
             db: db.clone(),
+            config,
             auth_config: auth_config.clone(),
-        };
+        });
 
-        // Create the test router with all routes enabled
-        let app = create_test_app(app_state);
+        // Create the router using the main API gateway app
+        let app = create_app(app_state);
         let server = TestServer::new(app).unwrap();
 
         Self {
@@ -213,7 +148,7 @@ async fn test_complete_community_workflow() {
     // 1. List communities (should see existing test community)
     let response = ctx.server
         .get("/api/communities")
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
         .await;
     response.assert_status_ok();
 
@@ -229,7 +164,7 @@ async fn test_complete_community_workflow() {
 
     let response = ctx.server
         .post("/api/communities")
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
         .json(&create_request)
         .await;
     response.assert_status(StatusCode::CREATED);
@@ -240,7 +175,7 @@ async fn test_complete_community_workflow() {
     // 3. Get the specific community
     let response = ctx.server
         .get(&format!("/api/communities/{}", new_community_id))
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
         .await;
     response.assert_status_ok();
 
@@ -254,7 +189,7 @@ async fn test_complete_community_workflow() {
 
     let response = ctx.server
         .put(&format!("/api/communities/{}", new_community_id))
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
         .json(&update_request)
         .await;
     response.assert_status_ok();
@@ -262,7 +197,7 @@ async fn test_complete_community_workflow() {
     // 5. List community members
     let response = ctx.server
         .get(&format!("/api/communities/{}/members", new_community_id))
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
         .await;
     response.assert_status_ok();
 
@@ -298,12 +233,12 @@ async fn test_business_api_stub_responses() {
         let response = match method {
             "GET" => ctx.server
                 .get(&endpoint)
-                .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+                .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
                 .await,
             "POST" => {
                 let mut request = ctx.server
                     .post(&endpoint)
-                    .add_header(header::AUTHORIZATION, format!("Bearer {}", token));
+                    .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap());
                 if let Some(json_body) = body {
                     request = request.json(&json_body);
                 }
@@ -312,7 +247,7 @@ async fn test_business_api_stub_responses() {
             "PUT" => {
                 let mut request = ctx.server
                     .put(&endpoint)
-                    .add_header(header::AUTHORIZATION, format!("Bearer {}", token));
+                    .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap());
                 if let Some(json_body) = body {
                     request = request.json(&json_body);
                 }
@@ -357,7 +292,7 @@ async fn test_governance_api_stub_responses() {
         let response = match method {
             "GET" => ctx.server
                 .get(&endpoint)
-                .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+                .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
                 .await,
             "POST" => {
                 let test_body = if endpoint.contains("polls") && !endpoint.contains("vote") {
@@ -369,7 +304,7 @@ async fn test_governance_api_stub_responses() {
                     })
                 } else if endpoint.contains("vote") {
                     serde_json::json!({
-                        "selected_options": [0]
+                        "choice": "option1"
                     })
                 } else {
                     serde_json::json!({
@@ -382,7 +317,7 @@ async fn test_governance_api_stub_responses() {
 
                 ctx.server
                     .post(&endpoint)
-                    .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+                    .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
                     .json(&test_body)
                     .await
             },
@@ -412,6 +347,17 @@ async fn test_api_endpoint_authentication_requirements() {
     let poll_id = Uuid::new_v4();
 
     // Test endpoints that should require authentication
+    // Pre-create formatted URLs to avoid temporary value issues
+    let community_url = format!("/api/communities/{}", community_id);
+    let community_join_url = format!("/api/communities/{}/join", community_id);
+    let community_members_url = format!("/api/communities/{}/members", community_id);
+    let community_businesses_url = format!("/api/communities/{}/businesses", community_id);
+    let business_url = format!("/api/businesses/{}", business_id);
+    let business_products_url = format!("/api/businesses/{}/products", business_id);
+    let community_polls_url = format!("/api/communities/{}/polls", community_id);
+    let poll_vote_url = format!("/api/polls/{}/vote", poll_id);
+    let community_decisions_url = format!("/api/communities/{}/decisions", community_id);
+
     let protected_endpoints = vec![
         // Auth endpoints
         ("/api/auth/me", "GET"),
@@ -419,19 +365,19 @@ async fn test_api_endpoint_authentication_requirements() {
 
         // Community management endpoints
         ("/api/communities", "POST"),
-        (&format!("/api/communities/{}", community_id), "PUT"),
-        (&format!("/api/communities/{}/join", community_id), "POST"),
-        (&format!("/api/communities/{}/members", community_id), "GET"),
+        (community_url.as_str(), "PUT"),
+        (community_join_url.as_str(), "POST"),
+        (community_members_url.as_str(), "GET"),
 
         // Business endpoints
-        (&format!("/api/communities/{}/businesses", community_id), "POST"),
-        (&format!("/api/businesses/{}", business_id), "PUT"),
-        (&format!("/api/businesses/{}/products", business_id), "POST"),
+        (community_businesses_url.as_str(), "POST"),
+        (business_url.as_str(), "PUT"),
+        (business_products_url.as_str(), "POST"),
 
         // Governance endpoints
-        (&format!("/api/communities/{}/polls", community_id), "POST"),
-        (&format!("/api/polls/{}/vote", poll_id), "POST"),
-        (&format!("/api/communities/{}/decisions", community_id), "POST"),
+        (community_polls_url.as_str(), "POST"),
+        (poll_vote_url.as_str(), "POST"),
+        (community_decisions_url.as_str(), "POST"),
     ];
 
     for (endpoint, method) in protected_endpoints {
@@ -457,6 +403,19 @@ async fn test_public_endpoints_accessibility() {
     let business_id = Uuid::new_v4();
     let poll_id = Uuid::new_v4();
 
+    // Pre-create formatted URLs to avoid temporary value issues (shared across test sections)
+    let community_url = format!("/api/communities/{}", community_id);
+    let community_join_url = format!("/api/communities/{}/join", community_id);
+    let community_members_url = format!("/api/communities/{}/members", community_id);
+    let community_businesses_url = format!("/api/communities/{}/businesses", community_id);
+    let business_url = format!("/api/businesses/{}", business_id);
+    let business_products_url = format!("/api/businesses/{}/products", business_id);
+    let community_polls_url = format!("/api/communities/{}/polls", community_id);
+    let poll_vote_url = format!("/api/polls/{}/vote", poll_id);
+    let community_decisions_url = format!("/api/communities/{}/decisions", community_id);
+    let polls_url = format!("/api/polls/{}", poll_id);
+    let poll_results_url = format!("/api/polls/{}/results", poll_id);
+
     // Test endpoints that should be publicly accessible
     let public_endpoints = vec![
         // Health and info endpoints
@@ -465,18 +424,18 @@ async fn test_public_endpoints_accessibility() {
 
         // Public community browsing
         ("/api/communities", "GET"),
-        (&format!("/api/communities/{}", community_id), "GET"),
+        (community_url.as_str(), "GET"),
 
         // Public business browsing
-        (&format!("/api/communities/{}/businesses", community_id), "GET"),
-        (&format!("/api/businesses/{}", business_id), "GET"),
-        (&format!("/api/businesses/{}/products", business_id), "GET"),
+        (community_businesses_url.as_str(), "GET"),
+        (business_url.as_str(), "GET"),
+        (business_products_url.as_str(), "GET"),
 
         // Public governance viewing
-        (&format!("/api/communities/{}/polls", community_id), "GET"),
-        (&format!("/api/polls/{}", poll_id), "GET"),
-        (&format!("/api/polls/{}/results", poll_id), "GET"),
-        (&format!("/api/communities/{}/decisions", community_id), "GET"),
+        (community_polls_url.as_str(), "GET"),
+        (polls_url.as_str(), "GET"),
+        (poll_results_url.as_str(), "GET"),
+        (community_decisions_url.as_str(), "GET"),
     ];
 
     for (endpoint, method) in public_endpoints {
@@ -525,7 +484,7 @@ async fn test_api_error_response_format() {
     // Test that error responses follow the expected format
     let response = ctx.server
         .post(&format!("/api/communities/{}/businesses", community_id))
-        .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
         .json(&serde_json::json!({
             "invalid": "data"
         }))
@@ -576,10 +535,13 @@ async fn test_api_request_methods() {
     let ctx = ComprehensiveTestContext::new().await;
     let (user, token, community_id) = ctx.create_authenticated_user().await;
 
+    // Pre-create URL to avoid temporary value issues
+    let specific_community_url = format!("/api/communities/{}", community_id);
+
     // Test that endpoints reject unsupported methods
     let test_cases = vec![
         ("/api/communities", vec!["GET", "POST"], vec!["PATCH", "DELETE"]),
-        (&format!("/api/communities/{}", community_id), vec!["GET", "PUT"], vec!["POST", "DELETE"]),
+        (specific_community_url.as_str(), vec!["GET", "PUT"], vec!["POST", "DELETE"]),
         ("/health", vec!["GET"], vec!["POST", "PUT", "DELETE"]),
     ];
 
@@ -589,11 +551,11 @@ async fn test_api_request_methods() {
             let response = match method {
                 "GET" => ctx.server.get(endpoint).await,
                 "POST" => ctx.server.post(endpoint)
-                    .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+                    .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
                     .json(&serde_json::json!({}))
                     .await,
                 "PUT" => ctx.server.put(endpoint)
-                    .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+                    .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
                     .json(&serde_json::json!({}))
                     .await,
                 _ => continue,
@@ -644,7 +606,7 @@ async fn test_api_pagination_parameters() {
             // Protected endpoint
             ctx.server
                 .get(&endpoint)
-                .add_header(header::AUTHORIZATION, format!("Bearer {}", token))
+                .add_header(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
                 .await
         };
 

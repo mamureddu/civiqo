@@ -4,10 +4,10 @@ use uuid::Uuid;
 #[test]
 fn test_message_validator_creation() {
     let validator = MessageValidator::new(1024);
-    assert_eq!(validator.max_message_size, 1024);
+    assert_eq!(validator.max_message_size(), 1024);
 
     let large_validator = MessageValidator::new(65536);
-    assert_eq!(large_validator.max_message_size, 65536);
+    assert_eq!(large_validator.max_message_size(), 65536);
 }
 
 #[test]
@@ -304,7 +304,7 @@ fn test_edge_case_message_sizes() {
     for (size_limit, description, should_create) in test_cases {
         if should_create {
             let validator = MessageValidator::new(size_limit);
-            assert_eq!(validator.max_message_size, size_limit, "{}", description);
+            assert_eq!(validator.max_message_size(), size_limit, "{}", description);
         }
     }
 }

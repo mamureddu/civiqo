@@ -129,7 +129,7 @@ pub struct BusinessSearchQuery {
     pub is_active: Option<bool>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BusinessSearchResult {
     #[serde(flatten)]
     pub business: Business,

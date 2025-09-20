@@ -33,4 +33,16 @@ impl Config {
                 .unwrap_or_else(|_| "info".to_string()),
         })
     }
+
+    pub fn from_test() -> Self {
+        Self {
+            database_url: "postgresql://test:test@localhost:5433/test".to_string(),
+            cors_origins: "http://localhost:3000".to_string(),
+            development_mode: true,
+            s3_bucket: "test-bucket".to_string(),
+            s3_region: "us-east-1".to_string(),
+            aws_region: "us-east-1".to_string(),
+            log_level: "debug".to_string(),
+        }
+    }
 }
