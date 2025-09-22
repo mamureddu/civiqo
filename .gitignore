@@ -130,6 +130,10 @@ auth0-config.json
 *.sqlite
 *.sqlite3
 
+# SQLx cache files
+.sqlx/
+sqlx-data.json
+
 # Test artifacts
 test-results/
 coverage/
@@ -181,3 +185,5 @@ service-account-key.json
 # Local configuration overrides
 config.local.toml
 config.override.toml
+
+

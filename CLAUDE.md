@@ -30,6 +30,7 @@
 #### Frontend Architecture
 - **Framework**: Next.js 14+
 - **UI Library**: Material UI v5
+- **Authentication**: NextAuth.js with Auth0 provider (NOT @auth0/nextjs-auth0 SDK)
 - **Mapping**: React Leaflet
 - **Real-time**: WebSocket with E2E encryption
 - **State Management**: React Context + hooks
@@ -105,6 +106,14 @@
 - **Stack Decision**: Docker-Compose selected over local services for consistency and isolation
 - **Complete Environment**: PostgreSQL, Redis, LocalStack all working seamlessly
 - **Development Workflow**: Full development stack ready for backend service development
+
+### 11. ✅ Authentication System (NEW - COMPLETE)
+- **Frontend**: NextAuth.js with Auth0 provider integration
+- **Backend**: JWT validation with Auth0 JWKS endpoint
+- **Documentation**: Comprehensive AUTHENTICATION.md created
+- **Important**: Uses NextAuth.js, NOT @auth0/nextjs-auth0 SDK
+- **Session Management**: NextAuth.js SessionProvider with Auth0 callbacks
+- **API Integration**: JWT extraction middleware for backend authentication
 
 ## 🔄 ACTIVE WORK
 
