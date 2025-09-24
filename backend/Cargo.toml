@@ -35,7 +35,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # HTTP and Lambda
 lambda_runtime = "0.8"
 lambda-web = "0.2.1"
-axum = "0.7"
+axum = { version = "0.7", features = ["macros"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 

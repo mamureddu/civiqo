@@ -50,6 +50,10 @@ regex = "1.10"
 # Environment
 dotenvy = { workspace = true }
 
+[features]
+default = []
+lambda = []
+
 [dev-dependencies]
 tokio-test = { workspace = true }
 tempfile = { workspace = true }

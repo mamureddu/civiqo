@@ -28,7 +28,15 @@
       "Bash(docker ps:*)",
       "Bash(docker compose:*)",
       "Bash(chmod:*)",
-      "Bash(./scripts/dev-launch.sh:*)"
+      "Bash(./scripts/dev-launch.sh:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo lambda:*)",
+      "Bash(cargo run:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(source .env)",
+      "Bash(PGPASSWORD=dev123 psql -h localhost -p 5433 -U dev -d community_manager -c \"SELECT 1\")",
+      "Bash(RUST_LOG=debug cargo lambda watch --invoke-port 9000 --env-file .env -v)"
     ],
     "deny": [],
     "ask": []

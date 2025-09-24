@@ -1,18 +1,13 @@
 use axum::{
-    extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
-    response::Json,
-    routing::{get, post, put, delete},
+    routing::{get, post, put},
     Router,
 };
-use lambda_web::LambdaError;
-use serde_json::Value;
 use std::sync::Arc;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     trace::TraceLayer,
 };
-use tracing::{info, error};
+use tracing::info;
 
 mod config;
 mod handlers;
@@ -21,7 +16,7 @@ mod services;
 
 use config::Config;
 use handlers::*;
-use shared::{database::Database, auth::Auth0Config, error::AppError};
+use shared::{database::Database, auth::Auth0Config};
 
 pub type AppState = Arc<ApiState>;
 
@@ -33,7 +28,9 @@ pub struct ApiState {
 
 #[cfg(feature = "lambda")]
 #[tokio::main]
-async fn main() -> Result<(), LambdaError> {
+async fn main() -> Result<(), lambda_web::LambdaError> {
+    use lambda_web::LambdaError;
+
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
 
@@ -109,13 +106,13 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/health", get(health_check))
         .route("/", get(root))
 
-        // Authentication routes (temporarily disabled for compilation)
+        // Authentication routes (temporarily disabled for initial testing)
         // .route("/auth/me", get(auth::get_current_user))
         // .route("/auth/sync", post(auth::sync_user_from_auth0)
         //     .layer(axum::middleware::from_fn_with_state(state.clone(), crate::middleware::rate_limit::rate_limit_middleware)))
         // .route("/auth/profile", put(auth::update_user_profile))
 
-        // Community routes (temporarily disabled for compilation)
+        // Community routes (temporarily disabled - need handler signature fixes)
         // .route("/communities", get(communities::list_communities))
         // .route("/communities", post(communities::create_community))
         // .route("/communities/:id", get(communities::get_community))
@@ -124,7 +121,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         // .route("/communities/:id/members", get(communities::list_members))
         // .route("/communities/:id/members/:user_id", put(communities::update_member_role))
 
-        // Business routes (temporarily disabled for compilation)
+        // Business routes (temporarily disabled - need handler signature fixes)
         // .route("/communities/:id/businesses", get(businesses::list_businesses))
         // .route("/communities/:id/businesses", post(businesses::create_business))
         // .route("/businesses/:id", get(businesses::get_business))
@@ -132,7 +129,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         // .route("/businesses/:id/products", get(businesses::list_products))
         // .route("/businesses/:id/products", post(businesses::create_product))
 
-        // Governance routes (temporarily disabled for compilation)
+        // Governance routes (temporarily disabled - need handler signature fixes)
         // .route("/communities/:id/polls", get(governance::list_polls))
         // .route("/communities/:id/polls", post(governance::create_poll))
         // .route("/polls/:id", get(governance::get_poll))
@@ -141,7 +138,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         // .route("/communities/:id/decisions", get(governance::list_decisions))
         // .route("/communities/:id/decisions", post(governance::create_decision))
 
-        // File upload routes (temporarily disabled for compilation)
+        // File upload routes (temporarily disabled - need handler signature fixes)
         // .route("/upload/presigned-url", post(uploads::get_presigned_url))
 
         .layer(cors)

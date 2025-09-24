@@ -19,10 +19,10 @@ class ApiClient {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+    this.baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:9001';
 
     this.client = axios.create({
-      baseURL: this.baseURL,
+      baseURL: `${this.baseURL}/lambda-url/api-gateway`,
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',

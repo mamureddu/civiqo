@@ -27,6 +27,7 @@ rust_decimal = "1.33"
 tracing-subscriber = { workspace = true }
 rustls = { workspace = true }
 rustls-native-certs = { workspace = true }
+axum = { workspace = true }
 
 [features]
 development = []
