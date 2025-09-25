@@ -27,8 +27,8 @@ md5 = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Lambda and HTTP
-lambda_runtime = { workspace = true }
-lambda-web = { workspace = true }
+lambda_runtime = { workspace = true, optional = true }
+lambda_http = { workspace = true, optional = true }
 axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
@@ -51,8 +51,8 @@ regex = "1.10"
 dotenvy = { workspace = true }
 
 [features]
-default = []
-lambda = []
+default = ["lambda"]
+lambda = ["lambda_runtime", "lambda_http"]
 
 [dev-dependencies]
 tokio-test = { workspace = true }

@@ -1,0 +1,12 @@
+# Cargo Lambda configuration file
+[build]
+compiler = "cargo"
+features = ["lambda"]
+
+[deploy]
+region = "eu-central-1"  # Change to your preferred region
+# iam-role will be provided via command line or environment variable
+
+[watch]
+invoke-port = 9000
+env-file = ".env"

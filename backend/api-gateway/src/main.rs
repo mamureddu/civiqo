@@ -26,11 +26,8 @@ pub struct ApiState {
     pub auth_config: Auth0Config,
 }
 
-#[cfg(feature = "lambda")]
 #[tokio::main]
-async fn main() -> Result<(), lambda_web::LambdaError> {
-    use lambda_web::LambdaError;
-
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
 
@@ -40,22 +37,27 @@ async fn main() -> Result<(), lambda_web::LambdaError> {
         .init();
 
     let app = create_app().await?;
-    lambda_web::run(app).await
-}
 
-#[cfg(not(feature = "lambda"))]
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load environment variables from .env file
-    dotenvy::dotenv().ok();
+    // Check if we're running in AWS Lambda environment
+    if std::env::var("AWS_LAMBDA_RUNTIME_API").is_ok() {
+        #[cfg(feature = "lambda")]
+        {
+            info!("Running in AWS Lambda environment");
+            let app = app.into_make_service();
+            return Ok(lambda_http::run(app).await.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?);
+        }
+        #[cfg(not(feature = "lambda"))]
+        {
+            return Err("Lambda runtime detected but lambda feature not enabled".into());
+        }
+    } else {
+        // Running locally
+        info!("Running in local development mode");
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
+        info!("API Gateway listening on http://0.0.0.0:9001");
+        axum::serve(listener, app).await?;
+    }
 
-    tracing_subscriber::fmt::init();
-
-    let app = create_app().await?;
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
-    info!("API Gateway listening on http://0.0.0.0:9001");
-
-    axum::serve(listener, app).await?;
     Ok(())
 }
 
