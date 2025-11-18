@@ -1,0 +1,71 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[lib]
+name = "server"
+path = "src/lib.rs"
+
+[dependencies]
+# Use workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+rust_decimal = { workspace = true }
+validator = { workspace = true }
+md5 = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Lambda and HTTP
+lambda_runtime = { workspace = true, optional = true }
+lambda_http = { workspace = true, optional = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true, features = ["fs"] }
+
+# AWS SDK
+aws-config = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+
+# Shared library
+shared = { path = "../shared", features = ["testing"] }
+
+# HTTP client for external APIs
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# Validation (already included via workspace)
+lazy_static = "1.4"
+regex = "1.10"
+
+# Environment
+dotenvy = { workspace = true }
+
+# Templating for HTMX
+tera = "1.19"
+actix-files = "0.6"
+
+[features]
+default = ["lambda"]
+lambda = ["lambda_runtime", "lambda_http"]
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+tempfile = { workspace = true }
+serial_test = { workspace = true }
+wiremock = { workspace = true }
+rstest = { workspace = true }
+mockall = { workspace = true }
+insta = { workspace = true }
+test-case = { workspace = true }
+axum-test = "14.0"
+jsonwebtoken = { workspace = true }
