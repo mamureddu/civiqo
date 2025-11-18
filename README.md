@@ -30,18 +30,19 @@ A decentralized community management platform enabling local communities to orga
 # Prerequisites: Rust, cargo-lambda, CockroachDB Cloud account
 
 # 1. Configure environment
-cp docs/ENVIRONMENT.md backend/.env  # Copy and configure with your CockroachDB credentials
+cp docs/ENVIRONMENT.md src/.env      # Copy and configure with your CockroachDB credentials
 ./scripts/check-env.sh                # Validate configuration
 
 # 2. Start development
-./scripts/start-backend.sh            # Start backend (HTMX pages served by Actix)
-# Frontend is served by backend - no separate frontend server needed!
+cd src && cargo run --bin server      # Start server (HTMX pages + API)
+# Open http://localhost:9001
 ```
 
 ### Development Commands
-- `./scripts/start-backend.sh`: Start backend (serves HTMX pages + API)
-- `./scripts/check-env.sh`: Validate environment configuration
-- `cd frontend/wasm-app && trunk serve`: Develop WASM components (when ready)
+- `cd src && cargo run --bin server`: Start web server
+- `cd src && cargo run --bin chat-service`: Start chat service (future)
+- `cd src && cargo test --workspace`: Run all tests
+- `cd wasm && trunk serve`: Develop WASM components (future)
 
 ## Architecture Evolution
 - **Phase 1**: Lambda + API Gateway (~$15/month)
@@ -67,19 +68,23 @@ cp docs/ENVIRONMENT.md backend/.env  # Copy and configure with your CockroachDB 
 ## Project Structure
 ```
 community-manager/
-├── backend/           # Rust microservices
-│   ├── api-gateway/   # REST API service
-│   ├── chat-service/  # WebSocket chat service
-│   ├── shared/        # Common Rust code
-│   └── migrations/    # Database migrations
-├── frontend/          # Next.js + Material UI app
-├── scripts/           # Development and deployment automation
-└── docs/              # Documentation
-    ├── DEVELOPMENT.md # Development guide
-    ├── ENVIRONMENT.md # Environment setup
-    ├── SCHEMA.md      # Database schema
-    ├── MIGRATION.md   # Cloud migration guide
-    └── TESTING.md     # Test suite documentation
+├── src/                      # Backend Rust
+│   ├── server/              # Web server (HTMX + API)
+│   │   ├── templates/       # Tera templates
+│   │   ├── static/          # CSS, WASM, images
+│   │   └── src/             # Rust code
+│   ├── services/            # Microservices
+│   │   └── chat-service/    # WebSocket service
+│   ├── shared/              # Common Rust code
+│   └── migrations/          # Database migrations
+├── wasm/                    # WASM components (Leptos)
+├── scripts/                 # Development automation
+└── docs/                    # Documentation
+    ├── DEVELOPMENT.md       # Development guide
+    ├── ENVIRONMENT.md       # Environment setup
+    ├── SCHEMA.md            # Database schema
+    ├── MIGRATION.md         # Cloud migration guide
+    └── TESTING.md           # Test suite documentation
 ```
 
 ## Documentation
@@ -94,11 +99,10 @@ community-manager/
 
 ## Contributing
 1. Install prerequisites: Rust, cargo-lambda
-2. Configure CockroachDB Cloud connection in backend/.env
-3. Validate setup with `./scripts/check-env.sh`
-4. Start development with `./scripts/start-backend.sh`
-5. Follow conventional commit messages
-6. Test before submitting PRs: `cd backend && cargo test --workspace`
+2. Configure CockroachDB Cloud connection in src/.env
+3. Start development with `cd src && cargo run --bin server`
+4. Follow conventional commit messages
+5. Test before submitting PRs: `cd src && cargo test --workspace`
 
 ## License
 MIT License - see LICENSE file for details

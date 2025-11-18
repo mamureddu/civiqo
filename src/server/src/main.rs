@@ -41,17 +41,19 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
     // For now, just serve HTMX pages
 
     // Initialize Tera templates
-    // Get current directory and build absolute path
+    // Get current directory and build paths
     let current_dir = std::env::current_dir()?;
     info!("Current directory: {:?}", current_dir);
     
-    let template_path = if current_dir.ends_with("src") {
-        "server/templates/**/*"
+    let (template_path, static_path) = if current_dir.ends_with("src") {
+        ("server/templates/**/*", "server/static")
     } else {
-        "src/server/templates/**/*"
+        ("src/server/templates/**/*", "src/server/static")
     };
     
     info!("Loading templates from: {}", template_path);
+    info!("Static files from: {}", static_path);
+    
     let mut tera = Tera::new(template_path)
         .map_err(|e| {
             eprintln!("Template loading error: {}", e);
@@ -83,7 +85,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/chat/:room_id/header", get(htmx::chat_header))
         
         // Static files
-        .nest_service("/static", ServeDir::new("src/server/static"))
+        .nest_service("/static", ServeDir::new(static_path))
         
         .with_state(page_state.clone())
 
