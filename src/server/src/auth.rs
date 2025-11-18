@@ -1,7 +1,6 @@
 use axum::{
     extract::Query,
     http::StatusCode,
-    response::{Html, IntoResponse},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -58,12 +57,15 @@ pub struct SessionData {
 }
 
 /// Login endpoint - redirect to Auth0
-pub async fn login() -> impl IntoResponse {
+pub async fn login() -> Json<serde_json::Value> {
     let auth0_config = match Auth0Config::from_env() {
         Ok(config) => config,
         Err(e) => {
             tracing::error!("Auth0 config error: {}", e);
-            return Html("<h1>Auth0 not configured</h1>").into_response();
+            return Json(serde_json::json!({
+                "error": "Auth0 not configured",
+                "redirect_url": None::<String>
+            }));
         }
     };
 
@@ -71,8 +73,11 @@ pub async fn login() -> impl IntoResponse {
     let auth_url = auth0_config.authorization_url(&state);
 
     info!("Redirecting to Auth0: {}", auth_url);
-    // Use a Box to store the string for the redirect
-    (StatusCode::TEMPORARY_REDIRECT, [("Location", auth_url.as_str())]).into_response()
+    
+    Json(serde_json::json!({
+        "redirect_url": auth_url,
+        "message": "Redirecting to Auth0..."
+    }))
 }
 
 /// Callback from Auth0
@@ -85,7 +90,7 @@ pub struct AuthCallback {
 pub async fn callback(
     session: Session,
     Query(_params): Query<AuthCallback>,
-) -> impl IntoResponse {
+) -> Json<serde_json::Value> {
     info!("Auth0 callback received");
 
     // TODO: Exchange code for token with Auth0
@@ -99,47 +104,56 @@ pub async fn callback(
 
     if let Err(e) = session.insert("user", session_data).await {
         tracing::error!("Failed to insert session: {}", e);
-        return Html("<h1>Session error</h1>").into_response();
+        return Json(serde_json::json!({
+            "error": "Session error",
+            "success": false
+        }));
     }
 
     info!("Session created for user");
-    (StatusCode::TEMPORARY_REDIRECT, [("Location", "/")]).into_response()
+    Json(serde_json::json!({
+        "success": true,
+        "message": "Session created",
+        "redirect_url": "/"
+    }))
 }
 
 /// Get current user from session
-pub async fn get_current_user(session: Session) -> (StatusCode, Json<serde_json::Value>) {
+pub async fn get_current_user(session: Session) -> Json<serde_json::Value> {
     match session.get::<SessionData>("user").await {
-        Ok(Some(user)) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "user_id": user.user_id,
-                "email": user.email,
-                "name": user.name,
-                "picture": user.picture,
-            })),
-        ),
-        Ok(None) => (
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({ "error": "Not logged in" })),
-        ),
+        Ok(Some(user)) => Json(serde_json::json!({
+            "authenticated": true,
+            "user_id": user.user_id,
+            "email": user.email,
+            "name": user.name,
+            "picture": user.picture,
+        })),
+        Ok(None) => Json(serde_json::json!({
+            "authenticated": false,
+            "error": "Not logged in"
+        })),
         Err(e) => {
             tracing::error!("Session error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": "Session error" })),
-            )
+            Json(serde_json::json!({
+                "authenticated": false,
+                "error": "Session error"
+            }))
         }
     }
 }
 
 /// Logout endpoint
-pub async fn logout(session: Session) -> impl IntoResponse {
+pub async fn logout(session: Session) -> Json<serde_json::Value> {
     if let Err(e) = session.delete().await {
         tracing::error!("Failed to delete session: {}", e);
     }
 
     info!("User logged out");
-    (StatusCode::TEMPORARY_REDIRECT, [("Location", "/")]).into_response()
+    Json(serde_json::json!({
+        "success": true,
+        "message": "Logged out",
+        "redirect_url": "/"
+    }))
 }
 
 /// Middleware to check if user is authenticated

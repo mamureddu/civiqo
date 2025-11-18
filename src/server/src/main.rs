@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::get,
     Router,
 };
 use std::sync::Arc;
@@ -15,7 +15,7 @@ mod handlers;
 mod auth;
 
 use handlers::{pages, htmx, stubs::health_check};
-use auth::{login, callback, logout, get_current_user};
+use auth::{login, callback, logout, get_current_user}; // Auth handlers
 
 pub struct AppState {
     pub tera: Tera,
@@ -73,11 +73,6 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
     
     // Create page state
     let page_state = Arc::new(handlers::pages::AppState { tera });
-    
-    // Create app state for auth routes
-    let app_state = Arc::new(AppState {
-        tera: Tera::new(template_path)?,
-    });
 
     // Setup session store
     let session_store = MemoryStore::default();
@@ -90,7 +85,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         // Health check
         .route("/health", get(health_check))
         
-        // Auth routes (TODO: Fix type issues)
+        // Auth routes (TODO: Fix handler types)
         // .route("/auth/login", get(login))
         // .route("/auth/callback", get(callback))
         // .route("/auth/logout", get(logout))
