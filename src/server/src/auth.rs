@@ -88,8 +88,8 @@ pub struct AuthCallback {
 }
 
 pub async fn callback(
-    session: Session,
     Query(_params): Query<AuthCallback>,
+    session: Session,
 ) -> Json<serde_json::Value> {
     info!("Auth0 callback received");
 

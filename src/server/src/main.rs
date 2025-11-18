@@ -85,11 +85,11 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         // Health check
         .route("/health", get(health_check))
         
-        // Auth routes (TODO: Fix handler types)
-        // .route("/auth/login", get(login))
-        // .route("/auth/callback", get(callback))
-        // .route("/auth/logout", get(logout))
-        // .route("/auth/me", get(get_current_user))
+        // Auth routes
+        .route("/auth/login", get(login))
+        .route("/auth/callback", get(callback))
+        .route("/auth/logout", get(logout))
+        .route("/auth/me", get(get_current_user))
         
         // HTMX Pages
         .route("/", get(pages::index))
