@@ -1,5 +1,5 @@
 use axum::{
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use std::sync::Arc;
@@ -7,12 +7,19 @@ use tower_http::{
     trace::TraceLayer,
     services::ServeDir,
 };
+use tower_sessions::{SessionManagerLayer, MemoryStore};
 use tracing::info;
 use tera::Tera;
 
 mod handlers;
+mod auth;
 
 use handlers::{pages, htmx, stubs::health_check};
+use auth::{login, callback, logout, get_current_user};
+
+pub struct AppState {
+    pub tera: Tera,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -64,13 +71,30 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
     tera.autoescape_on(vec![]);
     info!("Templates loaded successfully: {:?}", tera.get_template_names().collect::<Vec<_>>());
     
-    // Create page state (separate from API state for now)
+    // Create page state
     let page_state = Arc::new(handlers::pages::AppState { tera });
+    
+    // Create app state for auth routes
+    let app_state = Arc::new(AppState {
+        tera: Tera::new(template_path)?,
+    });
+
+    // Setup session store
+    let session_store = MemoryStore::default();
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(false) // Set to true in production with HTTPS
+        .with_same_site(tower_sessions::cookie::SameSite::Lax);
 
     // Build the router
     let app = Router::new()
         // Health check
         .route("/health", get(health_check))
+        
+        // Auth routes (TODO: Fix type issues)
+        // .route("/auth/login", get(login))
+        // .route("/auth/callback", get(callback))
+        // .route("/auth/logout", get(logout))
+        // .route("/auth/me", get(get_current_user))
         
         // HTMX Pages
         .route("/", get(pages::index))
@@ -88,10 +112,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .nest_service("/static", ServeDir::new(static_path))
         
         .with_state(page_state.clone())
-
-        // API Routes (will be added later with proper auth)
-        // For now, HTMX pages work without backend API
-        
+        .layer(session_layer)
         .layer(TraceLayer::new_for_http());
 
     Ok(app)
