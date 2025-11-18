@@ -21,20 +21,23 @@
   - Phase 1: AWS Lambda (cargo-lambda deployment)
   - Phase 2: EC2 instances for scale
   - Phase 3: Direct ALB WebSocket for cost optimization
-- **Database**: CockroachDB Serverless (PostgreSQL-compatible)
+- **Database**: CockroachDB Cloud (PostgreSQL-compatible, unified dev/prod)
+- **ORM**: SQLx with raw SQL queries and compile-time checking
 - **Authentication**: Auth0 with custom role management
 - **Message Routing**: AWS SQS/SNS for stateless WebSocket connections
 - **File Storage**: AWS S3 with presigned URLs
 - **TLS**: rustls (not OpenSSL) for Lambda compatibility
+- **Local Development**: cargo-lambda watch for Lambda emulation
 
 #### Frontend Architecture
-- **Framework**: Next.js 14+
-- **UI Library**: Material UI v5
-- **Authentication**: NextAuth.js with Auth0 provider (NOT @auth0/nextjs-auth0 SDK)
-- **Mapping**: React Leaflet
-- **Real-time**: WebSocket with E2E encryption
-- **State Management**: React Context + hooks
-- **Future**: React Native mobile app
+- **Base Layer**: HTMX for server-side rendered interactions
+- **Interactive Layer**: Leptos WASM for complex features (chat, maps)
+- **Templating**: Tera (Rust templates)
+- **Styling**: TailwindCSS
+- **Micro-interactions**: Alpine.js
+- **Authentication**: Session-based with cookies (server-side)
+- **Real-time**: WebSocket + WASM components
+- **Mobile**: Native Android (Kotlin) + iOS (Swift) - separate from web
 
 ## Current Phase
 **Backend Service Development** - Chat WebSocket service implementation
@@ -77,12 +80,12 @@
 - **Mock Infrastructure**: Test helpers and mock objects implemented
 - **CI/CD Ready**: GitHub Actions workflow defined
 
-### 6. ✅ Docker Development Stack (NEW - COMPLETE)
-- **docker-compose.yml**: Full development stack configured
-- **Services**: PostgreSQL, Redis, LocalStack (AWS), Adminer
-- **Health Checks**: All services have health monitoring
-- **Volume Management**: Persistent data storage configured
-- **Network**: Isolated development network setup
+### 6. ✅ Cloud-First Development Stack (NEW - COMPLETE)
+- **CockroachDB Cloud**: Unified database for dev and prod
+- **cargo-lambda watch**: Local Lambda emulation for backend
+- **Next.js dev server**: Frontend with hot reloading
+- **No Docker**: Simplified local development without containers
+- **tmux support**: Multi-service management in single terminal
 
 ### 7. ✅ Compilation Validation (COMPLETE)
 - **Zero Errors**: All Rust services compile successfully with rustls
@@ -90,10 +93,11 @@
 - **Dependencies**: No conflicts between native-tls and rustls
 - **Build Environment**: cargo-lambda ready for deployment
 
-### 8. ✅ Database Configuration Fixed (NEW - COMPLETE)
-- **Test Database Issue**: Resolved missing test database - Docker now creates both community_manager and community_manager_test databases
-- **Container Setup**: Proper database initialization scripts for both development and test environments
-- **Connection Validation**: Both databases fully functional with separate schemas
+### 8. ✅ CockroachDB Cloud Migration (NEW - COMPLETE)
+- **Cloud Database**: Migrated from local PostgreSQL to CockroachDB Cloud
+- **Unified Environment**: Same database technology in dev and production
+- **Connection String**: PostgreSQL-compatible connection with SSL
+- **Test Database**: Separate test database in same cluster
 
 ### 9. ✅ Test Isolation and Execution (NEW - COMPLETE)
 - **Test Isolation Fixed**: Eliminated all global environment variable manipulation in tests
@@ -101,19 +105,22 @@
 - **Test Suite Validation**: Complete test suite successfully executed and validated
 - **Foundation Testing**: All foundational components thoroughly tested and working
 
-### 10. ✅ Local Development Stack COMPLETE (NEW - COMPLETE)
-- **Docker-Compose Approach**: Fully validated and functional development environment
-- **Stack Decision**: Docker-Compose selected over local services for consistency and isolation
-- **Complete Environment**: PostgreSQL, Redis, LocalStack all working seamlessly
-- **Development Workflow**: Full development stack ready for backend service development
+### 10. ✅ Development Infrastructure Refactor (NEW - COMPLETE)
+- **No Docker Required**: Removed Docker dependency for local development
+- **Cloud-First Approach**: CockroachDB Cloud for consistent dev/prod environment
+- **Simplified Scripts**: New start-all.sh, start-backend.sh, start-frontend.sh
+- **Environment Validation**: check-env.sh script for configuration validation
+- **tmux Integration**: Optional multi-service management in single terminal
 
-### 11. ✅ Authentication System (NEW - COMPLETE)
-- **Frontend**: NextAuth.js with Auth0 provider integration
-- **Backend**: JWT validation with Auth0 JWKS endpoint
-- **Documentation**: Comprehensive AUTHENTICATION.md created
-- **Important**: Uses NextAuth.js, NOT @auth0/nextjs-auth0 SDK
-- **Session Management**: NextAuth.js SessionProvider with Auth0 callbacks
-- **API Integration**: JWT extraction middleware for backend authentication
+### 11. ✅ Frontend Migration to HTMX + WASM (NEW - IN PROGRESS)
+- **Architecture Change**: Migrated from Next.js to HTMX + Leptos WASM
+- **100% Rust Stack**: Backend (Actix) + Frontend (WASM) all in Rust
+- **HTMX Base**: Server-side rendering for 80% of interactions
+- **WASM Islands**: Leptos components for chat, maps, complex features
+- **Templates**: Tera templating engine integrated
+- **Static Serving**: Actix-files for CSS, WASM, images
+- **No CORS**: Single server serves everything
+- **Performance**: ~220KB total vs ~330KB React bundle
 
 ## 🔄 ACTIVE WORK
 
@@ -181,10 +188,19 @@ backend/
 ### Development Infrastructure
 ```
 /
-├── docker-compose.yml        # Full dev stack (PostgreSQL, LocalStack, Redis)
-├── TESTING.md               # 440-line comprehensive test plan
-├── scripts/                 # Development automation scripts
-└── .github/workflows/       # CI/CD configuration ready
+├── docs/                    # All documentation
+│   ├── DEVELOPMENT.md       # Development guide
+│   ├── ENVIRONMENT.md       # Environment configuration template
+│   ├── SCHEMA.md           # Database schema documentation
+│   ├── MIGRATION.md        # Cloud-first migration guide
+│   ├── TESTING.md          # 440-line comprehensive test plan
+│   └── CLAUDE.md           # This file
+├── scripts/
+│   ├── start-all.sh        # Start all services
+│   ├── start-backend.sh    # Start backend only
+│   ├── start-frontend.sh   # Start frontend only
+│   └── check-env.sh        # Validate environment
+└── .github/workflows/      # CI/CD configuration ready
 ```
 
 ## Technical Achievements Summary
@@ -203,30 +219,43 @@ backend/
 - **Test Infrastructure**: Separate test database with cleanup
 
 ### Development Infrastructure ✅
-- **cargo-lambda**: Rust-native Lambda deployment configured
+- **cargo-lambda**: Rust-native Lambda deployment and local emulation
 - **Environment Management**: Multiple environment configurations
-- **Docker Development**: Complete containerized development stack
+- **Cloud-First Development**: CockroachDB Cloud for dev and prod
+- **No Docker Required**: Simplified local development workflow
 - **Test Automation**: Comprehensive test suite with CI/CD integration
 
 ## Environment Configuration
 
 ### Current .env Configuration ✅
 ```bash
-# Database Configuration (Docker-Compose ready, port 5433 to avoid system PostgreSQL conflict)
-DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager
-TEST_DATABASE_URL=postgresql://dev:dev123@localhost:5433/community_manager_test
+# Database Configuration - CockroachDB Cloud
+DATABASE_URL=postgresql://user:password@cluster.cockroachlabs.cloud:26257/community_manager?sslmode=verify-full
 
-# Auth0 Configuration (Real credentials)
-AUTH0_DOMAIN=community-manager-dev.eu.auth0.com
-AUTH0_AUDIENCE=community-manager-dev
-AUTH0_CLIENT_ID=LySggaHFqRlFnQR5i8EPShPEM42coLZm
-AUTH0_CLIENT_SECRET=9AqELvuSzgzDwwPkyIF37yIDguouWWqSJ8h5dwSbfn69xnpYcmpNFVJv_bw82TOs
+# Connection Pool Settings
+DB_MAX_CONNECTIONS=10
+DB_MIN_CONNECTIONS=5
+DB_ACQUIRE_TIMEOUT_SECONDS=8
 
-# AWS Configuration (LocalStack ready)
-AWS_ENDPOINT_URL=http://localhost:4566
+# Auth0 Configuration
+AUTH0_DOMAIN=your-domain.auth0.com
+AUTH0_AUDIENCE=your-audience
+AUTH0_CLIENT_ID=your-client-id
+AUTH0_CLIENT_SECRET=your-client-secret
+
+# AWS Configuration (for production features)
+AWS_REGION=eu-central-1
 S3_BUCKET=community-manager-uploads
-SQS_QUEUE_URL=http://localhost:4566/000000000000/chat-queue
+SQS_QUEUE_URL=https://sqs.eu-central-1.amazonaws.com/account/chat-queue
+
+# Application Configuration
+RUST_LOG=info
+ENVIRONMENT=development
+API_PORT=9001
+WEBSOCKET_PORT=9002
 ```
+
+**Note**: See docs/ENVIRONMENT.md for complete configuration template
 
 ## Progress Metrics
 
@@ -235,17 +264,18 @@ SQS_QUEUE_URL=http://localhost:4566/000000000000/chat-queue
 - **Current Focus**: Backend service development (Chat WebSocket service)
 - **Critical Path**: Complete backend services → Frontend technology evaluation → Frontend implementation
 
-### Completed Tasks: 10/20 Major Milestones
+### Completed Tasks: 11/20 Major Milestones
 1. ✅ Project foundation and Rust workspace
 2. ✅ API Gateway service with security middleware
 3. ✅ Database schema and migrations (22 tables)
 4. ✅ rustls migration (zero compilation errors)
 5. ✅ Environment configuration with real Auth0
-6. ✅ Docker development stack
+6. ✅ CockroachDB Cloud migration
 7. ✅ Comprehensive test suite (440 lines)
 8. ✅ Database configuration and test database setup
 9. ✅ Test isolation and parallel execution (188/188 tests passing)
-10. ✅ Local development stack finalization (Docker-Compose approach)
+10. ✅ Development infrastructure refactor (no Docker)
+11. ✅ Authentication system (NextAuth.js + Auth0)
 
 ### Active Tasks: 1
 - 🔄 Chat WebSocket service implementation
@@ -283,9 +313,22 @@ SQS_QUEUE_URL=http://localhost:4566/000000000000/chat-queue
 4. **POLISH**: UI/UX refinement and PWA features
 
 ### DEVELOPMENT PHILOSOPHY
-**Current Strategy**: Complete all backend services with current tech stack (PostgreSQL + Docker) before considering any infrastructure migrations. Evaluate frontend technology options after backend completion. Focus on MVP functionality over premature optimization.
+**Current Strategy**: Cloud-first development approach with CockroachDB Cloud for unified dev/prod environment. No Docker required for local development. Complete all backend services before frontend implementation. Focus on MVP functionality over premature optimization.
+
+### DEVELOPMENT SCRIPTS
+- **start-all.sh**: Start all services (backend + frontend) with tmux
+- **start-backend.sh**: Start backend services only (api/chat/all)
+- **start-frontend.sh**: Start frontend development server
+- **check-env.sh**: Validate environment configuration
+- **deploy.sh**: Deploy to staging/production
 
 ---
-*Last Updated: Current session achievements and revised development strategy - Foundation phase complete, backend service development phase initiated*
-- Remember, there is a script for launching (and others to manage) the run up of the local development stack. Use that one. If it is not up to date, then use the correct agent to update it with all the needed services
-- We now switched to opus model for complex tasks, always remeber there are subagests which wirk with sonnet, which costs less. Use them if the task is simple enough. So I invite you to make a check of available agents and use them (Even in parallel) if needed. Otherwis use the general purpose agent.
+*Last Updated: Infrastructure refactor complete - Migrated to CockroachDB Cloud, removed Docker dependency, simplified local development workflow*
+
+### Important Notes:
+- Development now uses CockroachDB Cloud (same as production)
+- No Docker required for local development
+- Use `./scripts/start-all.sh` to start all services
+- Use `./scripts/check-env.sh` to validate configuration
+- cargo-lambda watch provides local Lambda emulation
+- tmux recommended for multi-service management

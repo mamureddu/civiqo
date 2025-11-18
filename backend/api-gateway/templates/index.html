@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Community Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Hero Section -->
+    <div class="text-center py-12">
+        <h1 class="text-5xl font-bold text-gray-900 mb-4">
+            Welcome to Community Manager
+        </h1>
+        <p class="text-xl text-gray-600 mb-8">
+            Connect, collaborate, and grow with your local community
+        </p>
+        <div class="flex gap-4 justify-center">
+            <a href="/communities" 
+               class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+                Explore Communities
+            </a>
+            <a href="/auth/login" 
+               class="bg-white text-blue-600 px-6 py-3 rounded-lg border-2 border-blue-600 hover:bg-blue-50 transition">
+                Sign In
+            </a>
+        </div>
+    </div>
+
+    <!-- Features Grid -->
+    <div class="grid md:grid-cols-3 gap-8 mt-12">
+        <div class="bg-white p-6 rounded-lg shadow-sm">
+            <div class="text-3xl mb-4">🏘️</div>
+            <h3 class="text-xl font-bold mb-2">Local Communities</h3>
+            <p class="text-gray-600">
+                Discover and join communities in your area
+            </p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm">
+            <div class="text-3xl mb-4">💬</div>
+            <h3 class="text-xl font-bold mb-2">Real-time Chat</h3>
+            <p class="text-gray-600">
+                End-to-end encrypted communication
+            </p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm">
+            <div class="text-3xl mb-4">🗳️</div>
+            <h3 class="text-xl font-bold mb-2">Democratic Governance</h3>
+            <p class="text-gray-600">
+                Participate in community decisions
+            </p>
+        </div>
+    </div>
+
+    <!-- Recent Communities (HTMX) -->
+    <div class="mt-12">
+        <h2 class="text-2xl font-bold mb-6">Recent Communities</h2>
+        <div hx-get="/api/communities/recent" 
+             hx-trigger="load" 
+             hx-swap="innerHTML"
+             class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Loading state -->
+            <div class="col-span-full text-center py-8 text-gray-500">
+                Loading communities...
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

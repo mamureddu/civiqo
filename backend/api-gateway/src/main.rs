@@ -1,30 +1,18 @@
 use axum::{
-    routing::{get, post, put},
+    routing::get,
     Router,
 };
 use std::sync::Arc;
 use tower_http::{
-    cors::CorsLayer,
     trace::TraceLayer,
+    services::ServeDir,
 };
 use tracing::info;
+use tera::Tera;
 
-mod config;
 mod handlers;
-mod middleware;
-mod services;
 
-use config::Config;
-use handlers::*;
-use shared::{database::Database, auth::Auth0Config};
-
-pub type AppState = Arc<ApiState>;
-
-pub struct ApiState {
-    pub db: Database,
-    pub config: Config,
-    pub auth_config: Auth0Config,
-}
+use handlers::{pages, htmx, stubs::health_check};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,114 +26,71 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = create_app().await?;
 
-    // Check if we're running in AWS Lambda environment
-    if std::env::var("AWS_LAMBDA_RUNTIME_API").is_ok() {
-        #[cfg(feature = "lambda")]
-        {
-            info!("Running in AWS Lambda environment");
-            let app = app.into_make_service();
-            return Ok(lambda_http::run(app).await.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?);
-        }
-        #[cfg(not(feature = "lambda"))]
-        {
-            return Err("Lambda runtime detected but lambda feature not enabled".into());
-        }
-    } else {
-        // Running locally
-        info!("Running in local development mode");
-        let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
-        info!("API Gateway listening on http://0.0.0.0:9001");
-        axum::serve(listener, app).await?;
-    }
-
+    // For now, only local development mode
+    // Lambda support will be added later with proper adapter
+    info!("Running in local development mode");
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:9001").await?;
+    info!("API Gateway listening on http://0.0.0.0:9001");
+    info!("HTMX pages available at http://localhost:9001");
+    axum::serve(listener, app).await?;
     Ok(())
 }
 
 async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
-    // Load configuration
-    let config = Config::from_env()?;
+    // TODO: Database and Auth0 will be added later
+    // For now, just serve HTMX pages
 
-    // Initialize database
-    let db = Database::connect(&config.database_url).await?;
-
-    // Run migrations in development
-    if config.development_mode {
-        info!("Running database migrations...");
-        db.migrate().await?;
-    }
-
-    // Initialize Auth0 config
-    let auth_config = Auth0Config::from_env()?;
-
-    // Create shared application state
-    let state = Arc::new(ApiState {
-        db,
-        config: config.clone(),
-        auth_config,
-    });
-
-    // Create CORS layer with security-conscious configuration
-    let cors = CorsLayer::new()
-        .allow_origin(config.cors_origins.parse::<axum::http::HeaderValue>()?)
-        .allow_methods([
-            axum::http::Method::GET,
-            axum::http::Method::POST,
-            axum::http::Method::PUT,
-            axum::http::Method::DELETE,
-            axum::http::Method::OPTIONS,
-        ])
-        .allow_headers([
-            axum::http::header::AUTHORIZATION,
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::ACCEPT,
-        ])
-        .allow_credentials(true)
-        .max_age(std::time::Duration::from_secs(3600));
+    // Initialize Tera templates
+    // Get current directory and build absolute path
+    let current_dir = std::env::current_dir()?;
+    info!("Current directory: {:?}", current_dir);
+    
+    let template_path = if current_dir.ends_with("backend") {
+        "api-gateway/templates/**/*"
+    } else {
+        "backend/api-gateway/templates/**/*"
+    };
+    
+    info!("Loading templates from: {}", template_path);
+    let mut tera = Tera::new(template_path)
+        .map_err(|e| {
+            eprintln!("Template loading error: {}", e);
+            format!("Failed to load templates from {}: {}", template_path, e)
+        })?;
+    
+    // Disable auto-escape for now (can be enabled later)
+    tera.autoescape_on(vec![]);
+    info!("Templates loaded successfully: {:?}", tera.get_template_names().collect::<Vec<_>>());
+    
+    // Create page state (separate from API state for now)
+    let page_state = Arc::new(handlers::pages::AppState { tera });
 
     // Build the router
     let app = Router::new()
         // Health check
         .route("/health", get(health_check))
-        .route("/", get(root))
+        
+        // HTMX Pages
+        .route("/", get(pages::index))
+        .route("/communities", get(pages::communities))
+        .route("/chat/:room_id", get(pages::chat_room))
+        
+        // HTMX API Fragments
+        .route("/api/nav", get(htmx::nav_fragment))
+        .route("/api/communities/recent", get(htmx::recent_communities))
+        .route("/api/communities/list", get(htmx::communities_list))
+        .route("/api/communities/search", get(htmx::communities_list))
+        .route("/api/chat/:room_id/header", get(htmx::chat_header))
+        
+        // Static files
+        .nest_service("/static", ServeDir::new("backend/api-gateway/static"))
+        
+        .with_state(page_state.clone())
 
-        // Authentication routes (temporarily disabled for initial testing)
-        // .route("/auth/me", get(auth::get_current_user))
-        // .route("/auth/sync", post(auth::sync_user_from_auth0)
-        //     .layer(axum::middleware::from_fn_with_state(state.clone(), crate::middleware::rate_limit::rate_limit_middleware)))
-        // .route("/auth/profile", put(auth::update_user_profile))
-
-        // Community routes (temporarily disabled - need handler signature fixes)
-        // .route("/communities", get(communities::list_communities))
-        // .route("/communities", post(communities::create_community))
-        // .route("/communities/:id", get(communities::get_community))
-        // .route("/communities/:id", put(communities::update_community))
-        // .route("/communities/:id/join", post(communities::join_community))
-        // .route("/communities/:id/members", get(communities::list_members))
-        // .route("/communities/:id/members/:user_id", put(communities::update_member_role))
-
-        // Business routes (temporarily disabled - need handler signature fixes)
-        // .route("/communities/:id/businesses", get(businesses::list_businesses))
-        // .route("/communities/:id/businesses", post(businesses::create_business))
-        // .route("/businesses/:id", get(businesses::get_business))
-        // .route("/businesses/:id", put(businesses::update_business))
-        // .route("/businesses/:id/products", get(businesses::list_products))
-        // .route("/businesses/:id/products", post(businesses::create_product))
-
-        // Governance routes (temporarily disabled - need handler signature fixes)
-        // .route("/communities/:id/polls", get(governance::list_polls))
-        // .route("/communities/:id/polls", post(governance::create_poll))
-        // .route("/polls/:id", get(governance::get_poll))
-        // .route("/polls/:id/vote", post(governance::cast_vote))
-        // .route("/polls/:id/results", get(governance::get_poll_results))
-        // .route("/communities/:id/decisions", get(governance::list_decisions))
-        // .route("/communities/:id/decisions", post(governance::create_decision))
-
-        // File upload routes (temporarily disabled - need handler signature fixes)
-        // .route("/upload/presigned-url", post(uploads::get_presigned_url))
-
-        .layer(cors)
-        .layer(TraceLayer::new_for_http())
-        .with_state(state);
+        // API Routes (will be added later with proper auth)
+        // For now, HTMX pages work without backend API
+        
+        .layer(TraceLayer::new_for_http());
 
     Ok(app)
 }

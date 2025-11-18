@@ -31,7 +31,7 @@ lambda_runtime = { workspace = true, optional = true }
 lambda_http = { workspace = true, optional = true }
 axum = { workspace = true }
 tower = { workspace = true }
-tower-http = { workspace = true }
+tower-http = { workspace = true, features = ["fs"] }
 
 # AWS SDK
 aws-config = { workspace = true }
@@ -49,6 +49,10 @@ regex = "1.10"
 
 # Environment
 dotenvy = { workspace = true }
+
+# Templating for HTMX
+tera = "1.19"
+actix-files = "0.6"
 
 [features]
 default = ["lambda"]

@@ -11,32 +11,37 @@ A decentralized community management platform enabling local communities to orga
 - Mobile-first design (web + future React Native app)
 
 ## Architecture
-- **Frontend**: Next.js 14 with TypeScript and Material UI (Vercel deployment)
+- **Frontend**: HTMX + Leptos WASM (100% Rust stack)
 - **Backend**: Rust microservices with cargo-lambda (Lambda → EC2 progression)
-- **Database**: CockroachDB Serverless (PostgreSQL-compatible)
+- **Database**: CockroachDB Cloud (PostgreSQL-compatible)
 - **Authentication**: Auth0 with custom role management
-- **Chat**: Stateless WebSocket service with ephemeral message storage
+- **Chat**: Stateless WebSocket service with WASM client
 - **Infrastructure**: AWS with progressive scaling (Lambda → EC2 Spot)
+- **Mobile**: Native Android (Kotlin) + iOS (Swift)
 
 ## Development Phases
 1. **Foundation** (4-6 weeks): Auth, communities, basic roles
 2. **Core Features** (3-4 weeks): Chat, business profiles, maps
 3. **Advanced** (3-4 weeks): E2EE, governance, advanced roles
-4. **Mobile** (4-5 weeks): React Native app development
+4. **Mobile** (4-5 weeks): Native Android + iOS app development
 
 ## Quick Start
 ```bash
-# Prerequisites: Docker, Docker Compose
-./scripts/dev-start.sh   # Start complete Docker development stack
-./scripts/dev-status.sh  # Check service status
-./scripts/dev-logs.sh    # View service logs
+# Prerequisites: Rust, cargo-lambda, CockroachDB Cloud account
+
+# 1. Configure environment
+cp docs/ENVIRONMENT.md backend/.env  # Copy and configure with your CockroachDB credentials
+./scripts/check-env.sh                # Validate configuration
+
+# 2. Start development
+./scripts/start-backend.sh            # Start backend (HTMX pages served by Actix)
+# Frontend is served by backend - no separate frontend server needed!
 ```
 
-### Docker Development Commands
-- `./scripts/dev-start.sh`: Start all services
-- `./scripts/dev-stop.sh`: Stop all services
-- `./scripts/dev-reset.sh`: Reset entire development environment
-- `./scripts/dev-logs.sh [service]`: View logs (optional: specify service)
+### Development Commands
+- `./scripts/start-backend.sh`: Start backend (serves HTMX pages + API)
+- `./scripts/check-env.sh`: Validate environment configuration
+- `cd frontend/wasm-app && trunk serve`: Develop WASM components (when ready)
 
 ## Architecture Evolution
 - **Phase 1**: Lambda + API Gateway (~$15/month)
@@ -45,9 +50,9 @@ A decentralized community management platform enabling local communities to orga
 
 ## Development
 - **Backend**: Rust with cargo-lambda for agile deployment
-- **Frontend**: Next.js 14 with Material UI for rapid development
-- **Database**: CockroachDB with PostGIS-compatible geographic features
-- **Real-time**: WebSocket with ephemeral message queuing
+- **Frontend**: HTMX + Leptos WASM for 100% Rust stack
+- **Database**: CockroachDB Cloud with PostGIS-compatible geographic features
+- **Real-time**: WebSocket with WASM client and ephemeral message queuing
 
 ## Deployment
 ```bash
@@ -70,14 +75,30 @@ community-manager/
 ├── frontend/          # Next.js + Material UI app
 ├── scripts/           # Development and deployment automation
 └── docs/              # Documentation
+    ├── DEVELOPMENT.md # Development guide
+    ├── ENVIRONMENT.md # Environment setup
+    ├── SCHEMA.md      # Database schema
+    ├── MIGRATION.md   # Cloud migration guide
+    └── TESTING.md     # Test suite documentation
 ```
 
+## Documentation
+
+- **[Development Guide](docs/DEVELOPMENT.md)** - Complete development setup and workflow
+- **[Environment Setup](docs/ENVIRONMENT.md)** - Environment configuration template
+- **[Database Schema](docs/SCHEMA.md)** - Complete database schema documentation
+- **[Migration Guide](docs/MIGRATION.md)** - Cloud-first infrastructure migration
+- **[HTMX + WASM Migration](docs/HTMX_WASM_MIGRATION.md)** - Frontend architecture migration
+- **[Testing Guide](docs/TESTING.md)** - Comprehensive test suite documentation
+- **[Project Status](docs/CLAUDE.md)** - Detailed project status and achievements
+
 ## Contributing
-1. Install prerequisites: Rust, Node.js, Docker
-2. Run `./scripts/setup.sh` for initial setup
-3. Start development with `./scripts/dev.sh`
-4. Follow conventional commit messages
-5. Test before submitting PRs
+1. Install prerequisites: Rust, cargo-lambda
+2. Configure CockroachDB Cloud connection in backend/.env
+3. Validate setup with `./scripts/check-env.sh`
+4. Start development with `./scripts/start-backend.sh`
+5. Follow conventional commit messages
+6. Test before submitting PRs: `cd backend && cargo test --workspace`
 
 ## License
 MIT License - see LICENSE file for details

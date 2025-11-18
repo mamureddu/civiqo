@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Communities - Community Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold">Communities</h1>
+        <a href="/communities/create" 
+           class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+            Create Community
+        </a>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="bg-white p-4 rounded-lg shadow-sm mb-6">
+        <form hx-get="/api/communities/search" 
+              hx-trigger="input changed delay:500ms from:#search, change from:#filter"
+              hx-target="#communities-list">
+            <div class="flex gap-4">
+                <input type="text" 
+                       id="search"
+                       name="q"
+                       placeholder="Search communities..." 
+                       class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select id="filter" 
+                        name="filter"
+                        class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="all">All Communities</option>
+                    <option value="nearby">Nearby</option>
+                    <option value="popular">Most Popular</option>
+                    <option value="recent">Recently Active</option>
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <!-- Communities List (HTMX) -->
+    <div id="communities-list" 
+         hx-get="/api/communities/list" 
+         hx-trigger="load" 
+         hx-swap="innerHTML">
+        <!-- Loading state -->
+        <div class="text-center py-12 text-gray-500">
+            <div class="animate-pulse">Loading communities...</div>
+        </div>
+    </div>
+
+    <!-- Pagination (will be loaded by HTMX) -->
+    <div id="pagination" class="mt-8"></div>
+</div>
+{% endblock %}
