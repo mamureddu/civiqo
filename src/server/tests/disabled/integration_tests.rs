@@ -26,7 +26,7 @@ use chrono::Utc;
 use std::sync::Arc;
 
 // Import the actual API Gateway app
-use api_gateway::{AppState, create_app};
+use server::{AppState, create_app};
 
 /// Test configuration and setup helpers
 struct TestContext {
@@ -53,8 +53,8 @@ impl TestContext {
         };
 
         // Create app state
-        let config = api_gateway::Config::from_test();
-        let app_state = Arc::new(api_gateway::ApiState {
+        let config = server::Config::from_test();
+        let app_state = Arc::new(server::ApiState {
             db: db.clone(),
             config,
             auth_config: auth_config.clone(),
@@ -152,7 +152,7 @@ async fn test_health_check() {
 async fn test_sync_user_from_auth0() {
     let ctx = TestContext::new().await;
 
-    let sync_request = api_gateway::handlers::auth::SyncUserRequest {
+    let sync_request = server::auth::SyncUserRequest {
         auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
         name: Some("Test User".to_string()),
@@ -183,7 +183,7 @@ async fn test_sync_user_from_auth0() {
 async fn test_sync_user_duplicate() {
     let ctx = TestContext::new().await;
 
-    let sync_request = api_gateway::handlers::auth::SyncUserRequest {
+    let sync_request = server::auth::SyncUserRequest {
         auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
         name: Some("Test User".to_string()),
@@ -198,7 +198,7 @@ async fn test_sync_user_duplicate() {
     response.assert_status(StatusCode::CREATED);
 
     // Second sync should update (not create new)
-    let updated_request = api_gateway::handlers::auth::SyncUserRequest {
+    let updated_request = server::auth::SyncUserRequest {
         auth0_id: sync_request.auth0_id.clone(),
         email: "updated@example.com".to_string(),
         name: Some("Updated User".to_string()),
@@ -450,7 +450,7 @@ async fn test_get_community_not_found() {
 async fn test_sync_user_invalid_email() {
     let ctx = TestContext::new().await;
 
-    let invalid_request = api_gateway::handlers::auth::SyncUserRequest {
+    let invalid_request = server::auth::SyncUserRequest {
         auth0_id: "auth0|123456789".to_string(),
         email: "invalid-email".to_string(), // Invalid email format
         name: Some("Test User".to_string()),
@@ -517,7 +517,7 @@ async fn test_invalid_json_request() {
 async fn test_missing_content_type() {
     let ctx = TestContext::new().await;
 
-    let sync_request = api_gateway::handlers::auth::SyncUserRequest {
+    let sync_request = server::auth::SyncUserRequest {
         auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
         name: Some("Test User".to_string()),
@@ -648,7 +648,7 @@ async fn test_large_request_body() {
     // Create a large description
     let large_description = "x".repeat(10000);
 
-    let sync_request = api_gateway::handlers::auth::SyncUserRequest {
+    let sync_request = server::auth::SyncUserRequest {
         auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
         name: Some(large_description), // Very long name
@@ -673,7 +673,7 @@ async fn test_sql_injection_prevention() {
     let ctx = TestContext::new().await;
 
     // Try to inject SQL in the sync request
-    let malicious_request = api_gateway::handlers::auth::SyncUserRequest {
+    let malicious_request = server::auth::SyncUserRequest {
         auth0_id: "auth0|123'; DROP TABLE users; --".to_string(),
         email: "test@example.com".to_string(),
         name: Some("Test User".to_string()),
@@ -700,7 +700,7 @@ async fn test_sql_injection_prevention() {
 async fn test_xss_prevention() {
     let ctx = TestContext::new().await;
 
-    let xss_request = api_gateway::handlers::auth::SyncUserRequest {
+    let xss_request = server::auth::SyncUserRequest {
         auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
         name: Some("<script>alert('xss')</script>".to_string()),

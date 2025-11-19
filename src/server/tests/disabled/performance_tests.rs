@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 use tokio::time::sleep;
 
 // Import the actual API Gateway app
-use api_gateway::{AppState, create_app};
+use server::{AppState, create_app};
 
 /// Test configuration for performance and load tests
 struct PerformanceTestContext {
@@ -54,8 +54,8 @@ impl PerformanceTestContext {
         };
 
         // Create app state
-        let config = api_gateway::Config::from_test();
-        let app_state = Arc::new(api_gateway::ApiState {
+        let config = server::Config::from_test();
+        let app_state = Arc::new(server::ApiState {
             db: db.clone(),
             config,
             auth_config: auth_config.clone(),

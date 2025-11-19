@@ -25,7 +25,7 @@ use jsonwebtoken::{encode, decode, EncodingKey, DecodingKey, Header, Algorithm, 
 use chrono::{Utc, Duration};
 
 // Import the actual API Gateway app
-use api_gateway::{AppState, create_app};
+use server::{AppState, create_app};
 
 /// Test configuration for authentication and middleware tests
 struct AuthTestContext {
@@ -52,8 +52,8 @@ impl AuthTestContext {
         };
 
         // Create app state
-        let config = api_gateway::Config::from_test();
-        let app_state = Arc::new(api_gateway::ApiState {
+        let config = server::Config::from_test();
+        let app_state = Arc::new(server::ApiState {
             db: db.clone(),
             config,
             auth_config: auth_config.clone(),

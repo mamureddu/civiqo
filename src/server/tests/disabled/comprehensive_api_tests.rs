@@ -30,7 +30,7 @@ use jsonwebtoken::{encode, EncodingKey, Header, Algorithm};
 use chrono::Utc;
 
 // Import the actual API Gateway app components
-use api_gateway::{AppState, create_app};
+use server::{AppState, create_app};
 
 /// Create a test version of the router with all routes enabled
 
@@ -59,8 +59,8 @@ impl ComprehensiveTestContext {
         };
 
         // Create app state
-        let config = api_gateway::Config::from_test();
-        let app_state = Arc::new(api_gateway::ApiState {
+        let config = server::Config::from_test();
+        let app_state = Arc::new(server::ApiState {
             db: db.clone(),
             config,
             auth_config: auth_config.clone(),

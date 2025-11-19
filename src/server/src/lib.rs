@@ -9,6 +9,7 @@ use shared::{database::Database, auth::Auth0Config};
 // Re-export modules
 pub mod config;
 pub mod handlers;
+pub mod auth;
 // pub mod middleware; // Disabled - using tower-sessions instead
 
 // Re-export main types from main.rs
@@ -16,6 +17,7 @@ pub use config::Config;
 
 pub type AppState = Arc<ApiState>;
 
+#[derive(Clone)]
 pub struct ApiState {
     pub db: Database,
     pub config: Config,

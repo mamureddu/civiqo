@@ -27,7 +27,7 @@ use chrono::Utc;
 use std::sync::Arc;
 
 // Import the actual API Gateway app
-use api_gateway::{AppState, create_app};
+use server::{AppState, create_app};
 
 /// Test configuration and setup helpers for business API tests
 struct BusinessTestContext {
@@ -54,7 +54,7 @@ impl BusinessTestContext {
         };
 
         // Create app state
-        let config = api_gateway::config::Config {
+        let config = server::config::Config {
             database_url: "test".to_string(),
             cors_origins: "http://localhost:3000".to_string(),
             development_mode: true,
@@ -64,7 +64,7 @@ impl BusinessTestContext {
             log_level: "debug".to_string(),
         };
 
-        let app_state = std::sync::Arc::new(api_gateway::ApiState {
+        let app_state = std::sync::Arc::new(server::ApiState {
             db: db.clone(),
             config,
             auth_config: auth_config.clone(),

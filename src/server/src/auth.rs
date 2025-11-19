@@ -8,6 +8,15 @@ use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 use tracing::info;
 
+/// Request to sync user from Auth0
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SyncUserRequest {
+    pub auth0_id: String,
+    pub email: String,
+    pub name: Option<String>,
+    pub picture: Option<String>,
+}
+
 /// Helper to extract session from request
 async fn get_session_from_request(req: &mut Request) -> Option<Session> {
     req.extensions().get::<Session>().cloned()
