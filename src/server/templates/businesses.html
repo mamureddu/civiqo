@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Businesses - Community Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Local Businesses</h1>
+            <p class="mt-2 text-gray-600">Discover and support local businesses in your community</p>
+        </div>
+        <button class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+            Add Business
+        </button>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input 
+                type="text" 
+                placeholder="Search businesses..." 
+                class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                hx-get="/api/businesses/search"
+                hx-trigger="keyup changed delay:500ms"
+                hx-target="#businesses-list"
+            />
+            <select class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option>All Categories</option>
+                <option>Restaurants</option>
+                <option>Retail</option>
+                <option>Services</option>
+                <option>Entertainment</option>
+            </select>
+            <select class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <option>All Locations</option>
+                <option>Downtown</option>
+                <option>North Side</option>
+                <option>South Side</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Businesses Grid -->
+    <div id="businesses-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
+         hx-get="/api/businesses/list" 
+         hx-trigger="load" 
+         hx-swap="innerHTML">
+        <!-- Loading placeholders -->
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden animate-pulse">
+            <div class="h-48 bg-gray-200"></div>
+            <div class="p-6 space-y-3">
+                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden animate-pulse">
+            <div class="h-48 bg-gray-200"></div>
+            <div class="p-6 space-y-3">
+                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden animate-pulse">
+            <div class="h-48 bg-gray-200"></div>
+            <div class="p-6 space-y-3">
+                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

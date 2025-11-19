@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Points of Interest - Community Manager{% endblock %}
+
+{% block content %}
+<div class="h-screen flex flex-col">
+    <!-- Header -->
+    <div class="bg-white shadow-sm px-4 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Points of Interest</h1>
+                <p class="text-sm text-gray-600">Explore places in your community</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <input 
+                    type="text" 
+                    placeholder="Search places..." 
+                    class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+                />
+                <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    Add Place
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div class="flex-1 relative">
+        <!-- Map will be loaded here via WASM component -->
+        <div id="map-container" class="w-full h-full bg-gray-100 relative">
+            <!-- Placeholder for map -->
+            <div class="absolute inset-0 flex items-center justify-center">
+                <div class="text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">Interactive Map</h3>
+                    <p class="mt-1 text-sm text-gray-500">Map will be loaded with WASM component</p>
+                </div>
+            </div>
+
+            <!-- Map overlay with categories -->
+            <div class="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-4 max-w-xs">
+                <h3 class="font-semibold text-gray-900 mb-3">Categories</h3>
+                <div class="space-y-2">
+                    <label class="flex items-center">
+                        <input type="checkbox" checked class="rounded text-blue-600 focus:ring-blue-500" />
+                        <span class="ml-2 text-sm text-gray-700">🏪 Businesses</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="checkbox" checked class="rounded text-blue-600 focus:ring-blue-500" />
+                        <span class="ml-2 text-sm text-gray-700">🏛️ Community Centers</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="checkbox" checked class="rounded text-blue-600 focus:ring-blue-500" />
+                        <span class="ml-2 text-sm text-gray-700">🌳 Parks</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="checkbox" checked class="rounded text-blue-600 focus:ring-blue-500" />
+                        <span class="ml-2 text-sm text-gray-700">🎭 Events</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="checkbox" class="rounded text-blue-600 focus:ring-blue-500" />
+                        <span class="ml-2 text-sm text-gray-700">🚌 Transit</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Places list sidebar -->
+            <div class="absolute top-4 right-4 bottom-4 w-80 bg-white rounded-lg shadow-lg overflow-hidden flex flex-col">
+                <div class="p-4 border-b border-gray-200">
+                    <h3 class="font-semibold text-gray-900">Nearby Places</h3>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 space-y-3" hx-get="/api/poi/nearby" hx-trigger="load" hx-swap="innerHTML">
+                    <!-- Loading placeholders -->
+                    <div class="bg-gray-50 rounded-lg p-3 animate-pulse">
+                        <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                        <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3 animate-pulse">
+                        <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                        <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-3 animate-pulse">
+                        <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                        <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // TODO: Load WASM map component
+    console.log('POI Map page loaded - WASM component will be initialized here');
+</script>
+{% endblock %}

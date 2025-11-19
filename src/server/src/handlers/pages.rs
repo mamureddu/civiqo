@@ -47,6 +47,52 @@ pub async fn dashboard(State(state): State<Arc<AppState>>) -> Result<Response, A
     Ok(Html(html).into_response())
 }
 
+/// Community detail page
+pub async fn community_detail(
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<String>,
+) -> Result<Response, AppError> {
+    let mut ctx = Context::new();
+    ctx.insert("community_id", &community_id);
+    ctx.insert("community_name", &format!("Community {}", &community_id[..8.min(community_id.len())]));
+    ctx.insert("community_description", "A vibrant community space");
+    
+    let html = state.tera.render("community_detail.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+
+/// Businesses list page
+pub async fn businesses(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
+    let html = state.tera.render("businesses.html", &Context::new())?;
+    Ok(Html(html).into_response())
+}
+
+/// Business detail page
+pub async fn business_detail(
+    State(state): State<Arc<AppState>>,
+    Path(business_id): Path<String>,
+) -> Result<Response, AppError> {
+    let mut ctx = Context::new();
+    ctx.insert("business_id", &business_id);
+    ctx.insert("business_name", &format!("Business {}", &business_id[..8.min(business_id.len())]));
+    ctx.insert("business_category", "Local Business");
+    
+    let html = state.tera.render("business_detail.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+
+/// Governance page
+pub async fn governance(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
+    let html = state.tera.render("governance.html", &Context::new())?;
+    Ok(Html(html).into_response())
+}
+
+/// Points of Interest / Map page
+pub async fn poi(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
+    let html = state.tera.render("poi.html", &Context::new())?;
+    Ok(Html(html).into_response())
+}
+
 /// Error type for page handlers
 #[derive(Debug)]
 pub struct AppError(anyhow::Error);

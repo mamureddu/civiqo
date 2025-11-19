@@ -95,7 +95,13 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/", get(pages::index))
         .route("/dashboard", get(pages::dashboard))
         .route("/communities", get(pages::communities))
+        .route("/communities/:id", get(pages::community_detail))
+        .route("/businesses", get(pages::businesses))
+        .route("/businesses/:id", get(pages::business_detail))
+        .route("/chat", get(pages::chat_room))
         .route("/chat/:room_id", get(pages::chat_room))
+        .route("/governance", get(pages::governance))
+        .route("/poi", get(pages::poi))
         
         // HTMX API Fragments
         .route("/api/nav", get(htmx::nav_fragment))
