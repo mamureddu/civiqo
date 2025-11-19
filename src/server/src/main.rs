@@ -88,11 +88,12 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         // Auth routes
         .route("/auth/login", get(login))
         .route("/auth/callback", get(callback))
-        .route("/auth/logout", get(logout))
-        .route("/auth/me", get(get_current_user))
+        // .route("/auth/logout", get(logout))      // TODO: Session extractor issue
+        // .route("/auth/me", get(get_current_user)) // TODO: Session extractor issue
         
         // HTMX Pages
         .route("/", get(pages::index))
+        .route("/dashboard", get(pages::dashboard))
         .route("/communities", get(pages::communities))
         .route("/chat/:room_id", get(pages::chat_room))
         

@@ -39,6 +39,14 @@ pub async fn chat_room(
     Ok(Html(html).into_response())
 }
 
+/// User dashboard page (after login)
+pub async fn dashboard(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
+    tracing::info!("Rendering dashboard page");
+    let html = state.tera.render("dashboard.html", &Context::new())?;
+    tracing::info!("Dashboard page rendered successfully");
+    Ok(Html(html).into_response())
+}
+
 /// Error type for page handlers
 #[derive(Debug)]
 pub struct AppError(anyhow::Error);

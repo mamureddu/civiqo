@@ -1,11 +1,17 @@
 use axum::{
-    extract::Query,
+    extract::{Query, Request},
     http::StatusCode,
+    response::{IntoResponse, Redirect, Response},
     Json,
 };
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 use tracing::info;
+
+/// Helper to extract session from request
+async fn get_session_from_request(req: &mut Request) -> Option<Session> {
+    req.extensions().get::<Session>().cloned()
+}
 
 /// Auth0 configuration
 #[derive(Clone, Debug)]
@@ -57,15 +63,12 @@ pub struct SessionData {
 }
 
 /// Login endpoint - redirect to Auth0
-pub async fn login() -> Json<serde_json::Value> {
+pub async fn login() -> impl IntoResponse {
     let auth0_config = match Auth0Config::from_env() {
         Ok(config) => config,
         Err(e) => {
             tracing::error!("Auth0 config error: {}", e);
-            return Json(serde_json::json!({
-                "error": "Auth0 not configured",
-                "redirect_url": None::<String>
-            }));
+            return Redirect::to("/").into_response();
         }
     };
 
@@ -74,48 +77,48 @@ pub async fn login() -> Json<serde_json::Value> {
 
     info!("Redirecting to Auth0: {}", auth_url);
     
-    Json(serde_json::json!({
-        "redirect_url": auth_url,
-        "message": "Redirecting to Auth0..."
-    }))
+    // Redirect direttamente a Auth0
+    Redirect::temporary(&auth_url).into_response()
 }
 
 /// Callback from Auth0
-#[derive(Debug, Deserialize)]
-pub struct AuthCallback {
-    code: Option<String>,
-    state: Option<String>,
-}
+/// Note: Query + Session doesn't work in Axum 0.7 with tower-sessions
+/// So we parse query params manually from the request
+pub async fn callback(mut req: Request) -> impl IntoResponse {
+    // Parse query params manually
+    let query = req.uri().query().unwrap_or("");
+    let code = query.split('&')
+        .find(|p| p.starts_with("code="))
+        .and_then(|p| p.strip_prefix("code="));
+    
+    info!("Auth0 callback received with code: {:?}", code);
 
-pub async fn callback(
-    Query(_params): Query<AuthCallback>,
-    session: Session,
-) -> Json<serde_json::Value> {
-    info!("Auth0 callback received");
+    // Get session from request extensions
+    let session = match req.extensions().get::<Session>() {
+        Some(s) => s.clone(),
+        None => {
+            tracing::error!("No session found in request");
+            return Redirect::to("/?error=no_session").into_response();
+        }
+    };
 
     // TODO: Exchange code for token with Auth0
-    // For now, create a test session
+    // For now, create a test session with mock data
     let session_data = SessionData {
-        user_id: "test-user-123".to_string(),
-        email: "test@example.com".to_string(),
+        user_id: "auth0|test-user-123".to_string(),
+        email: "user@example.com".to_string(),
         name: Some("Test User".to_string()),
         picture: None,
     };
 
     if let Err(e) = session.insert("user", session_data).await {
-        tracing::error!("Failed to insert session: {}", e);
-        return Json(serde_json::json!({
-            "error": "Session error",
-            "success": false
-        }));
+        tracing::error!("Failed to create session: {}", e);
+        return Redirect::to("/?error=session_failed").into_response();
     }
 
-    info!("Session created for user");
-    Json(serde_json::json!({
-        "success": true,
-        "message": "Session created",
-        "redirect_url": "/"
-    }))
+    info!("Session created successfully for user");
+    // Redirect to dashboard after successful login
+    Redirect::to("/dashboard").into_response()
 }
 
 /// Get current user from session
