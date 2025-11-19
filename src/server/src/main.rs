@@ -10,6 +10,7 @@ use tower_http::{
 use tower_sessions::{SessionManagerLayer, MemoryStore};
 use tracing::info;
 use tera::Tera;
+use shared::database::Database;
 
 mod handlers;
 mod auth;
@@ -19,6 +20,7 @@ use auth::{login, callback, logout, get_current_user}; // Auth handlers
 
 pub struct AppState {
     pub tera: Tera,
+    pub db: Database,
 }
 
 #[tokio::main]
@@ -44,8 +46,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
-    // TODO: Database and Auth0 will be added later
-    // For now, just serve HTMX pages
+    // Connect to database
+    let database_url = std::env::var("DATABASE_URL")
+        .expect("DATABASE_URL must be set");
+    
+    info!("Connecting to database...");
+    let db = Database::connect(&database_url)
+        .await
+        .map_err(|e| format!("Failed to connect to database: {}", e))?;
+    
+    info!("Running database migrations...");
+    db.migrate()
+        .await
+        .map_err(|e| format!("Failed to run migrations: {}", e))?;
+    
+    info!("Database connected and migrations complete");
 
     // Initialize Tera templates
     // Get current directory and build paths
@@ -72,7 +87,10 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
     info!("Templates loaded successfully: {:?}", tera.get_template_names().collect::<Vec<_>>());
     
     // Create page state
-    let page_state = Arc::new(handlers::pages::AppState { tera });
+    let page_state = Arc::new(handlers::pages::AppState { 
+        tera,
+        db: db.clone(),
+    });
 
     // Setup session store
     let session_store = MemoryStore::default();

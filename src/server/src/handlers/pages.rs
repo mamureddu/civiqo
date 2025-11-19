@@ -5,10 +5,12 @@ use axum::{
 };
 use tera::{Context, Tera};
 use std::sync::Arc;
+use shared::database::Database;
 
 /// Application state for page handlers
 pub struct AppState {
     pub tera: Tera,
+    pub db: Database,
 }
 
 /// Home page
