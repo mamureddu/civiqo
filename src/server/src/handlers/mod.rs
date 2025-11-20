@@ -10,3 +10,6 @@ pub mod stubs;
 // HTMX handlers
 pub mod pages;
 pub mod htmx;
+
+// API handlers
+pub mod api;

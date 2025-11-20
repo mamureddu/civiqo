@@ -6,6 +6,7 @@ use axum::{
 use tera::{Context, Tera};
 use std::sync::Arc;
 use shared::database::Database;
+use crate::auth::{AuthUser, OptionalAuthUser};
 
 /// Application state for page handlers
 pub struct AppState {
@@ -23,7 +24,34 @@ pub async fn index(State(state): State<Arc<AppState>>) -> Result<Response, AppEr
 
 /// Communities list page
 pub async fn communities(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
-    let html = state.tera.render("communities.html", &Context::new())?;
+    use sqlx::Row;
+    
+    let mut ctx = Context::new();
+    
+    // Fetch all communities from database
+    let communities = sqlx::query(
+        "SELECT c.id, c.name, c.description, c.created_at, u.username as creator_name 
+         FROM communities c 
+         LEFT JOIN users u ON c.created_by = u.id 
+         ORDER BY c.created_at DESC"
+    )
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    let communities_data: Vec<serde_json::Value> = communities.iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<uuid::Uuid, _>("id").to_string(),
+            "name": row.get::<String, _>("name"),
+            "description": row.get::<Option<String>, _>("description").unwrap_or_default(),
+            "creator_name": row.get::<Option<String>, _>("creator_name").unwrap_or_else(|| "Unknown".to_string()),
+            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d").to_string(),
+        })
+    }).collect();
+    
+    ctx.insert("communities", &communities_data);
+    
+    let html = state.tera.render("communities.html", &ctx)?;
     Ok(Html(html).into_response())
 }
 
@@ -41,10 +69,19 @@ pub async fn chat_room(
     Ok(Html(html).into_response())
 }
 
-/// User dashboard page (after login)
-pub async fn dashboard(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
-    tracing::info!("Rendering dashboard page");
-    let html = state.tera.render("dashboard.html", &Context::new())?;
+/// User dashboard page (PROTECTED - requires authentication)
+pub async fn dashboard(
+    AuthUser(user): AuthUser, // Requires authentication
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    tracing::info!("Rendering dashboard page for user: {}", user.user_id);
+    
+    let mut ctx = Context::new();
+    ctx.insert("user_id", &user.user_id);
+    ctx.insert("email", &user.email);
+    ctx.insert("username", &user.name.unwrap_or_else(|| "User".to_string()));
+    
+    let html = state.tera.render("dashboard.html", &ctx)?;
     tracing::info!("Dashboard page rendered successfully");
     Ok(Html(html).into_response())
 }
@@ -54,10 +91,60 @@ pub async fn community_detail(
     State(state): State<Arc<AppState>>,
     Path(community_id): Path<String>,
 ) -> Result<Response, AppError> {
+    use sqlx::Row;
+    
     let mut ctx = Context::new();
-    ctx.insert("community_id", &community_id);
-    ctx.insert("community_name", &format!("Community {}", &community_id[..8.min(community_id.len())]));
-    ctx.insert("community_description", "A vibrant community space");
+    
+    // Parse UUID
+    let uuid = uuid::Uuid::parse_str(&community_id)
+        .map_err(|_| AppError(anyhow::anyhow!("Invalid community ID")))?;
+    
+    // Fetch community details
+    let community = sqlx::query(
+        "SELECT c.id, c.name, c.description, c.created_at, u.username as creator_name 
+         FROM communities c 
+         LEFT JOIN users u ON c.created_by = u.id 
+         WHERE c.id = $1"
+    )
+    .bind(uuid)
+    .fetch_optional(&state.db.pool)
+    .await?;
+    
+    if let Some(row) = community {
+        ctx.insert("community_id", &row.get::<uuid::Uuid, _>("id").to_string());
+        ctx.insert("community_name", &row.get::<String, _>("name"));
+        ctx.insert("community_description", &row.get::<Option<String>, _>("description").unwrap_or_default());
+        ctx.insert("creator_name", &row.get::<Option<String>, _>("creator_name").unwrap_or_else(|| "Unknown".to_string()));
+        ctx.insert("created_at", &row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d").to_string());
+        
+        // Fetch posts for this community
+        let posts = sqlx::query(
+            "SELECT p.id, p.title, p.content, p.created_at, u.username as author_name 
+             FROM posts p 
+             LEFT JOIN users u ON p.author_id = u.id 
+             WHERE p.community_id = $1 
+             ORDER BY p.created_at DESC 
+             LIMIT 10"
+        )
+        .bind(uuid)
+        .fetch_all(&state.db.pool)
+        .await
+        .unwrap_or_default();
+        
+        let posts_data: Vec<serde_json::Value> = posts.iter().map(|row| {
+            serde_json::json!({
+                "id": row.get::<uuid::Uuid, _>("id").to_string(),
+                "title": row.get::<String, _>("title"),
+                "content": row.get::<String, _>("content"),
+                "author_name": row.get::<Option<String>, _>("author_name").unwrap_or_else(|| "Anonymous".to_string()),
+                "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
+            })
+        }).collect();
+        
+        ctx.insert("posts", &posts_data);
+    } else {
+        return Err(AppError(anyhow::anyhow!("Community not found")));
+    }
     
     let html = state.tera.render("community_detail.html", &ctx)?;
     Ok(Html(html).into_response())
@@ -92,6 +179,70 @@ pub async fn governance(State(state): State<Arc<AppState>>) -> Result<Response, 
 /// Points of Interest / Map page
 pub async fn poi(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
     let html = state.tera.render("poi.html", &Context::new())?;
+    Ok(Html(html).into_response())
+}
+
+/// Database test page - shows real data from DB
+pub async fn test_db(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
+    use sqlx::Row;
+    
+    let mut ctx = Context::new();
+    
+    // Get counts
+    let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(0);
+    
+    let community_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM communities")
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(0);
+    
+    let post_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts")
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(0);
+    
+    ctx.insert("user_count", &user_count);
+    ctx.insert("community_count", &community_count);
+    ctx.insert("post_count", &post_count);
+    
+    // Get recent users
+    let users = sqlx::query("SELECT id, username, email, created_at FROM users ORDER BY created_at DESC LIMIT 5")
+        .fetch_all(&state.db.pool)
+        .await
+        .unwrap_or_default();
+    
+    let users_data: Vec<serde_json::Value> = users.iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<uuid::Uuid, _>("id").to_string(),
+            "username": row.get::<String, _>("username"),
+            "email": row.get::<String, _>("email"),
+            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
+        })
+    }).collect();
+    
+    ctx.insert("users", &users_data);
+    
+    // Get recent communities
+    let communities = sqlx::query("SELECT id, name, description, created_at FROM communities ORDER BY created_at DESC LIMIT 5")
+        .fetch_all(&state.db.pool)
+        .await
+        .unwrap_or_default();
+    
+    let communities_data: Vec<serde_json::Value> = communities.iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<uuid::Uuid, _>("id").to_string(),
+            "name": row.get::<String, _>("name"),
+            "description": row.get::<Option<String>, _>("description").unwrap_or_default(),
+            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
+        })
+    }).collect();
+    
+    ctx.insert("communities", &communities_data);
+    
+    let html = state.tera.render("test_db.html", &ctx)?;
     Ok(Html(html).into_response())
 }
 

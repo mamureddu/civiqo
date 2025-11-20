@@ -1,6 +1,7 @@
 use axum::{
-    extract::{Query, Request},
-    http::StatusCode,
+    async_trait,
+    extract::{Query, Request, FromRequestParts},
+    http::{StatusCode, request::Parts},
     response::{IntoResponse, Redirect, Response},
     Json,
 };
@@ -168,11 +169,52 @@ pub async fn logout(session: Session) -> Json<serde_json::Value> {
     }))
 }
 
-/// Middleware to check if user is authenticated
-pub async fn require_auth(session: Session) -> Result<SessionData, (StatusCode, &'static str)> {
-    match session.get::<SessionData>("user").await {
-        Ok(Some(user)) => Ok(user),
-        Ok(None) => Err((StatusCode::UNAUTHORIZED, "Not authenticated")),
-        Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, "Session error")),
+/// Extractor for authenticated user - use this in route handlers
+/// Example: `async fn protected_route(AuthUser(user): AuthUser) -> impl IntoResponse`
+pub struct AuthUser(pub SessionData);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for AuthUser
+where
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        // Extract session from request extensions
+        let session = parts
+            .extensions
+            .get::<Session>()
+            .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Session not found"))?;
+
+        // Get user from session
+        match session.get::<SessionData>("user").await {
+            Ok(Some(user)) => Ok(AuthUser(user)),
+            Ok(None) => Err((StatusCode::UNAUTHORIZED, "Not authenticated")),
+            Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, "Session error")),
+        }
+    }
+}
+
+/// Optional auth - returns None if not authenticated instead of error
+pub struct OptionalAuthUser(pub Option<SessionData>);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for OptionalAuthUser
+where
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let session = parts
+            .extensions
+            .get::<Session>()
+            .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Session not found"))?;
+
+        match session.get::<SessionData>("user").await {
+            Ok(user) => Ok(OptionalAuthUser(user)),
+            Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, "Session error")),
+        }
     }
 }

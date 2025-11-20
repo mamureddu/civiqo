@@ -15,8 +15,8 @@ use shared::database::Database;
 mod handlers;
 mod auth;
 
-use handlers::{pages, htmx, stubs::health_check};
-use auth::{login, callback, logout, get_current_user}; // Auth handlers
+use handlers::{pages, htmx, api, stubs::health_check};
+use auth::{login, callback, logout, get_current_user, AuthUser, OptionalAuthUser}; // Auth handlers and extractors
 
 pub struct AppState {
     pub tera: Tera,
@@ -120,6 +120,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/chat/:room_id", get(pages::chat_room))
         .route("/governance", get(pages::governance))
         .route("/poi", get(pages::poi))
+        .route("/test-db", get(pages::test_db))
         
         // HTMX API Fragments
         .route("/api/nav", get(htmx::nav_fragment))
@@ -127,6 +128,14 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/communities/list", get(htmx::communities_list))
         .route("/api/communities/search", get(htmx::communities_list))
         .route("/api/chat/:room_id/header", get(htmx::chat_header))
+        
+        // REST API Endpoints
+        .route("/api/users", axum::routing::post(api::create_user))
+        .route("/api/users", get(api::get_users))
+        .route("/api/communities", axum::routing::post(api::create_community))
+        .route("/api/communities", get(api::get_communities))
+        .route("/api/communities/:id/posts", axum::routing::post(api::create_post))
+        .route("/api/communities/:id/posts", get(api::get_posts))
         
         // Static files
         .nest_service("/static", ServeDir::new(static_path))
