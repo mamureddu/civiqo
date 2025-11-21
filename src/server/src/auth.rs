@@ -288,9 +288,26 @@ pub async fn get_current_user(session: Session) -> Json<serde_json::Value> {
 }
 
 /// Logout endpoint
-pub async fn logout(session: Session) -> Json<serde_json::Value> {
+pub async fn logout(mut req: Request) -> impl IntoResponse {
+    // Get session from request extensions
+    let session = match req.extensions().get::<Session>() {
+        Some(s) => s.clone(),
+        None => {
+            tracing::error!("No session found in logout request");
+            return Json(serde_json::json!({
+                "success": false,
+                "error": "No session found"
+            })).into_response();
+        }
+    };
+
+    // Delete session
     if let Err(e) = session.delete().await {
         tracing::error!("Failed to delete session: {}", e);
+        return Json(serde_json::json!({
+            "success": false,
+            "error": "Failed to delete session"
+        })).into_response();
     }
 
     info!("User logged out");
@@ -298,7 +315,7 @@ pub async fn logout(session: Session) -> Json<serde_json::Value> {
         "success": true,
         "message": "Logged out",
         "redirect_url": "/"
-    }))
+    })).into_response()
 }
 
 /// Extractor for authenticated user - use this in route handlers

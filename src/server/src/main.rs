@@ -16,7 +16,7 @@ mod handlers;
 mod auth;
 
 use handlers::{pages, htmx, api, stubs::health_check};
-use auth::{login, callback, logout, get_current_user, AuthUser, OptionalAuthUser}; // Auth handlers and extractors
+use auth::{login, callback, logout, AuthUser, OptionalAuthUser}; // Auth handlers and extractors
 
 pub struct AppState {
     pub tera: Tera,
@@ -106,8 +106,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         // Auth routes
         .route("/auth/login", get(login))
         .route("/auth/callback", get(callback))
-        // .route("/auth/logout", get(logout))      // TODO: Session extractor issue
-        // .route("/auth/me", get(get_current_user)) // TODO: Session extractor issue
+        .route("/auth/logout", axum::routing::post(logout))
         
         // HTMX Pages
         .route("/", get(pages::index))
