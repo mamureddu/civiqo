@@ -15,18 +15,45 @@ pub struct AppState {
 }
 
 /// Home page
-pub async fn index(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
+pub async fn index(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
     tracing::info!("Rendering index page");
-    let html = state.tera.render("index.html", &Context::new())?;
+    
+    let mut ctx = Context::new();
+    
+    // Add auth info to context
+    if let Some(user) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &user.name.unwrap_or(user.email.clone()));
+        ctx.insert("picture", &user.picture);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    let html = state.tera.render("index.html", &ctx)?;
     tracing::info!("Index page rendered successfully");
     Ok(Html(html).into_response())
 }
 
 /// Communities list page
-pub async fn communities(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
+pub async fn communities(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
     use sqlx::Row;
     
     let mut ctx = Context::new();
+    
+    // Add auth info to context
+    if let Some(user) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &user.name.unwrap_or(user.email.clone()));
+        ctx.insert("picture", &user.picture);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
     
     // Fetch all communities from database
     let communities = sqlx::query(
@@ -57,13 +84,24 @@ pub async fn communities(State(state): State<Arc<AppState>>) -> Result<Response,
 
 /// Chat room page
 pub async fn chat_room(
+    OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<String>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
     ctx.insert("room_id", &room_id);
     ctx.insert("room_name", &format!("Room {}", &room_id[..8])); // Placeholder
-    ctx.insert("user_id", "user-123"); // TODO: Get from session
+    
+    // Add auth info to context
+    if let Some(user) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &user.name.unwrap_or(user.email.clone()));
+        ctx.insert("picture", &user.picture);
+        ctx.insert("user_id", &user.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+        ctx.insert("user_id", "guest");
+    }
     
     let html = state.tera.render("chat.html", &ctx)?;
     Ok(Html(html).into_response())
@@ -77,9 +115,13 @@ pub async fn dashboard(
     tracing::info!("Rendering dashboard page for user: {}", user.user_id);
     
     let mut ctx = Context::new();
+    
+    // Auth info (always logged in for dashboard)
+    ctx.insert("logged_in", &true);
     ctx.insert("user_id", &user.user_id);
     ctx.insert("email", &user.email);
-    ctx.insert("username", &user.name.unwrap_or_else(|| "User".to_string()));
+    ctx.insert("username", &user.name.clone().unwrap_or_else(|| "User".to_string()));
+    ctx.insert("picture", &user.picture);
     
     let html = state.tera.render("dashboard.html", &ctx)?;
     tracing::info!("Dashboard page rendered successfully");

@@ -1,6 +1,6 @@
 use axum::{
     async_trait,
-    extract::{Query, Request, FromRequestParts},
+    extract::{Query, Request, FromRequestParts, State},
     http::{StatusCode, request::Parts},
     response::{IntoResponse, Redirect, Response},
     Json,
@@ -8,6 +8,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 use tracing::info;
+use std::sync::Arc;
+use uuid::Uuid;
 
 /// Request to sync user from Auth0
 #[derive(Debug, Deserialize, Serialize)]
@@ -54,13 +56,23 @@ impl Auth0Config {
     }
 }
 
-/// User info from Auth0
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserInfo {
+/// User info from Auth0 token response
+#[derive(Debug, Deserialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    pub id_token: Option<String>,
+    pub token_type: String,
+    pub expires_in: Option<u64>,
+}
+
+/// Auth0 user info response
+#[derive(Debug, Deserialize)]
+pub struct Auth0UserInfo {
     pub sub: String,           // User ID
     pub email: String,
     pub name: Option<String>,
     pub picture: Option<String>,
+    pub email_verified: Option<bool>,
 }
 
 /// Session data stored in tower-sessions
@@ -91,17 +103,25 @@ pub async fn login() -> impl IntoResponse {
     Redirect::temporary(&auth_url).into_response()
 }
 
-/// Callback from Auth0
-/// Note: Query + Session doesn't work in Axum 0.7 with tower-sessions
-/// So we parse query params manually from the request
-pub async fn callback(mut req: Request) -> impl IntoResponse {
+/// Callback from Auth0 - Complete OAuth2 flow with code exchange and user sync
+pub async fn callback(
+    State(state): State<Arc<crate::handlers::pages::AppState>>,
+    mut req: Request,
+) -> impl IntoResponse {
     // Parse query params manually
     let query = req.uri().query().unwrap_or("");
-    let code = query.split('&')
+    let code = match query.split('&')
         .find(|p| p.starts_with("code="))
-        .and_then(|p| p.strip_prefix("code="));
+        .and_then(|p| p.strip_prefix("code="))
+    {
+        Some(c) => c,
+        None => {
+            tracing::error!("No code in callback");
+            return Redirect::to("/?error=no_code").into_response();
+        }
+    };
     
-    info!("Auth0 callback received with code: {:?}", code);
+    info!("Auth0 callback received, exchanging code for token");
 
     // Get session from request extensions
     let session = match req.extensions().get::<Session>() {
@@ -112,13 +132,85 @@ pub async fn callback(mut req: Request) -> impl IntoResponse {
         }
     };
 
-    // TODO: Exchange code for token with Auth0
-    // For now, create a test session with mock data
+    // Get Auth0 config
+    let auth0_config = match Auth0Config::from_env() {
+        Ok(config) => config,
+        Err(e) => {
+            tracing::error!("Auth0 config error: {}", e);
+            return Redirect::to("/?error=config").into_response();
+        }
+    };
+
+    // 1. Exchange code for tokens
+    let client = reqwest::Client::new();
+    let token_response = match client
+        .post(format!("https://{}/oauth/token", auth0_config.domain))
+        .json(&serde_json::json!({
+            "grant_type": "authorization_code",
+            "client_id": auth0_config.client_id,
+            "client_secret": auth0_config.client_secret,
+            "code": code,
+            "redirect_uri": auth0_config.callback_url,
+        }))
+        .send()
+        .await
+    {
+        Ok(resp) => resp,
+        Err(e) => {
+            tracing::error!("Failed to exchange code: {}", e);
+            return Redirect::to("/?error=token_exchange").into_response();
+        }
+    };
+
+    let tokens: TokenResponse = match token_response.json().await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("Failed to parse token response: {}", e);
+            return Redirect::to("/?error=token_parse").into_response();
+        }
+    };
+
+    info!("Successfully exchanged code for access token");
+
+    // 2. Get user info from Auth0
+    let user_info: Auth0UserInfo = match client
+        .get(format!("https://{}/userinfo", auth0_config.domain))
+        .bearer_auth(&tokens.access_token)
+        .send()
+        .await
+    {
+        Ok(resp) => match resp.json().await {
+            Ok(info) => info,
+            Err(e) => {
+                tracing::error!("Failed to parse user info: {}", e);
+                return Redirect::to("/?error=userinfo_parse").into_response();
+            }
+        },
+        Err(e) => {
+            tracing::error!("Failed to get user info: {}", e);
+            return Redirect::to("/?error=userinfo").into_response();
+        }
+    };
+
+    info!("Got user info for: {}", user_info.email);
+
+    // 3. Sync user to database
+    let local_user_id = match sync_user_to_database(&state.db, &user_info).await {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("Failed to sync user to database: {}", e);
+            return Redirect::to("/?error=db_sync").into_response();
+        }
+    };
+
+    info!("User synced to database with ID: {}", local_user_id);
+
+    // 4. Create session
     let session_data = SessionData {
-        user_id: "auth0|test-user-123".to_string(),
-        email: "user@example.com".to_string(),
-        name: Some("Test User".to_string()),
-        picture: None,
+        user_id: local_user_id.to_string(),
+        email: user_info.email,
+        name: user_info.name,
+        picture: user_info.picture,
     };
 
     if let Err(e) = session.insert("user", session_data).await {
@@ -126,9 +218,49 @@ pub async fn callback(mut req: Request) -> impl IntoResponse {
         return Redirect::to("/?error=session_failed").into_response();
     }
 
-    info!("Session created successfully for user");
+    info!("Session created successfully for user: {}", local_user_id);
+    
     // Redirect to dashboard after successful login
     Redirect::to("/dashboard").into_response()
+}
+
+/// Sync Auth0 user to local database
+async fn sync_user_to_database(
+    db: &shared::database::Database,
+    user_info: &Auth0UserInfo,
+) -> Result<Uuid, Box<dyn std::error::Error>> {
+    // 1. Insert or update user in users table
+    let user_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO users (id, auth0_id, email, created_at, updated_at)
+         VALUES ($1, $2, $3, NOW(), NOW())
+         ON CONFLICT (auth0_id) DO UPDATE SET
+            email = EXCLUDED.email,
+            updated_at = NOW()
+         RETURNING id"
+    )
+    .bind(Uuid::new_v4())
+    .bind(&user_info.sub)
+    .bind(&user_info.email)
+    .fetch_one(&db.pool)
+    .await?;
+
+    // 2. Insert or update user profile
+    sqlx::query(
+        "INSERT INTO user_profiles (id, user_id, name, avatar_url, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())
+         ON CONFLICT (user_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            avatar_url = EXCLUDED.avatar_url,
+            updated_at = NOW()"
+    )
+    .bind(Uuid::new_v4())
+    .bind(user_id)
+    .bind(&user_info.name)
+    .bind(&user_info.picture)
+    .execute(&db.pool)
+    .await?;
+
+    Ok(user_id)
 }
 
 /// Get current user from session
