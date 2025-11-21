@@ -20,19 +20,21 @@ NC='\033[0m' # No Color
 # Configuration
 # ============================================================================
 
-# Server Configuration
+# Default values (can be overridden by .env files)
 SERVER_FUNCTION_NAME="community-manager-api"
 SERVER_MEMORY=512
 SERVER_TIMEOUT=60
 
-# Authorizer Configuration
 AUTHORIZER_FUNCTION_NAME="community-manager-authorizer"
 AUTHORIZER_MEMORY=256
 AUTHORIZER_TIMEOUT=30
 
-# AWS Configuration
-REGION="eu-central-1"  # Change if needed
+REGION="eu-central-1"
 ROLE_NAME="lambda-execution-role"
+
+# Environment variables (loaded from .env files)
+STAGE=""
+ENV_FILE=""
 
 # ============================================================================
 # Functions
@@ -61,6 +63,60 @@ print_warning() {
 }
 
 # ============================================================================
+# Load Environment Variables
+# ============================================================================
+
+load_env_file() {
+    local env_file="$1"
+    
+    if [ ! -f "$env_file" ]; then
+        print_error "Environment file not found: $env_file"
+        exit 1
+    fi
+    
+    print_step "Loading environment from: $env_file"
+    
+    # Source the env file, filtering out comments and empty lines
+    set -a
+    source <(grep -v '^#' "$env_file" | grep -v '^$')
+    set +a
+    
+    print_success "Environment variables loaded"
+}
+
+validate_env_variables() {
+    local required_vars=(
+        "DATABASE_URL"
+        "AUTH0_DOMAIN"
+        "AUTH0_CLIENT_ID"
+        "AUTH0_CLIENT_SECRET"
+        "AUTH0_CALLBACK_URL"
+        "SESSION_SECRET"
+        "JWT_SECRET"
+        "RUST_LOG"
+    )
+    
+    print_step "Validating required environment variables..."
+    
+    local missing_vars=()
+    for var in "${required_vars[@]}"; do
+        if [ -z "${!var}" ]; then
+            missing_vars+=("$var")
+        fi
+    done
+    
+    if [ ${#missing_vars[@]} -gt 0 ]; then
+        print_error "Missing required environment variables:"
+        for var in "${missing_vars[@]}"; do
+            echo "  - $var"
+        done
+        exit 1
+    fi
+    
+    print_success "All required environment variables are set"
+}
+
+# ============================================================================
 # Stage Selection
 # ============================================================================
 
@@ -78,14 +134,17 @@ select_stage() {
         1)
             STAGE="dev"
             STAGE_SUFFIX="-dev"
+            ENV_FILE=".env.dev"
             ;;
         2)
             STAGE="staging"
             STAGE_SUFFIX="-staging"
+            ENV_FILE=".env.staging"
             ;;
         3)
             STAGE="prod"
             STAGE_SUFFIX=""
+            ENV_FILE=".env.production"
             print_warning "⚠️  You are deploying to PRODUCTION!"
             read -p "Are you sure? (type 'yes' to confirm): " CONFIRM
             if [ "$CONFIRM" != "yes" ]; then
@@ -99,11 +158,18 @@ select_stage() {
             ;;
     esac
     
+    # Load environment variables from the selected stage file
+    load_env_file "$ENV_FILE"
+    
+    # Validate all required variables are present
+    validate_env_variables
+    
     # Update function names with stage suffix
     SERVER_FUNCTION_NAME="community-manager-api${STAGE_SUFFIX}"
     AUTHORIZER_FUNCTION_NAME="community-manager-authorizer${STAGE_SUFFIX}"
     
     print_success "Selected stage: $STAGE"
+    echo "  Environment file: $ENV_FILE"
     echo "  Server function: $SERVER_FUNCTION_NAME"
     echo "  Authorizer function: $AUTHORIZER_FUNCTION_NAME"
 }
@@ -303,13 +369,13 @@ deploy_services() {
         --iam-role "$ROLE_ARN" \
         --memory "$SERVER_MEMORY" \
         --timeout "$SERVER_TIMEOUT" \
-        --env-var RUST_LOG=info \
-        --env-var DATABASE_URL="${DATABASE_URL:-postgresql://...}" \
-        --env-var AUTH0_DOMAIN="${AUTH0_DOMAIN:-your-tenant.auth0.com}" \
-        --env-var AUTH0_CLIENT_ID="${AUTH0_CLIENT_ID:-your-client-id}" \
-        --env-var AUTH0_CLIENT_SECRET="${AUTH0_CLIENT_SECRET:-your-client-secret}" \
-        --env-var AUTH0_CALLBACK_URL="${AUTH0_CALLBACK_URL:-https://your-api.com/auth/callback}" \
-        --env-var SESSION_SECRET="${SESSION_SECRET:-your-session-secret}"; then
+        --env-var RUST_LOG="$RUST_LOG" \
+        --env-var DATABASE_URL="$DATABASE_URL" \
+        --env-var AUTH0_DOMAIN="$AUTH0_DOMAIN" \
+        --env-var AUTH0_CLIENT_ID="$AUTH0_CLIENT_ID" \
+        --env-var AUTH0_CLIENT_SECRET="$AUTH0_CLIENT_SECRET" \
+        --env-var AUTH0_CALLBACK_URL="$AUTH0_CALLBACK_URL" \
+        --env-var SESSION_SECRET="$SESSION_SECRET"; then
         
         print_success "API Server deployed successfully"
         
@@ -329,9 +395,9 @@ deploy_services() {
         --iam-role "$ROLE_ARN" \
         --memory "$AUTHORIZER_MEMORY" \
         --timeout "$AUTHORIZER_TIMEOUT" \
-        --env-var RUST_LOG=info \
-        --env-var AUTH0_DOMAIN="${AUTH0_DOMAIN:-your-tenant.auth0.com}" \
-        --env-var JWT_SECRET="${JWT_SECRET:-your-secret-key}"; then
+        --env-var RUST_LOG="$RUST_LOG" \
+        --env-var AUTH0_DOMAIN="$AUTH0_DOMAIN" \
+        --env-var JWT_SECRET="$JWT_SECRET"; then
         
         print_success "Authorizer deployed successfully"
         
@@ -415,9 +481,15 @@ main() {
                 echo "Options:"
                 echo "  --skip-build     Skip build step (use existing binaries)"
                 echo "  --skip-checks    Skip pre-flight checks"
-                echo "  --help          Show this help message"
+                echo "  --help           Show this help message"
                 echo ""
-                echo "Environment Variables:"
+                echo "Environment Configuration:"
+                echo "  The script loads environment variables from stage-specific .env files:"
+                echo "  - .env.dev         (Development environment)"
+                echo "  - .env.staging     (Staging environment)"
+                echo "  - .env.production  (Production environment)"
+                echo ""
+                echo "Required Variables (in .env files):"
                 echo "  DATABASE_URL           Database connection string"
                 echo "  AUTH0_DOMAIN           Auth0 tenant domain"
                 echo "  AUTH0_CLIENT_ID        Auth0 client ID"
@@ -425,6 +497,17 @@ main() {
                 echo "  AUTH0_CALLBACK_URL     Auth0 callback URL"
                 echo "  SESSION_SECRET         Session encryption secret"
                 echo "  JWT_SECRET             JWT signing secret"
+                echo "  RUST_LOG               Log level (info, debug, trace)"
+                echo ""
+                echo "Example .env.dev:"
+                echo "  DATABASE_URL=postgresql://user:pass@localhost/db"
+                echo "  AUTH0_DOMAIN=your-tenant.auth0.com"
+                echo "  AUTH0_CLIENT_ID=your-client-id"
+                echo "  AUTH0_CLIENT_SECRET=your-client-secret"
+                echo "  AUTH0_CALLBACK_URL=https://localhost:3000/auth/callback"
+                echo "  SESSION_SECRET=your-session-secret"
+                echo "  JWT_SECRET=your-jwt-secret"
+                echo "  RUST_LOG=info"
                 exit 0
                 ;;
             *)
