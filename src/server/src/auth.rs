@@ -1,8 +1,8 @@
 use axum::{
     async_trait,
-    extract::{Query, Request, FromRequestParts, State},
+    extract::{Request, FromRequestParts, State},
     http::{StatusCode, request::Parts},
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Redirect},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -20,10 +20,6 @@ pub struct SyncUserRequest {
     pub picture: Option<String>,
 }
 
-/// Helper to extract session from request
-async fn get_session_from_request(req: &mut Request) -> Option<Session> {
-    req.extensions().get::<Session>().cloned()
-}
 
 /// Auth0 configuration
 #[derive(Clone, Debug)]
@@ -60,9 +56,12 @@ impl Auth0Config {
 #[derive(Debug, Deserialize)]
 pub struct TokenResponse {
     pub access_token: String,
-    pub id_token: Option<String>,
-    pub token_type: String,
-    pub expires_in: Option<u64>,
+    // ==========================================================
+    // COMMENTED FIELDS - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
+    // pub id_token: Option<String>,      // May be needed for JWT validation or user info extraction
+    // pub token_type: String,            // Typically "Bearer" - may be needed for token validation
+    // pub expires_in: Option<u64>,       // Token expiration in seconds - may be needed for refresh logic
 }
 
 /// Auth0 user info response
@@ -72,7 +71,12 @@ pub struct Auth0UserInfo {
     pub email: String,
     pub name: Option<String>,
     pub picture: Option<String>,
-    pub email_verified: Option<bool>,
+    // ==========================================================
+    // COMMENTED FIELDS - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
+    // pub email_verified: Option<bool>,  // Critical for security - may prevent unverified email access
+    // pub updated_at: Option<String>,    // Last profile update - may be needed for sync logic
+    // pub created_at: Option<String>,    // Account creation date - may be needed for user analytics
 }
 
 /// Session data stored in tower-sessions
@@ -106,7 +110,7 @@ pub async fn login() -> impl IntoResponse {
 /// Callback from Auth0 - Complete OAuth2 flow with code exchange and user sync
 pub async fn callback(
     State(state): State<Arc<crate::handlers::pages::AppState>>,
-    mut req: Request,
+    req: Request,
 ) -> impl IntoResponse {
     // Parse query params manually
     let query = req.uri().query().unwrap_or("");
@@ -263,32 +267,37 @@ async fn sync_user_to_database(
     Ok(user_id)
 }
 
-/// Get current user from session
-pub async fn get_current_user(session: Session) -> Json<serde_json::Value> {
-    match session.get::<SessionData>("user").await {
-        Ok(Some(user)) => Json(serde_json::json!({
-            "authenticated": true,
-            "user_id": user.user_id,
-            "email": user.email,
-            "name": user.name,
-            "picture": user.picture,
-        })),
-        Ok(None) => Json(serde_json::json!({
-            "authenticated": false,
-            "error": "Not logged in"
-        })),
-        Err(e) => {
-            tracing::error!("Session error: {}", e);
-            Json(serde_json::json!({
-                "authenticated": false,
-                "error": "Session error"
-            }))
-        }
-    }
-}
+// ==========================================================
+// COMMENTED ENDPOINT - KEPT FOR FUTURE REFERENCE
+// ==========================================================
+// /// Get current user from session - Frontend API endpoint
+// /// USAGE: Add to router as GET /auth/me for JavaScript frontend calls
+// /// PURPOSE: Provides user authentication status and profile data to frontend
+// pub async fn get_current_user(session: Session) -> Json<serde_json::Value> {
+//     match session.get::<SessionData>("user").await {
+//         Ok(Some(user)) => Json(serde_json::json!({
+//             "authenticated": true,
+//             "user_id": user.user_id,
+//             "email": user.email,
+//             "name": user.name,
+//             "picture": user.picture,
+//         })),
+//         Ok(None) => Json(serde_json::json!({
+//             "authenticated": false,
+//             "error": "Not logged in"
+//         })),
+//         Err(e) => {
+//             tracing::error!("Session error: {}", e);
+//             Json(serde_json::json!({
+//                 "authenticated": false,
+//                 "error": "Session error"
+//             }))
+//         }
+//     }
+// }
 
 /// Logout endpoint
-pub async fn logout(mut req: Request) -> impl IntoResponse {
+pub async fn logout(req: Request) -> impl IntoResponse {
     // Get session from request extensions
     let session = match req.extensions().get::<Session>() {
         Some(s) => s.clone(),
@@ -329,7 +338,7 @@ where
 {
     type Rejection = (StatusCode, &'static str);
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         // Extract session from request extensions
         let session = parts
             .extensions

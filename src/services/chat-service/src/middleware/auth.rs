@@ -2,11 +2,15 @@
 // Currently implemented directly in the WebSocket handler
 // This module can be used for future authentication middleware needs
 
-use shared::{
-    auth::{extract_bearer_token, AuthState},
-    error::{AppError, Result},
-    models::Claims,
-};
+// ==========================================================
+// COMMENTED IMPORTS - KEPT FOR FUTURE REFERENCE
+// ==========================================================
+// use shared::{
+//     auth::{extract_bearer_token, AuthState},
+//     error::{AppError, Result},
+//     models::Claims,
+// };
+use shared::auth::extract_bearer_token;
 use axum::http::HeaderMap;
 
 /// Extract JWT token from WebSocket upgrade headers
@@ -17,23 +21,29 @@ pub fn extract_token_from_headers(headers: &HeaderMap) -> Option<String> {
         .map(|token| token.to_string())
 }
 
-/// Extract and validate JWT token from WebSocket upgrade headers
-pub async fn validate_websocket_auth(
-    headers: &HeaderMap,
-    auth_state: &AuthState,
-) -> Result<Claims> {
-    // Extract bearer token from headers
-    let token = extract_token_from_headers(headers)
-        .ok_or_else(|| AppError::Auth("Missing authorization header".to_string()))?;
+// ==========================================================
+// COMMENTED FUNCTION - KEPT FOR FUTURE REFERENCE
+// ==========================================================
+// /// Extract and validate JWT token from WebSocket upgrade headers
+// /// USAGE: Call during WebSocket handshake to authenticate connections
+// /// PURPOSE: Ensure only authenticated users can establish WebSocket connections
+// /// INTEGRATION: Add to WebSocket upgrade handler in main.rs
+// pub async fn validate_websocket_auth(
+//     headers: &HeaderMap,
+//     auth_state: &AuthState,
+// ) -> Result<Claims> {
+//     // Extract bearer token from headers
+//     let token = extract_token_from_headers(headers)
+//         .ok_or_else(|| AppError::Auth("Missing authorization header".to_string()))?;
 
-    // Validate token using Auth0 state
-    let claims = auth_state
-        .validate_token(&token)
-        .await
-        .map_err(|e| AppError::Auth(format!("Invalid token: {}", e)))?;
+//     // Validate token using Auth0 state
+//     let claims = auth_state
+//         .validate_token(&token)
+//         .await
+//         .map_err(|e| AppError::Auth(format!("Invalid token: {}", e)))?;
 
-    Ok(claims)
-}
+//     Ok(claims)
+// }
 
 // #[cfg(test)]
 // mod tests {

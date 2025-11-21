@@ -69,7 +69,7 @@ impl AppState {
 
         // Create connection manager
         let connection_manager = Arc::new(ConnectionManager::new(
-            database.clone(),
+            // database.clone(),  // Uncomment when implementing persistent storage
             message_router.clone(),
             config.max_connections,
             config.heartbeat_interval_seconds,

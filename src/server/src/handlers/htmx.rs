@@ -61,15 +61,24 @@ pub async fn recent_communities(State(_state): State<Arc<AppState>>) -> Html<Str
 pub struct CommunitiesQuery {
     #[serde(default)]
     q: String,
-    #[serde(default)]
-    filter: String,
-    #[serde(default = "default_page")]
-    page: u32,
+    // ==========================================================
+    // COMMENTED FIELDS - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
+    // #[serde(default)]
+    // filter: String,                    // Filter by category, type, or status
+    // #[serde(default = "default_page")]
+    // page: u32,                         // Pagination for large communities lists
 }
 
-fn default_page() -> u32 {
-    1
-}
+// ==========================================================
+// COMMENTED HELPER - KEPT FOR FUTURE REFERENCE
+// ==========================================================
+// /// Default page number for pagination
+// /// USAGE: When implementing paginated communities list
+// /// PURPOSE: Standard pagination starting point
+// fn default_page() -> u32 {
+//     1
+// }
 
 /// Communities list fragment
 pub async fn communities_list(

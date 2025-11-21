@@ -47,7 +47,7 @@ jsonwebtoken = "9"
 # Web framework
 axum = "0.7"
 tower = "0.4"
-tower-http = "0.5"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
 tower-sessions = "0.14"
 
 # Templates
@@ -91,3 +91,10 @@ config = "0.14"
 ring = "0.17"
 rustls = "0.23"
 rustls-native-certs = "0.7"
+
+# Release profiles for all workspace members
+[profile.release]
+opt-level = "z"     # Optimize for size
+lto = true          # Enable Link Time Optimization
+codegen-units = 1   # Reduce parallel codegen units to increase optimizations
+strip = true        # Strip symbols from binary

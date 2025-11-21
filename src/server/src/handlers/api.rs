@@ -1,14 +1,14 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::{IntoResponse, Json},
+    response::Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::handlers::pages::AppState;
-use crate::auth::{AuthUser, OptionalAuthUser};
+use crate::auth::AuthUser;
 
 // ============================================================================
 // Request/Response Types
@@ -142,7 +142,7 @@ pub async fn get_users(
 
 /// Create a new community (PROTECTED - requires authentication)
 pub async fn create_community(
-    AuthUser(user): AuthUser, // Requires authentication
+    AuthUser(_user): AuthUser, // Requires authentication
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateCommunityRequest>,
 ) -> Result<Json<ApiResponse<CommunityResponse>>, StatusCode> {
@@ -214,7 +214,7 @@ pub async fn get_communities(
 
 /// Create a new post in a community (PROTECTED - requires authentication)
 pub async fn create_post(
-    AuthUser(user): AuthUser, // Requires authentication
+    AuthUser(_user): AuthUser, // Requires authentication
     State(state): State<Arc<AppState>>,
     Path(community_id): Path<String>,
     Json(payload): Json<CreatePostRequest>,

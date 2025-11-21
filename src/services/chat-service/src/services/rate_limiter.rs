@@ -147,31 +147,42 @@ impl RateLimiter {
         });
     }
 
-    /// Get current rate limit status for a user (for testing/debugging)
-    pub async fn get_user_status(&self, user_id: Uuid) -> (u32, u32) {
-        let message_limits = self.message_limits.read().await;
-        let typing_limits = self.typing_limits.read().await;
+    // ==========================================================
+    // COMMENTED METHODS - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
+    // /// Get current rate limit status for a user (for testing/debugging)
+    // /// USAGE: When implementing rate limit monitoring or user dashboard
+    // /// PURPOSE: Show users their current usage and remaining limits
+    // pub async fn get_user_status(&self, user_id: Uuid) -> (u32, u32) {
+    //     let message_limits = self.message_limits.read().await;
+    //     let typing_limits = self.typing_limits.read().await;
 
-        let message_count = message_limits.get(&user_id).map(|e| e.count).unwrap_or(0);
-        let typing_count = typing_limits.get(&user_id).map(|e| e.count).unwrap_or(0);
+    //     let message_count = message_limits.get(&user_id).map(|e| e.count).unwrap_or(0);
+    //     let typing_count = typing_limits.get(&user_id).map(|e| e.count).unwrap_or(0);
 
-        (message_count, typing_count)
-    }
+    //     (message_count, typing_count)
+    // }
 
-    /// Get maximum messages per window (for testing)
-    pub fn max_messages_per_window(&self) -> u32 {
-        self.max_messages_per_window
-    }
+    // /// Get maximum messages per window (for testing)
+    // /// USAGE: When implementing configuration validation or testing
+    // /// PURPOSE: Expose internal configuration for validation
+    // pub fn max_messages_per_window(&self) -> u32 {
+    //     self.max_messages_per_window
+    // }
 
-    /// Get maximum typing notifications per window (for testing)
-    pub fn max_typing_per_window(&self) -> u32 {
-        self.max_typing_per_window
-    }
+    // /// Get maximum typing notifications per window (for testing)
+    // /// USAGE: When implementing configuration validation or testing
+    // /// PURPOSE: Expose internal configuration for validation
+    // pub fn max_typing_per_window(&self) -> u32 {
+    //     self.max_typing_per_window
+    // }
 
-    /// Get window duration (for testing)
-    pub fn window_duration(&self) -> Duration {
-        self.window_duration
-    }
+    // /// Get window duration (for testing)
+    // /// USAGE: When implementing configuration validation or testing
+    // /// PURPOSE: Expose internal configuration for validation
+    // pub fn window_duration(&self) -> Duration {
+    //     self.window_duration
+    // }
 }
 
 // #[cfg(test)]

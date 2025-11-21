@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
 use shared::{
-    database::Database,
+    // database::Database,  // Uncomment when implementing persistent storage
     error::{AppError, Result},
     models::chat::{ConnectionInfo, WebSocketMessage},
 };
@@ -22,8 +22,13 @@ pub struct ActiveConnection {
     /// User ID
     pub user_id: Uuid,
 
+    // ==========================================================
+    // COMMENTED FIELD - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
     /// Connection ID
-    pub connection_id: String,
+    /// USAGE: When implementing connection tracking across multiple instances
+    /// PURPOSE: Unique identifier for WebSocket connection debugging and management
+    // pub connection_id: String,
 
     /// Channel for sending messages to this connection
     pub sender: mpsc::UnboundedSender<WebSocketMessage>,
@@ -38,12 +43,12 @@ pub struct ActiveConnection {
 impl ActiveConnection {
     pub fn new(
         user_id: Uuid,
-        connection_id: String,
+        // connection_id: String,  // Uncomment when implementing connection tracking
         sender: mpsc::UnboundedSender<WebSocketMessage>,
     ) -> Self {
         Self {
             user_id,
-            connection_id,
+            // connection_id,      // Uncomment when implementing connection tracking
             sender,
             last_heartbeat: Instant::now(),
             joined_rooms: Vec::new(),
@@ -78,8 +83,13 @@ pub struct ConnectionManager {
     /// Active connections mapped by connection ID
     connections: Arc<DashMap<String, ActiveConnection>>,
 
+    // ==========================================================
+    // COMMENTED FIELD - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
     /// Database for persistent connection tracking
-    database: Database,
+    /// USAGE: When implementing cross-instance connection synchronization
+    /// PURPOSE: Store connection state for recovery and analytics
+    // database: Database,
 
     /// Message router for handling message delivery
     message_router: Arc<MessageRouter>,
@@ -94,7 +104,7 @@ pub struct ConnectionManager {
 impl ConnectionManager {
     /// Create a new connection manager
     pub fn new(
-        database: Database,
+        // database: Database,  // Uncomment when implementing persistent storage
         message_router: Arc<MessageRouter>,
         max_connections: usize,
         heartbeat_interval_seconds: u64,
@@ -103,7 +113,7 @@ impl ConnectionManager {
 
         let manager = Self {
             connections: Arc::new(DashMap::new()),
-            database,
+            // database,            // Uncomment when implementing persistent storage
             message_router,
             max_connections,
             heartbeat_timeout,
@@ -130,7 +140,11 @@ impl ConnectionManager {
         let connection_id = format!("conn_{}", Uuid::new_v4());
 
         // Create connection info
-        let connection = ActiveConnection::new(user_id, connection_id.clone(), sender);
+        let connection = ActiveConnection::new(
+            user_id, 
+            // connection_id.clone(),  // Uncomment when implementing connection tracking
+            sender
+        );
 
         // Store in memory
         self.connections.insert(connection_id.clone(), connection);
@@ -266,19 +280,26 @@ impl ConnectionManager {
         Ok(())
     }
 
-    /// Get connection count
-    pub fn connection_count(&self) -> usize {
-        self.connections.len()
-    }
+    // ==========================================================
+    // COMMENTED METHODS - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
+    // /// Get connection count
+    // /// USAGE: When implementing monitoring and metrics
+    // /// PURPOSE: Track active WebSocket connections for scaling decisions
+    // pub fn connection_count(&self) -> usize {
+    //     self.connections.len()
+    // }
 
-    /// Get connections for a specific user
-    pub fn get_user_connections(&self, user_id: Uuid) -> Vec<String> {
-        self.connections
-            .iter()
-            .filter(|entry| entry.value().user_id == user_id)
-            .map(|entry| entry.key().clone())
-            .collect()
-    }
+    // /// Get connections for a specific user
+    // /// USAGE: When implementing multi-device support or connection management
+    // /// PURPOSE: Allow users to manage multiple active connections
+    // pub fn get_user_connections(&self, user_id: Uuid) -> Vec<String> {
+    //     self.connections
+    //         .iter()
+    //         .filter(|entry| entry.value().user_id == user_id)
+    //         .map(|entry| entry.key().clone())
+    //         .collect()
+    // }
 
     /// Start background cleanup task for expired connections
     fn start_cleanup_task(&self) {
@@ -324,12 +345,17 @@ impl ConnectionManager {
         Ok(())
     }
 
-    /// Get instance ID for this service instance
-    fn get_instance_id(&self) -> String {
-        // In production, this could be AWS instance ID, container ID, etc.
-        // For now, use a simple generated ID
-        format!("chat-service-{}", Uuid::new_v4())
-    }
+    // ==========================================================
+    // COMMENTED METHOD - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
+    // /// Get instance ID for this service instance
+    // /// USAGE: When implementing distributed WebSocket coordination
+    // /// PURPOSE: Identify specific service instances for load balancing and debugging
+    // fn get_instance_id(&self) -> String {
+    //     // In production, this could be AWS instance ID, container ID, etc.
+    //     // For now, use a simple generated ID
+    //     format!("chat-service-{}", Uuid::new_v4())
+    // }
 }
 
 // #[cfg(test)]

@@ -16,7 +16,7 @@ mod handlers;
 mod auth;
 
 use handlers::{pages, htmx, api, stubs::health_check};
-use auth::{login, callback, logout, AuthUser, OptionalAuthUser}; // Auth handlers and extractors
+use auth::{login, callback, logout}; // Auth handlers
 
 pub struct AppState {
     pub tera: Tera,

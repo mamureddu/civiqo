@@ -268,24 +268,31 @@ impl MessageRouter {
         Ok(())
     }
 
-    /// Get room membership statistics
-    pub async fn get_room_stats(&self) -> HashMap<Uuid, usize> {
-        let membership = self.room_membership.read().await;
-        membership
-            .iter()
-            .map(|(&room_id, participants)| (room_id, participants.len()))
-            .collect()
-    }
+    // ==========================================================
+    // COMMENTED METHODS - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
+    // /// Get room membership statistics
+    // /// USAGE: When implementing monitoring and analytics dashboard
+    // /// PURPOSE: Track room activity for capacity planning and insights
+    // pub async fn get_room_stats(&self) -> HashMap<Uuid, usize> {
+    //     let membership = self.room_membership.read().await;
+    //     membership
+    //         .iter()
+    //         .map(|(&room_id, participants)| (room_id, participants.len()))
+    //         .collect()
+    // }
 
-    /// Process incoming SQS messages for a user
-    pub async fn process_user_messages(&self, user_id: Uuid) -> Result<Vec<WebSocketMessage>> {
-        // This would typically be called when a user connects
-        // to retrieve any offline messages from SQS
+    // /// Process incoming SQS messages for a user
+    // /// USAGE: When implementing offline message delivery
+    // /// PURPOSE: Retrieve missed messages when user reconnects
+    // pub async fn process_user_messages(&self, user_id: Uuid) -> Result<Vec<WebSocketMessage>> {
+    //     // This would typically be called when a user connects
+    //     // to retrieve any offline messages from SQS
 
-        // For now, return empty - implementation depends on SQS polling strategy
-        debug!("Processing messages for user {}", user_id);
-        Ok(Vec::new())
-    }
+    //     // For now, return empty - implementation depends on SQS polling strategy
+    //     debug!("Processing messages for user {}", user_id);
+    //     Ok(Vec::new())
+    // }
 }
 
 // #[cfg(test)]

@@ -13,11 +13,18 @@ pub struct Config {
     /// Server port (for local development)
     pub port: u16,
 
+    // ==========================================================
+    // COMMENTED FIELDS - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
     /// Auth0 domain for JWT validation
-    pub auth0_domain: String,
+    /// USAGE: When implementing WebSocket JWT authentication
+    /// PURPOSE: Validate JWT tokens from WebSocket connections
+    // pub auth0_domain: String,
 
     /// Auth0 audience for JWT validation
-    pub auth0_audience: String,
+    /// USAGE: When implementing WebSocket JWT authentication
+    /// PURPOSE: Validate JWT tokens from WebSocket connections
+    // pub auth0_audience: String,
 
     /// SQS queue URL for offline message storage
     pub sqs_queue_url: String,
@@ -26,7 +33,9 @@ pub struct Config {
     pub sns_topic_arn: String,
 
     /// AWS endpoint URL (for LocalStack in development)
-    pub aws_endpoint_url: Option<String>,
+    /// USAGE: When using LocalStack for local AWS services testing
+    /// PURPOSE: Override AWS endpoints for local development
+    // pub aws_endpoint_url: Option<String>,
 
     /// Maximum concurrent WebSocket connections per instance
     pub max_connections: usize,
@@ -38,7 +47,9 @@ pub struct Config {
     pub heartbeat_interval_seconds: u64,
 
     /// Development mode flag
-    pub development_mode: bool,
+    /// USAGE: When enabling debug features or mock services
+    /// PURPOSE: Switch between production and development behavior
+    // pub development_mode: bool,
 
     /// Maximum message size in bytes (64KB default)
     pub max_message_size: usize,
@@ -69,11 +80,14 @@ impl Config {
             .parse()
             .map_err(|e| AppError::Config(format!("Invalid CHAT_PORT: {}", e)))?;
 
-        let auth0_domain = env::var("AUTH0_DOMAIN")
-            .map_err(|_| AppError::Config("AUTH0_DOMAIN not set".to_string()))?;
+        // ==========================================================
+        // COMMENTED ENV VARS - KEPT FOR FUTURE REFERENCE
+        // ==========================================================
+        // let auth0_domain = env::var("AUTH0_DOMAIN")
+        //     .map_err(|_| AppError::Config("AUTH0_DOMAIN not set".to_string()))?;
 
-        let auth0_audience = env::var("AUTH0_AUDIENCE")
-            .map_err(|_| AppError::Config("AUTH0_AUDIENCE not set".to_string()))?;
+        // let auth0_audience = env::var("AUTH0_AUDIENCE")
+        //     .map_err(|_| AppError::Config("AUTH0_AUDIENCE not set".to_string()))?;
 
         let sqs_queue_url = env::var("SQS_QUEUE_URL")
             .map_err(|_| AppError::Config("SQS_QUEUE_URL not set".to_string()))?;
@@ -81,7 +95,7 @@ impl Config {
         let sns_topic_arn = env::var("SNS_TOPIC_ARN")
             .map_err(|_| AppError::Config("SNS_TOPIC_ARN not set".to_string()))?;
 
-        let aws_endpoint_url = env::var("AWS_ENDPOINT_URL").ok();
+        // let aws_endpoint_url = env::var("AWS_ENDPOINT_URL").ok();
 
         let max_connections = env::var("MAX_WEBSOCKET_CONNECTIONS")
             .unwrap_or_else(|_| "1000".to_string())
@@ -98,10 +112,10 @@ impl Config {
             .parse()
             .map_err(|e| AppError::Config(format!("Invalid HEARTBEAT_INTERVAL_SECONDS: {}", e)))?;
 
-        let development_mode = env::var("DEVELOPMENT_MODE")
-            .unwrap_or_else(|_| "false".to_string())
-            .parse()
-            .unwrap_or(false);
+        // let development_mode = env::var("DEVELOPMENT_MODE")
+        //     .unwrap_or_else(|_| "false".to_string())
+        //     .parse()
+        //     .unwrap_or(false);
 
         let max_message_size = env::var("MAX_MESSAGE_SIZE")
             .unwrap_or_else(|_| "65536".to_string()) // 64KB
@@ -122,15 +136,15 @@ impl Config {
             database_url,
             host,
             port,
-            auth0_domain,
-            auth0_audience,
+            // auth0_domain,      // Uncomment when implementing JWT auth
+            // auth0_audience,    // Uncomment when implementing JWT auth
             sqs_queue_url,
             sns_topic_arn,
-            aws_endpoint_url,
+            // aws_endpoint_url, // Uncomment when using LocalStack
             max_connections,
             message_ttl_seconds,
             heartbeat_interval_seconds,
-            development_mode,
+            // development_mode,  // Uncomment when adding dev features
             max_message_size,
             rate_limit_messages_per_minute,
             rate_limit_typing_per_minute,

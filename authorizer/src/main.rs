@@ -3,11 +3,29 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
+/// Default event type for authorizer
+/// PURPOSE: Provides default value for AuthorizerEvent.event_type
+/// USAGE: Used in serde deserialization when "type" field is missing
+/// NOTE: Currently "TOKEN" is the only supported type in this implementation
+fn default_event_type() -> String {
+    "TOKEN".to_string()
+}
+
 /// Lambda Authorizer Event from API Gateway
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AuthorizerEvent {
     #[serde(rename = "type")]
+    #[serde(default = "default_event_type")]
+    #[allow(dead_code)] 
+    /// ==========================================================
+    /// EVENT TYPE FIELD - KEPT FOR FUTURE REFERENCE
+    /// ==========================================================
+    /// CURRENT STATUS: Not used in production logic (only for testing)
+    /// FUTURE PURPOSE: May implement different authorization strategies:
+    /// - "TOKEN": Bearer token authorization (current implementation)
+    /// - "REQUEST": Request parameter authorization
+    /// - "JWT": Direct JWT validation without Auth0 call
     event_type: String,
     method_arn: String,
     #[serde(default)]
@@ -186,7 +204,6 @@ async fn validate_jwt_token(token: &str) -> Result<UserContext, Error> {
         roles: Vec<String>,
         #[serde(default)]
         permissions: Vec<String>,
-        exp: usize,
         iat: Option<usize>,
     }
     
@@ -254,7 +271,6 @@ async fn fetch_auth0_userinfo(token: &str) -> Result<UserContext, Error> {
         #[serde(rename = "https://myapp.com/permissions")]
         permissions: Vec<String>,
         created_at: Option<String>,
-        updated_at: Option<String>,
     }
     
     let user_info: Auth0UserInfo = response.json().await?;
@@ -373,7 +389,7 @@ mod tests {
     #[test]
     fn test_extract_token_from_bearer() {
         let mut event = AuthorizerEvent {
-            event_type: "TOKEN".to_string(),
+            event_type: "TOKEN".to_string(), // Test with explicit TOKEN type
             method_arn: "arn:aws:execute-api:us-east-1:123456789012:abcdef123/prod/GET/users".to_string(),
             headers: HashMap::new(),
             query_string_parameters: HashMap::new(),

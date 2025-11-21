@@ -175,10 +175,15 @@ impl MessageValidator {
         Ok(())
     }
 
-    /// Get maximum message size (for testing)
-    pub fn max_message_size(&self) -> usize {
-        self.max_message_size
-    }
+    // ==========================================================
+    // COMMENTED METHOD - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
+    // /// Get maximum message size (for testing)
+    // /// USAGE: When implementing configuration validation or testing
+    // /// PURPOSE: Expose internal configuration for validation and debugging
+    // pub fn max_message_size(&self) -> usize {
+    //     self.max_message_size
+    // }
 }
 
 // #[cfg(test)]
