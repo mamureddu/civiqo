@@ -132,10 +132,12 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/user/activity", get(htmx::user_activity))
         
         // REST API Endpoints
+
         .route("/api/users", axum::routing::post(api::create_user))
         .route("/api/users", get(api::get_users))
         .route("/api/communities", axum::routing::post(api::create_community))
         .route("/api/communities", get(api::get_communities))
+        .route("/api/communities/:id", get(api::get_community_detail))
         .route("/api/communities/:id/posts", axum::routing::post(api::create_post))
         .route("/api/communities/:id/posts", get(api::get_posts))
         

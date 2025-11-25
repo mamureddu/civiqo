@@ -104,7 +104,7 @@ pub struct JoinCommunityRequest {
     pub message: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CommunityWithStats {
     pub id: Uuid,
     pub name: String,

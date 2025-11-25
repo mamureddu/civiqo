@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Query},
     http::StatusCode,
     response::Json,
 };
@@ -9,7 +9,7 @@ use uuid::Uuid;
 use sqlx::Row;
 
 use crate::handlers::pages::AppState;
-use crate::auth::AuthUser;
+use crate::auth::{AuthUser, OptionalAuthUser};
 
 // ============================================================================
 // Helper Functions
@@ -120,6 +120,65 @@ pub struct PostResponse {
     pub content: String,
     pub created_at: String,
 }
+
+// ============================================================================
+// Communities List/View Response Types
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommunityListResponse {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub slug: String,
+    pub is_public: bool,
+    pub member_count: i64,
+    pub created_at: String,
+    pub user_role: Option<String>, // User's role in this community (if member)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommunityDetailResponse {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub slug: String,
+    pub is_public: bool,
+    pub requires_approval: bool,
+    pub member_count: i64,
+    pub posts_count: i64,
+    pub created_at: String,
+    pub updated_at: String,
+    pub user_role: Option<String>, // User's role in this community (if member)
+    pub is_member: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CommunitiesListResponse {
+    pub communities: Vec<CommunityListResponse>,
+    pub total_count: i64,
+    pub page: u32,
+    pub limit: u32,
+    pub has_next: bool,
+    pub has_prev: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CommunitiesQueryParams {
+    #[serde(default = "default_page")]
+    pub page: u32,
+    #[serde(default = "default_limit")]
+    pub limit: u32,
+    #[serde(default)]
+    pub search: Option<String>,
+    #[serde(default)]
+    pub filter: Option<String>, // "public", "my", "all"
+    #[serde(default)]
+    pub sort: Option<String>, // "created", "name", "members"
+}
+
+fn default_page() -> u32 { 1 }
+fn default_limit() -> u32 { 20 }
 
 // ============================================================================
 // User Endpoints
@@ -415,31 +474,6 @@ pub async fn create_community(
     }
 }
 
-/// Get all communities
-pub async fn get_communities(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<CommunityResponse>>, StatusCode> {
-    use sqlx::Row;
-    
-    let communities = sqlx::query(
-        "SELECT id, name, description, created_at FROM communities ORDER BY created_at DESC"
-    )
-    .fetch_all(&state.db.pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    let communities_data: Vec<CommunityResponse> = communities.iter().map(|row| {
-        CommunityResponse {
-            id: row.get::<Uuid, _>("id").to_string(),
-            name: row.get::<String, _>("name"),
-            description: row.get::<Option<String>, _>("description"),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
-        }
-    }).collect();
-    
-    Ok(Json(communities_data))
-}
-
 // ============================================================================
 // Post Endpoints
 // ============================================================================
@@ -521,4 +555,278 @@ pub async fn get_posts(
     }).collect();
     
     Ok(Json(posts_data))
+}
+
+// ============================================================================
+// Communities Endpoints
+// ============================================================================
+
+/// Get communities list with pagination, search, and filtering
+/// Combines public communities and user's memberships
+pub async fn get_communities(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<CommunitiesQueryParams>,
+    OptionalAuthUser(user): OptionalAuthUser, // Optional auth for enhanced results
+) -> Result<Json<ApiResponse<CommunitiesListResponse>>, StatusCode> {
+    use sqlx::Row;
+    
+    tracing::info!("📋 get_communities called - user: {:?}, page: {}, limit: {}, search: {:?}", 
+        user.as_ref().map(|u| &u.user_id), params.page, params.limit, params.search);
+    
+    let offset = (params.page - 1) * params.limit;
+    let search_param = params.search.as_deref().unwrap_or("");
+    
+    let sort_clause = match params.sort.as_deref() {
+        Some("name") => "ORDER BY c.name ASC",
+        Some("members") => "ORDER BY member_count DESC",
+        Some("created") => "ORDER BY c.created_at DESC",
+        _ => "ORDER BY c.created_at DESC", // Default
+    };
+    
+    // Build query based on filter type - ALWAYS use parameterized queries
+    let (query, count_query) = if let Some(ref user) = user {
+        // Authenticated user - can see public + their memberships
+        let main_query = format!(
+            "SELECT c.id, c.name, c.description, c.slug, c.is_public, c.created_at,
+                    COUNT(DISTINCT m.user_id) as member_count,
+                    CASE WHEN m_user.user_id IS NOT NULL THEN m_user.role ELSE NULL END as user_role
+             FROM communities c
+             LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
+             LEFT JOIN community_members m_user ON c.id = m_user.community_id AND m_user.user_id = $1
+             WHERE (c.is_public = true OR m_user.user_id IS NOT NULL)
+             AND ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')
+             GROUP BY c.id, c.name, c.description, c.slug, c.is_public, c.created_at, m_user.role
+             {} 
+             LIMIT $3 OFFSET $4",
+            sort_clause
+        );
+        
+        let count_query = format!(
+            "SELECT COUNT(DISTINCT c.id) as total
+             FROM communities c
+             LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
+             LEFT JOIN community_members m_user ON c.id = m_user.community_id AND m_user.user_id = $1
+             WHERE (c.is_public = true OR m_user.user_id IS NOT NULL)
+             AND ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')"
+        );
+        
+        (main_query, count_query)
+    } else {
+        // Unauthenticated user - can only see public communities
+        let main_query = format!(
+            "SELECT c.id, c.name, c.description, c.slug, c.is_public, c.created_at,
+                    COUNT(DISTINCT m.user_id) as member_count,
+                    NULL as user_role
+             FROM communities c
+             LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
+             WHERE c.is_public = true
+             AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')
+             GROUP BY c.id, c.name, c.description, c.slug, c.is_public, c.created_at
+             {} 
+             LIMIT $2 OFFSET $3",
+            sort_clause
+        );
+        
+        let count_query = format!(
+            "SELECT COUNT(DISTINCT c.id) as total
+             FROM communities c
+             WHERE c.is_public = true
+             AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')"
+        );
+        
+        (main_query, count_query)
+    };
+    
+    tracing::info!("Executing communities query with user_id: {:?}", user.as_ref().map(|u| &u.user_id));
+    
+    // Execute query with proper parameter binding
+    let communities = if let Some(ref user) = user {
+        sqlx::query(&query)
+            .bind(&user.user_id)
+            .bind(search_param)
+            .bind(params.limit as i64)
+            .bind(offset as i64)
+            .fetch_all(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch communities: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    } else {
+        sqlx::query(&query)
+            .bind(search_param)
+            .bind(params.limit as i64)
+            .bind(offset as i64)
+            .fetch_all(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch communities: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    };
+    
+    // Execute count query with proper parameter binding
+    let total_count: i64 = if let Some(ref user) = user {
+        sqlx::query_scalar(&count_query)
+            .bind(&user.user_id)
+            .bind(search_param)
+            .fetch_one(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to count communities: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    } else {
+        sqlx::query_scalar(&count_query)
+            .bind(search_param)
+            .fetch_one(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to count communities: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    };
+    
+    // Convert to response format
+    let communities_data: Vec<CommunityListResponse> = communities.iter().map(|row| {
+        CommunityListResponse {
+            id: row.get::<uuid::Uuid, _>("id").to_string(),
+            name: row.get::<String, _>("name"),
+            description: row.get::<Option<String>, _>("description"),
+            slug: row.get::<String, _>("slug"),
+            is_public: row.get::<bool, _>("is_public"),
+            member_count: row.get::<i64, _>("member_count"),
+            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%Y-%m-%d %H:%M").to_string(),
+            user_role: row.get::<Option<String>, _>("user_role"),
+        }
+    }).collect();
+    
+    let has_next = (params.page * params.limit) < total_count as u32;
+    let has_prev = params.page > 1;
+    
+    let response = CommunitiesListResponse {
+        communities: communities_data,
+        total_count,
+        page: params.page,
+        limit: params.limit,
+        has_next,
+        has_prev,
+    };
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(response),
+        message: Some(format!("Found {} communities", total_count)),
+    }))
+}
+
+/// Get community details by ID or slug
+pub async fn get_community_detail(
+    State(state): State<Arc<AppState>>,
+    Path(community_id_or_slug): Path<String>,
+    OptionalAuthUser(user): OptionalAuthUser, // Optional auth for member status
+) -> Result<Json<ApiResponse<CommunityDetailResponse>>, StatusCode> {
+    use sqlx::Row;
+    
+    // Try to parse as UUID first, otherwise treat as slug
+    let community_uuid = uuid::Uuid::parse_str(&community_id_or_slug);
+    
+    // Build query based on whether we have UUID or slug - ALWAYS use parameterized queries
+    let (query, param_count) = if community_uuid.is_ok() {
+        let main_query = format!(
+            "SELECT c.id, c.name, c.description, c.slug, c.is_public, c.requires_approval, 
+                    c.created_at, c.updated_at,
+                    COUNT(DISTINCT m.user_id) as member_count,
+                    COUNT(DISTINCT p.id) as posts_count,
+                    CASE WHEN m_user.user_id IS NOT NULL THEN m_user.role ELSE NULL END as user_role,
+                    CASE WHEN m_user.user_id IS NOT NULL THEN true ELSE false END as is_member
+             FROM communities c
+             LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
+             LEFT JOIN posts p ON c.id = p.community_id
+             LEFT JOIN community_members m_user ON c.id = m_user.community_id AND m_user.user_id = ${}
+             WHERE c.id = ${} AND (c.is_public = true OR m_user.user_id IS NOT NULL)
+             GROUP BY c.id, c.name, c.description, c.slug, c.is_public, c.requires_approval, 
+                      c.created_at, c.updated_at, m_user.role, m_user.user_id",
+            "$1", "$2"
+        );
+        (main_query, 2)
+    } else {
+        let main_query = format!(
+            "SELECT c.id, c.name, c.description, c.slug, c.is_public, c.requires_approval, 
+                    c.created_at, c.updated_at,
+                    COUNT(DISTINCT m.user_id) as member_count,
+                    COUNT(DISTINCT p.id) as posts_count,
+                    CASE WHEN m_user.user_id IS NOT NULL THEN m_user.role ELSE NULL END as user_role,
+                    CASE WHEN m_user.user_id IS NOT NULL THEN true ELSE false END as is_member
+             FROM communities c
+             LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
+             LEFT JOIN posts p ON c.id = p.community_id
+             LEFT JOIN community_members m_user ON c.id = m_user.community_id AND m_user.user_id = ${}
+             WHERE c.slug = ${} AND (c.is_public = true OR m_user.user_id IS NOT NULL)
+             GROUP BY c.id, c.name, c.description, c.slug, c.is_public, c.requires_approval, 
+                      c.created_at, c.updated_at, m_user.role, m_user.user_id",
+            "$1", "$2"
+        );
+        (main_query, 2)
+    };
+    
+    tracing::info!("Executing community detail query: {}", query);
+    
+    let community = if let Some(ref user) = user {
+        sqlx::query(&query)
+            .bind(&community_id_or_slug)
+            .bind(&user.user_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch community detail: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    } else {
+        // For unauthenticated users, bind NULL for user_id
+        sqlx::query(&query)
+            .bind(&community_id_or_slug)
+            .bind::<Option<String>>(None)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch community detail: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+    };
+    
+    let community_row = match community {
+        Some(row) => row,
+        None => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Community not found or access denied".to_string()),
+            }));
+        }
+    };
+    
+    let response = CommunityDetailResponse {
+        id: community_row.get::<uuid::Uuid, _>("id").to_string(),
+        name: community_row.get::<String, _>("name"),
+        description: community_row.get::<Option<String>, _>("description"),
+        slug: community_row.get::<String, _>("slug"),
+        is_public: community_row.get::<bool, _>("is_public"),
+        requires_approval: community_row.get::<bool, _>("requires_approval"),
+        member_count: community_row.get::<i64, _>("member_count"),
+        posts_count: community_row.get::<i64, _>("posts_count"),
+        created_at: community_row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+            .format("%Y-%m-%d %H:%M").to_string(),
+        updated_at: community_row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at")
+            .format("%Y-%m-%d %H:%M").to_string(),
+        user_role: community_row.get::<Option<String>, _>("user_role"),
+        is_member: community_row.get::<bool, _>("is_member"),
+    };
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(response),
+        message: Some("Community details retrieved successfully".to_string()),
+    }))
 }

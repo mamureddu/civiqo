@@ -47,10 +47,10 @@
 - [x] Database migrations (6 applied)
 - [x] Base template with navigation
 - [x] Authentication extractors (AuthUser, OptionalAuthUser)
+- [x] Create Community (API + UI) - Enhanced with validation, error messages, UI feedback
 
-### 🎯 NEXT (This Week)
-- [ ] Create Community (API + UI)
-- [ ] List Communities (API + UI)
+### 🎯 NEXT (This Week) - Phase 2: Communities CRUD
+- [ ] List Communities (API + UI) - **CURRENT**
 - [ ] View Community Details (API + UI)
 - [ ] Edit Community (owner only)
 - [ ] Delete Community (owner only)
