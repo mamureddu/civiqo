@@ -110,6 +110,41 @@ gh pr review [PR_NUMBER] --comment "Issues found..."
 
 ---
 
+## Workflow Phases
+
+### Phase 0: Strategic Planning (Agent 2 - Tech Lead)
+
+**Responsibility**: Agent 2 creates comprehensive specifications before implementation begins.
+
+#### Planning Tasks
+1. **Requirements Analysis**
+   - Extract core requirements from user request
+   - Define acceptance criteria for each feature
+   - Identify technical approach and design decisions
+
+2. **Specifications Document**
+   - Detailed implementation requirements
+   - Technical specifications and constraints
+   - Step-by-step guidance for Agent 1
+   - Testing and validation requirements
+   - Performance and security considerations
+
+3. **Risk Assessment**
+   - Identify potential blockers
+   - Suggest mitigation strategies
+   - Provide technical guidance on architecture
+   - Document performance and security considerations
+
+**Output**: Comprehensive planning document with clear specifications for Agent 1 to follow.
+
+**Handoff Criteria**:
+- Clear requirements and acceptance criteria defined
+- Technical specifications documented
+- Implementation guidance provided
+- Risks identified and mitigated
+
+---
+
 ## Feature Implementation: Communities CRUD
 
 ### Phase 1: Create Community (Priority: HIGH)
@@ -285,21 +320,29 @@ cd src && cargo run --bin server
 
 ## Collaboration Protocol
 
-### PR Lifecycle State Diagram
+### Full Workflow Lifecycle
 ```
-[Executor Work] → [Draft PR] → [Verifier Review] → [Changes Requested] → [Re-review] → [Approved] → [Merge]
-       ↑                ↓              ↓                   ↓              ↑           ↓
-       └────────────────┘              └───────────────────┘              └───────────┘
+[Planning] → [Executor Work] → [Draft PR] → [Verifier Review] → [Changes Requested] → [Re-review] → [Approved] → [Merge]
+   (Agent 2)       ↑                ↓              ↓                   ↓              ↑           ↓
+                   └────────────────┘              └───────────────────┘              └───────────┘
 ```
 
 ### Handoff Criteria
-**Executor → Verifier:**
+
+**Phase 0 - Verifier → Executor:**
+- Comprehensive planning document with requirements
+- Clear acceptance criteria defined
+- Technical specifications documented
+- Step-by-step implementation guidance
+- Risks identified and mitigation strategies provided
+
+**Phase 1-4 - Executor → Verifier:**
 - All Definition of Done items complete
 - Comprehensive PR description with screenshots
 - Manual testing completed successfully
 - Brand compliance self-verified
 
-**Verifier → Executor:**
+**Verifier → Executor (if changes requested):**
 - Clear, actionable feedback with file:line references
 - Priority classification (Security/High/Medium/Low)
 - Expected re-review timeframe
