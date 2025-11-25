@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, put, delete},
+    routing::{get, put, delete, post},
     Router,
 };
 use std::sync::Arc;
@@ -142,6 +142,13 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/communities/:id", delete(api::delete_community))
         .route("/api/communities/:id/posts", axum::routing::post(api::create_post))
         .route("/api/communities/:id/posts", get(api::get_posts))
+        
+        // Membership endpoints
+        .route("/api/communities/:id/join", post(api::join_community))
+        .route("/api/communities/:id/leave", post(api::leave_community))
+        .route("/api/communities/:id/members", get(api::list_members))
+        .route("/api/communities/:id/members/:user_id/role", put(api::update_member_role))
+        .route("/api/communities/:id/members/:user_id", delete(api::remove_member))
         
         // Static files
         .nest_service("/static", ServeDir::new(static_path))
