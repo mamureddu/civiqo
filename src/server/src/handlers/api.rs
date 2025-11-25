@@ -201,56 +201,94 @@ pub async fn create_community(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateCommunityRequest>,
 ) -> Result<Json<ApiResponse<CommunityResponse>>, StatusCode> {
-    // Validate input
-    if payload.name.trim().is_empty() {
+    // Enhanced validation with specific error messages
+    let trimmed_name = payload.name.trim();
+    
+    if trimmed_name.is_empty() {
         return Ok(Json(ApiResponse {
             success: false,
             data: None,
-            message: Some("Community name cannot be empty".to_string()),
+            message: Some("Community name is required and cannot be empty or only whitespace".to_string()),
         }));
     }
     
-    if payload.name.len() > 255 {
+    if trimmed_name.len() < 3 {
         return Ok(Json(ApiResponse {
             success: false,
             data: None,
-            message: Some("Community name too long (max 255 characters)".to_string()),
+            message: Some("Community name must be at least 3 characters long".to_string()),
+        }));
+    }
+    
+    if trimmed_name.len() > 255 {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Community name is too long (maximum 255 characters, currently {} characters)".to_string()),
+        }));
+    }
+    
+    // Check for invalid characters that would create empty slugs
+    if !trimmed_name.chars().any(|c| c.is_alphanumeric()) {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Community name must contain at least one letter or number".to_string()),
         }));
     }
     
     if let Some(ref description) = payload.description {
-        if description.len() > 2000 {
+        let trimmed_desc = description.trim();
+        if !trimmed_desc.is_empty() && trimmed_desc.len() > 2000 {
             return Ok(Json(ApiResponse {
                 success: false,
                 data: None,
-                message: Some("Description too long (max 2000 characters)".to_string()),
+                message: Some("Description is too long (maximum 2000 characters, currently {} characters)".to_string()),
             }));
         }
     }
     
-    // Parse authenticated user ID
+    // Parse authenticated user ID with better error handling
     let creator_id = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!("Invalid user ID format for authenticated user: {} - Error: {}", user.user_id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     
-    // Generate unique slug
-    let base_slug = generate_slug(&payload.name);
-    let slug = ensure_unique_slug(&base_slug, &state.db.pool).await?;
+    // Generate unique slug with better error handling
+    let base_slug = generate_slug(trimmed_name);
+    if base_slug.is_empty() {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Community name cannot be converted to a valid URL slug. Please use letters, numbers, and basic punctuation.".to_string()),
+        }));
+    }
+    
+    let slug = ensure_unique_slug(&base_slug, &state.db.pool).await
+        .map_err(|e| {
+            tracing::error!("Failed to generate unique slug for community '{}': {}", trimmed_name, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     
     // Start transaction for atomic community creation + admin membership
     let mut tx = state.db.pool.begin().await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!("Failed to begin database transaction: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     
     let community_id = Uuid::new_v4();
     
-    // Insert community
+    // Insert community with detailed error handling
     let community_result = sqlx::query(
         "INSERT INTO communities (id, name, description, slug, is_public, requires_approval, created_by) 
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id, created_at"
     )
     .bind(community_id)
-    .bind(&payload.name.trim())
-    .bind(&payload.description)
+    .bind(trimmed_name)
+    .bind(&payload.description.as_ref().map(|d| d.trim()).filter(|s| !s.is_empty()))
     .bind(&slug)
     .bind(payload.is_public.unwrap_or(true))
     .bind(payload.requires_approval.unwrap_or(false))
@@ -261,10 +299,28 @@ pub async fn create_community(
     let community_row = match community_result {
         Ok(row) => row,
         Err(e) => {
-            tracing::error!("Failed to create community: {}", e);
+            tracing::error!("Failed to create community '{}': {}", trimmed_name, e);
+            
+            // Check for specific database errors
+            let error_msg = if e.to_string().contains("duplicate key") {
+                "A community with this name or similar URL already exists. Please choose a different name."
+            } else if e.to_string().contains("violates check constraint") {
+                "Community name contains invalid characters. Please use letters, numbers, spaces, and basic punctuation."
+            } else {
+                "Failed to create community due to a database error. Please try again."
+            };
+            
             tx.rollback().await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                .map_err(|rollback_err| {
+                    tracing::error!("Failed to rollback transaction after community creation error: {}", rollback_err);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+            
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some(error_msg.to_string()),
+            }));
         }
     };
     
@@ -280,22 +336,32 @@ pub async fn create_community(
         Err(_) => {
             // Create default admin role if it doesn't exist
             let new_role_id = Uuid::new_v4();
-            sqlx::query(
+            let role_creation_result = sqlx::query(
                 "INSERT INTO roles (id, name, description, permissions, is_default) 
                  VALUES ($1, 'admin', 'Community administrator', '[\"manage_community\", \"manage_members\", \"manage_posts\"]', FALSE)"
             )
             .bind(new_role_id)
             .execute(&mut *tx)
-            .await
-            .map_err(|e| {
+            .await;
+            
+            if let Err(e) = role_creation_result {
                 tracing::error!("Failed to create admin role: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+                tx.rollback().await
+                    .map_err(|rollback_err| {
+                        tracing::error!("Failed to rollback transaction after admin role creation error: {}", rollback_err);
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    })?;
+                return Ok(Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Failed to set up community permissions. Please try again.".to_string()),
+                }));
+            }
             new_role_id
         }
     };
     
-    // Add creator as admin member
+    // Add creator as admin member with detailed error handling
     let membership_result = sqlx::query(
         "INSERT INTO community_members (id, user_id, community_id, role_id, status, joined_at) 
          VALUES ($1, $2, $3, $4, 'active', NOW())"
@@ -312,16 +378,16 @@ pub async fn create_community(
             // Commit transaction
             tx.commit().await
                 .map_err(|e| {
-                    tracing::error!("Failed to commit transaction: {}", e);
+                    tracing::error!("Failed to commit transaction for community '{}': {}", trimmed_name, e);
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?;
             
-            tracing::info!("Community '{}' created successfully by user {}", payload.name, user.user_id);
+            tracing::info!("Community '{}' (slug: {}) created successfully by user {}", trimmed_name, slug, user.user_id);
             
             let community = CommunityResponse {
                 id: community_id.to_string(),
-                name: payload.name.trim().to_string(),
-                description: payload.description,
+                name: trimmed_name.to_string(),
+                description: payload.description.as_ref().map(|d| d.trim().to_string()).filter(|s| !s.is_empty()),
                 created_at: community_row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
                     .format("%Y-%m-%d %H:%M").to_string(),
             };
@@ -329,14 +395,22 @@ pub async fn create_community(
             Ok(Json(ApiResponse {
                 success: true,
                 data: Some(community),
-                message: Some("Community created successfully".to_string()),
+                message: Some(format!("Community '{}' created successfully! You are now the administrator.", trimmed_name)),
             }))
         }
         Err(e) => {
-            tracing::error!("Failed to add creator as member: {}", e);
+            tracing::error!("Failed to add creator as admin member for community '{}': {}", trimmed_name, e);
             tx.rollback().await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
+                .map_err(|rollback_err| {
+                    tracing::error!("Failed to rollback transaction after membership creation error: {}", rollback_err);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+            
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Community was created but failed to assign administrator permissions. Please contact support.".to_string()),
+            }))
         }
     }
 }
