@@ -10,6 +10,7 @@ use shared::{database::Database, auth::Auth0Config};
 pub mod config;
 pub mod handlers;
 pub mod auth;
+pub mod models;
 // pub mod middleware; // Disabled - using tower-sessions instead
 
 // Re-export main types from main.rs

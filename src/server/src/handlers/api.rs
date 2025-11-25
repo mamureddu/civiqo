@@ -830,3 +830,199 @@ pub async fn get_community_detail(
         message: Some("Community details retrieved successfully".to_string()),
     }))
 }
+
+/// Update an existing community (PROTECTED - owner only)
+pub async fn update_community(
+    AuthUser(user): AuthUser, // Requires authentication
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<String>,
+    Json(payload): Json<CreateCommunityRequest>,
+) -> Result<Json<ApiResponse<CommunityResponse>>, StatusCode> {
+    // Parse community ID
+    let community_uuid = Uuid::parse_str(&community_id)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Parse user ID
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check if community exists and user is owner
+    let community_owner: Option<Uuid> = sqlx::query_scalar(
+        "SELECT created_by FROM communities WHERE id = $1"
+    )
+    .bind(community_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch community: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let owner_id = match community_owner {
+        Some(id) => id,
+        None => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Community not found".to_string()),
+            }));
+        }
+    };
+
+    // Check authorization
+    if owner_id != user_uuid {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("You don't have permission to update this community".to_string()),
+        }));
+    }
+
+    // Validate input
+    let trimmed_name = payload.name.trim();
+    if trimmed_name.is_empty() || trimmed_name.len() < 3 || trimmed_name.len() > 255 {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Community name must be between 3 and 255 characters".to_string()),
+        }));
+    }
+
+    if let Some(ref description) = payload.description {
+        if description.len() > 2000 {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Description must not exceed 2000 characters".to_string()),
+            }));
+        }
+    }
+
+    // Update community
+    let result = sqlx::query(
+        "UPDATE communities 
+         SET name = $1, description = $2, is_public = $3, requires_approval = $4, updated_at = NOW()
+         WHERE id = $5
+         RETURNING id, name, description, created_at"
+    )
+    .bind(trimmed_name)
+    .bind(&payload.description.as_ref().map(|d| d.trim()).filter(|s| !s.is_empty()))
+    .bind(payload.is_public.unwrap_or(true))
+    .bind(payload.requires_approval.unwrap_or(false))
+    .bind(community_uuid)
+    .fetch_one(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(row) => {
+            tracing::info!("Community {} updated successfully by user {}", community_uuid, user.user_id);
+            
+            let community = CommunityResponse {
+                id: row.get::<Uuid, _>("id").to_string(),
+                name: row.get::<String, _>("name"),
+                description: row.get::<Option<String>, _>("description"),
+                created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                    .format("%Y-%m-%d %H:%M").to_string(),
+            };
+            
+            Ok(Json(ApiResponse {
+                success: true,
+                data: Some(community),
+                message: Some("Community updated successfully".to_string()),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to update community: {}", e);
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Failed to update community".to_string()),
+            }))
+        }
+    }
+}
+
+/// Delete a community (PROTECTED - owner only)
+pub async fn delete_community(
+    AuthUser(user): AuthUser, // Requires authentication
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<String>,
+) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
+    // Parse community ID
+    let community_uuid = Uuid::parse_str(&community_id)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // Parse user ID
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check if community exists and user is owner
+    let community_owner: Option<Uuid> = sqlx::query_scalar(
+        "SELECT created_by FROM communities WHERE id = $1"
+    )
+    .bind(community_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch community: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let owner_id = match community_owner {
+        Some(id) => id,
+        None => {
+            return Ok((
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Community not found".to_string()),
+                }),
+            ));
+        }
+    };
+
+    // Check authorization
+    if owner_id != user_uuid {
+        return Ok((
+            StatusCode::FORBIDDEN,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("You don't have permission to delete this community".to_string()),
+            }),
+        ));
+    }
+
+    // Delete community (CASCADE will handle related records)
+    let result = sqlx::query("DELETE FROM communities WHERE id = $1")
+        .bind(community_uuid)
+        .execute(&state.db.pool)
+        .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("Community {} deleted successfully by user {}", community_uuid, user.user_id);
+            
+            Ok((
+                StatusCode::NO_CONTENT,
+                Json(ApiResponse {
+                    success: true,
+                    data: None,
+                    message: Some("Community deleted successfully".to_string()),
+                }),
+            ))
+        }
+        Err(e) => {
+            tracing::error!("Failed to delete community: {}", e);
+            Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Failed to delete community".to_string()),
+                }),
+            ))
+        }
+    }
+}

@@ -1,5 +1,5 @@
 use axum::{
-    routing::get,
+    routing::{get, put, delete},
     Router,
 };
 use std::sync::Arc;
@@ -138,6 +138,8 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/communities", axum::routing::post(api::create_community))
         .route("/api/communities", get(api::get_communities))
         .route("/api/communities/:id", get(api::get_community_detail))
+        .route("/api/communities/:id", put(api::update_community))
+        .route("/api/communities/:id", delete(api::delete_community))
         .route("/api/communities/:id/posts", axum::routing::post(api::create_post))
         .route("/api/communities/:id/posts", get(api::get_posts))
         
