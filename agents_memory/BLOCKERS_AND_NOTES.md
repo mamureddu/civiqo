@@ -7,7 +7,23 @@
 
 ## 🚨 Blockers
 
-(No blockers yet - Agent 1 will document any issues encountered)
+### RESOLVED: create_community Handler Compliance
+**Issue**: Pre-existing handler didn't comply with Agent 2 guidelines
+**Details**:
+- Used auto-generated slugs instead of user-provided
+- Allowed 2000 char descriptions instead of 1000
+- Returned modified slug instead of 409 Conflict on duplicate
+- Allowed 255 char names instead of 100
+
+**Solution**: Recreated handler to comply with all guidelines
+- ✅ Now validates user-provided slug (3-50 chars, lowercase, alphanumeric + hyphens)
+- ✅ Description limited to 1000 chars
+- ✅ Name limited to 100 chars
+- ✅ Returns 409 Conflict on duplicate slug
+- ✅ Returns 201 Created on success
+- ✅ Added slug field to CreateCommunityRequest struct
+
+**Status**: RESOLVED - Handler now fully compliant
 
 ---
 
