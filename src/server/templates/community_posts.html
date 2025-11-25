@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Posts - {{ community.name }} | Civiqo{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+    {# Community Header #}
+    <header class="bg-white border-b border-gray-200">
+        <div class="max-w-4xl mx-auto px-4 py-6">
+            {# Breadcrumb #}
+            <nav class="text-sm text-gray-500 mb-4">
+                <a href="/communities" class="hover:text-[#3B7FBA]">Community</a>
+                <span class="mx-2">/</span>
+                <a href="/communities/{{ community.id }}" class="hover:text-[#3B7FBA]">{{ community.name }}</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-700">Posts</span>
+            </nav>
+            
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">{{ community.name }}</h1>
+                    <p class="text-gray-600 mt-1">{{ community.description | default(value="") | truncate(length=100) }}</p>
+                </div>
+                
+                {# Create post button (only for members) #}
+                {% if is_member %}
+                <a href="/communities/{{ community.id }}/posts/new"
+                   class="inline-flex items-center px-4 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white font-medium rounded-lg transition-colors">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Nuovo Post
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+    
+    {# Main Content #}
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        {# Filters and Sort #}
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center space-x-4">
+                {# Filter tabs #}
+                <div class="flex bg-white rounded-lg shadow-sm p-1">
+                    <button class="px-4 py-2 text-sm font-medium rounded-md {% if sort == 'newest' or sort is not defined %}bg-[#57C98A] text-white{% else %}text-gray-600 hover:text-gray-900{% endif %}"
+                            hx-get="/communities/{{ community.id }}/posts?sort=newest"
+                            hx-target="body"
+                            hx-push-url="true">
+                        Recenti
+                    </button>
+                    <button class="px-4 py-2 text-sm font-medium rounded-md {% if sort == 'popular' %}bg-[#57C98A] text-white{% else %}text-gray-600 hover:text-gray-900{% endif %}"
+                            hx-get="/communities/{{ community.id }}/posts?sort=popular"
+                            hx-target="body"
+                            hx-push-url="true">
+                        Popolari
+                    </button>
+                    <button class="px-4 py-2 text-sm font-medium rounded-md {% if sort == 'discussed' %}bg-[#57C98A] text-white{% else %}text-gray-600 hover:text-gray-900{% endif %}"
+                            hx-get="/communities/{{ community.id }}/posts?sort=discussed"
+                            hx-target="body"
+                            hx-push-url="true">
+                        Discussi
+                    </button>
+                </div>
+            </div>
+            
+            {# Post count #}
+            <span class="text-sm text-gray-500">
+                {{ total }} post{% if total != 1 %}s{% endif %}
+            </span>
+        </div>
+        
+        {# Posts List #}
+        <div id="posts-list">
+            {% if posts | length > 0 %}
+                {% for post in posts %}
+                    {% include "fragments/post-card.html" %}
+                {% endfor %}
+            {% else %}
+                {# Empty state #}
+                <div class="bg-white rounded-lg shadow-md p-12 text-center">
+                    <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"></path>
+                    </svg>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Nessun post ancora</h3>
+                    <p class="text-gray-500 mb-6">Sii il primo a condividere qualcosa con la community!</p>
+                    {% if is_member %}
+                    <a href="/communities/{{ community.id }}/posts/new"
+                       class="inline-flex items-center px-4 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white font-medium rounded-lg transition-colors">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Crea il primo post
+                    </a>
+                    {% else %}
+                    <p class="text-sm text-gray-400">Unisciti alla community per pubblicare</p>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+        
+        {# Pagination #}
+        {% if total > limit %}
+        <nav class="flex items-center justify-center mt-8 space-x-2">
+            {% if page > 1 %}
+            <a href="/communities/{{ community.id }}/posts?page={{ page - 1 }}&sort={{ sort }}"
+               class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                ← Precedente
+            </a>
+            {% endif %}
+            
+            <span class="px-4 py-2 text-gray-600">
+                Pagina {{ page }} di {{ (total / limit) | round(method="ceil") | int }}
+            </span>
+            
+            {% if page * limit < total %}
+            <a href="/communities/{{ community.id }}/posts?page={{ page + 1 }}&sort={{ sort }}"
+               class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
+                Successiva →
+            </a>
+            {% endif %}
+        </nav>
+        {% endif %}
+    </main>
+</div>
+{% endblock %}

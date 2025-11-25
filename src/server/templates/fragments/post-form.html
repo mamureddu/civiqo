@@ -1,0 +1,109 @@
+{# Post Form Fragment - Create/Edit post form #}
+{# Variables: community_id, post (optional for edit mode) #}
+
+{% set is_edit = post is defined and post.id is defined %}
+
+<form id="post-form"
+      class="bg-white rounded-lg shadow-md p-6"
+      {% if is_edit %}
+      hx-put="/api/posts/{{ post.id }}"
+      {% else %}
+      hx-post="/api/communities/{{ community_id }}/posts"
+      {% endif %}
+      hx-target="body"
+      hx-swap="innerHTML"
+      hx-indicator="#post-submit-indicator">
+    
+    <h2 class="text-xl font-bold text-gray-900 mb-6">
+        {% if is_edit %}
+        Modifica Post
+        {% else %}
+        Nuovo Post
+        {% endif %}
+    </h2>
+    
+    {# Title input #}
+    <div class="mb-4">
+        <label for="post-title" class="block text-sm font-medium text-gray-700 mb-1">
+            Titolo <span class="text-[#EF6F5E]">*</span>
+        </label>
+        <input type="text"
+               id="post-title"
+               name="title"
+               value="{{ post.title | default(value='') }}"
+               placeholder="Inserisci un titolo accattivante..."
+               required
+               maxlength="255"
+               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#57C98A] focus:border-[#57C98A] transition-colors">
+    </div>
+    
+    {# Content textarea #}
+    <div class="mb-4">
+        <label for="post-content" class="block text-sm font-medium text-gray-700 mb-1">
+            Contenuto <span class="text-[#EF6F5E]">*</span>
+        </label>
+        <textarea id="post-content"
+                  name="content"
+                  rows="8"
+                  placeholder="Scrivi il tuo post... (supporta Markdown)"
+                  required
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#57C98A] focus:border-[#57C98A] transition-colors resize-y">{{ post.content | default(value='') }}</textarea>
+        <p class="mt-1 text-xs text-gray-500">
+            Supporta Markdown: **grassetto**, *corsivo*, [link](url), `codice`
+        </p>
+    </div>
+    
+    {# Content type select #}
+    <div class="mb-4">
+        <label for="post-content-type" class="block text-sm font-medium text-gray-700 mb-1">
+            Formato
+        </label>
+        <select id="post-content-type"
+                name="content_type"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#57C98A] focus:border-[#57C98A] transition-colors">
+            <option value="markdown" {% if post.content_type == 'markdown' or post.content_type is not defined %}selected{% endif %}>
+                Markdown
+            </option>
+            <option value="text" {% if post.content_type == 'text' %}selected{% endif %}>
+                Testo semplice
+            </option>
+            <option value="html" {% if post.content_type == 'html' %}selected{% endif %}>
+                HTML
+            </option>
+        </select>
+    </div>
+    
+    {# Media URL input #}
+    <div class="mb-6">
+        <label for="post-media" class="block text-sm font-medium text-gray-700 mb-1">
+            URL Media (opzionale)
+        </label>
+        <input type="url"
+               id="post-media"
+               name="media_url"
+               value="{{ post.media_url | default(value='') }}"
+               placeholder="https://esempio.com/immagine.jpg"
+               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#57C98A] focus:border-[#57C98A] transition-colors">
+        <p class="mt-1 text-xs text-gray-500">
+            Inserisci l'URL di un'immagine o video da allegare al post
+        </p>
+    </div>
+    
+    {# Form actions #}
+    <div class="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100">
+        <a href="/communities/{{ community_id }}/posts"
+           class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors">
+            Annulla
+        </a>
+        <button type="submit"
+                class="px-6 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white font-medium rounded-lg transition-colors flex items-center space-x-2">
+            <span id="post-submit-indicator" class="htmx-indicator">
+                <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </span>
+            <span>{% if is_edit %}Salva modifiche{% else %}Pubblica{% endif %}</span>
+        </button>
+    </div>
+</form>

@@ -1,0 +1,86 @@
+{# Reaction Buttons Fragment - Interactive reaction buttons with HTMX #}
+{# Variables: post_id, reactions (object with counts per type), user_reaction (string or null) #}
+
+<div class="reaction-buttons flex items-center space-x-2" id="reactions-{{ post_id }}">
+    {# Like button #}
+    <button type="button"
+            class="reaction-btn group flex items-center space-x-1 px-3 py-1.5 rounded-full border transition-all duration-200
+                   {% if user_reaction == 'like' %}
+                   bg-[#57C98A]/10 border-[#57C98A] text-[#57C98A]
+                   {% else %}
+                   bg-white border-gray-200 text-gray-500 hover:border-[#57C98A] hover:text-[#57C98A]
+                   {% endif %}"
+            hx-post="/api/posts/{{ post_id }}/reactions"
+            hx-vals='{"reaction_type": "like"}'
+            hx-target="#reactions-{{ post_id }}"
+            hx-swap="outerHTML">
+        <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="{% if user_reaction == 'like' %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"></path>
+        </svg>
+        <span class="text-sm font-medium">{{ reactions.like | default(value=0) }}</span>
+    </button>
+    
+    {# Heart button #}
+    <button type="button"
+            class="reaction-btn group flex items-center space-x-1 px-3 py-1.5 rounded-full border transition-all duration-200
+                   {% if user_reaction == 'heart' %}
+                   bg-[#EF6F5E]/10 border-[#EF6F5E] text-[#EF6F5E]
+                   {% else %}
+                   bg-white border-gray-200 text-gray-500 hover:border-[#EF6F5E] hover:text-[#EF6F5E]
+                   {% endif %}"
+            hx-post="/api/posts/{{ post_id }}/reactions"
+            hx-vals='{"reaction_type": "heart"}'
+            hx-target="#reactions-{{ post_id }}"
+            hx-swap="outerHTML">
+        <svg class="w-5 h-5 transition-transform group-hover:scale-110" fill="{% if user_reaction == 'heart' %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+        </svg>
+        <span class="text-sm font-medium">{{ reactions.heart | default(value=0) }}</span>
+    </button>
+    
+    {# Celebrate button #}
+    <button type="button"
+            class="reaction-btn group flex items-center space-x-1 px-3 py-1.5 rounded-full border transition-all duration-200
+                   {% if user_reaction == 'celebrate' %}
+                   bg-[#F59E0B]/10 border-[#F59E0B] text-[#F59E0B]
+                   {% else %}
+                   bg-white border-gray-200 text-gray-500 hover:border-[#F59E0B] hover:text-[#F59E0B]
+                   {% endif %}"
+            hx-post="/api/posts/{{ post_id }}/reactions"
+            hx-vals='{"reaction_type": "celebrate"}'
+            hx-target="#reactions-{{ post_id }}"
+            hx-swap="outerHTML">
+        <span class="text-lg transition-transform group-hover:scale-110">🎉</span>
+        <span class="text-sm font-medium">{{ reactions.celebrate | default(value=0) }}</span>
+    </button>
+    
+    {# Thinking button #}
+    <button type="button"
+            class="reaction-btn group flex items-center space-x-1 px-3 py-1.5 rounded-full border transition-all duration-200
+                   {% if user_reaction == 'thinking' %}
+                   bg-[#8B5CF6]/10 border-[#8B5CF6] text-[#8B5CF6]
+                   {% else %}
+                   bg-white border-gray-200 text-gray-500 hover:border-[#8B5CF6] hover:text-[#8B5CF6]
+                   {% endif %}"
+            hx-post="/api/posts/{{ post_id }}/reactions"
+            hx-vals='{"reaction_type": "thinking"}'
+            hx-target="#reactions-{{ post_id }}"
+            hx-swap="outerHTML">
+        <span class="text-lg transition-transform group-hover:scale-110">🤔</span>
+        <span class="text-sm font-medium">{{ reactions.thinking | default(value=0) }}</span>
+    </button>
+    
+    {# Remove reaction button (only if user has reacted) #}
+    {% if user_reaction %}
+    <button type="button"
+            class="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
+            hx-delete="/api/posts/{{ post_id }}/reactions"
+            hx-target="#reactions-{{ post_id }}"
+            hx-swap="outerHTML"
+            title="Rimuovi reazione">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+    </button>
+    {% endif %}
+</div>

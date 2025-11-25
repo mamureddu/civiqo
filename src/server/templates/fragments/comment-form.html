@@ -1,0 +1,60 @@
+{# Comment Form Fragment - Add comment form #}
+{# Variables: post_id, parent_id (optional for replies), is_reply (bool) #}
+
+{% set is_reply = parent_id is defined and parent_id %}
+
+<form id="comment-form-{{ parent_id | default(value='new') }}"
+      class="{% if is_reply %}bg-gray-50 rounded-lg p-4{% else %}bg-white rounded-lg shadow-md p-4{% endif %}"
+      hx-post="/api/posts/{{ post_id }}/comments"
+      hx-target="{% if is_reply %}#replies-{{ parent_id }}{% else %}#comments-list{% endif %}"
+      hx-swap="{% if is_reply %}beforeend{% else %}afterbegin{% endif %}"
+      hx-on::after-request="this.reset()"
+      hx-indicator="#comment-submit-indicator-{{ parent_id | default(value='new') }}">
+    
+    {# Hidden parent_id for replies #}
+    {% if is_reply %}
+    <input type="hidden" name="parent_id" value="{{ parent_id }}">
+    {% endif %}
+    
+    <div class="flex space-x-3">
+        {# User avatar placeholder #}
+        <div class="flex-shrink-0">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#57C98A] to-[#3B7FBA] flex items-center justify-center text-white font-semibold text-xs">
+                U
+            </div>
+        </div>
+        
+        <div class="flex-grow">
+            {# Comment textarea #}
+            <textarea name="content"
+                      rows="{% if is_reply %}2{% else %}3{% endif %}"
+                      placeholder="{% if is_reply %}Scrivi una risposta...{% else %}Scrivi un commento...{% endif %}"
+                      required
+                      class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#57C98A] focus:border-[#57C98A] transition-colors resize-none text-sm"></textarea>
+            
+            {# Form actions #}
+            <div class="flex items-center justify-end mt-2 space-x-2">
+                {% if is_reply %}
+                <button type="button"
+                        class="px-3 py-1.5 text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
+                        hx-get="/api/empty"
+                        hx-target="#reply-form-{{ parent_id }}"
+                        hx-swap="innerHTML">
+                    Annulla
+                </button>
+                {% endif %}
+                
+                <button type="submit"
+                        class="px-4 py-1.5 bg-[#57C98A] hover:bg-[#4ab87a] text-white text-sm font-medium rounded-lg transition-colors flex items-center space-x-1">
+                    <span id="comment-submit-indicator-{{ parent_id | default(value='new') }}" class="htmx-indicator">
+                        <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </span>
+                    <span>{% if is_reply %}Rispondi{% else %}Commenta{% endif %}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</form>

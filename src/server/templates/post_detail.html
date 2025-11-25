@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }} | {{ community.name }} | Civiqo{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+    {# Header #}
+    <header class="bg-white border-b border-gray-200">
+        <div class="max-w-4xl mx-auto px-4 py-4">
+            {# Breadcrumb #}
+            <nav class="text-sm text-gray-500">
+                <a href="/communities" class="hover:text-[#3B7FBA]">Community</a>
+                <span class="mx-2">/</span>
+                <a href="/communities/{{ community.id }}" class="hover:text-[#3B7FBA]">{{ community.name }}</a>
+                <span class="mx-2">/</span>
+                <a href="/communities/{{ community.id }}/posts" class="hover:text-[#3B7FBA]">Posts</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-700">{{ post.title | truncate(length=30) }}</span>
+            </nav>
+        </div>
+    </header>
+    
+    {# Main Content #}
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        {# Post Article #}
+        <article class="bg-white rounded-lg shadow-md overflow-hidden mb-8">
+            {# Post Header #}
+            <header class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-3">
+                        {# Author avatar #}
+                        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-[#57C98A] to-[#3B7FBA] flex items-center justify-center text-white font-semibold">
+                            {{ post.author_name | default(value=post.author_email) | first | upper }}
+                        </div>
+                        <div>
+                            <span class="font-semibold text-gray-900">{{ post.author_name | default(value=post.author_email) }}</span>
+                            <div class="flex items-center text-sm text-gray-500">
+                                <time datetime="{{ post.created_at }}">
+                                    {{ post.created_at | date(format="%d %B %Y, %H:%M") }}
+                                </time>
+                                {% if post.updated_at and post.updated_at != post.created_at %}
+                                <span class="mx-1">•</span>
+                                <span class="italic">modificato</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {# Post actions (for author/admin) #}
+                    {% if is_author or is_admin %}
+                    <div class="flex items-center space-x-2">
+                        <a href="/posts/{{ post.id }}/edit"
+                           class="p-2 text-gray-400 hover:text-[#57C98A] transition-colors"
+                           title="Modifica">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                            </svg>
+                        </a>
+                        <button type="button"
+                                class="p-2 text-gray-400 hover:text-[#EF6F5E] transition-colors"
+                                title="Elimina"
+                                hx-delete="/api/posts/{{ post.id }}"
+                                hx-confirm="Sei sicuro di voler eliminare questo post?"
+                                hx-target="body">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {# Post badges #}
+                <div class="flex items-center space-x-2 mb-4">
+                    {% if post.is_pinned %}
+                    <span class="px-2 py-1 bg-[#57C98A]/10 text-[#57C98A] text-xs font-medium rounded-full">
+                        📌 Pinned
+                    </span>
+                    {% endif %}
+                    {% if post.is_locked %}
+                    <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
+                        🔒 Locked
+                    </span>
+                    {% endif %}
+                </div>
+                
+                {# Post title #}
+                <h1 class="text-2xl font-bold text-gray-900">{{ post.title }}</h1>
+            </header>
+            
+            {# Post content #}
+            <div class="p-6">
+                {# Media #}
+                {% if post.media_url %}
+                <div class="mb-6 rounded-lg overflow-hidden">
+                    <img src="{{ post.media_url }}" alt="Post media" class="w-full max-h-96 object-cover">
+                </div>
+                {% endif %}
+                
+                {# Content #}
+                <div class="prose prose-lg max-w-none text-gray-700">
+                    {{ post.content | safe }}
+                </div>
+            </div>
+            
+            {# Post footer #}
+            <footer class="px-6 py-4 bg-gray-50 border-t border-gray-100">
+                <div class="flex items-center justify-between">
+                    {# Reactions #}
+                    {% include "fragments/reaction-buttons.html" %}
+                    
+                    {# Stats #}
+                    <div class="flex items-center space-x-4 text-sm text-gray-500">
+                        <span class="flex items-center space-x-1">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            <span>{{ post.view_count | default(value=0) }} visualizzazioni</span>
+                        </span>
+                    </div>
+                </div>
+            </footer>
+        </article>
+        
+        {# Comments Section #}
+        <section class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-[#3B7FBA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                </svg>
+                Commenti ({{ comments | length }})
+            </h2>
+            
+            {# Comment form (for members) #}
+            {% if is_member and not post.is_locked %}
+            <div class="mb-8">
+                {% set post_id = post.id %}
+                {% include "fragments/comment-form.html" %}
+            </div>
+            {% elif post.is_locked %}
+            <div class="mb-8 p-4 bg-gray-100 rounded-lg text-center text-gray-600">
+                <svg class="w-6 h-6 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+                I commenti sono disabilitati per questo post
+            </div>
+            {% elif not is_member %}
+            <div class="mb-8 p-4 bg-[#57C98A]/10 rounded-lg text-center">
+                <p class="text-gray-700 mb-2">Unisciti alla community per commentare</p>
+                <a href="/communities/{{ community.id }}"
+                   class="inline-flex items-center px-4 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white font-medium rounded-lg transition-colors">
+                    Unisciti
+                </a>
+            </div>
+            {% endif %}
+            
+            {# Comments list #}
+            <div id="comments-list" class="space-y-4">
+                {% if comments | length > 0 %}
+                    {% for comment in comments %}
+                        {% set is_author = comment.author_id == user_id %}
+                        {% include "fragments/comment-item.html" %}
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-8 text-gray-500">
+                        <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                        <p>Nessun commento ancora. Sii il primo!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+        
+        {# Back link #}
+        <div class="mt-8 text-center">
+            <a href="/communities/{{ community.id }}/posts"
+               class="inline-flex items-center text-[#3B7FBA] hover:text-[#57C98A] font-medium transition-colors">
+                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+                Torna ai post
+            </a>
+        </div>
+    </main>
+</div>
+{% endblock %}
