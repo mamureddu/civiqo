@@ -1,0 +1,58 @@
+{# Join Button Fragment - Standalone join/leave button #}
+{# Usage: {% include "fragments/join-button.html" %} #}
+{# Context: community_id (String), is_member (bool), user_role (Option<String>), is_public (bool), user_authenticated (bool) #}
+
+<div class="join-button-container">
+  {% if user_authenticated %}
+    {% if is_member %}
+      {# User is a member - show role and leave button #}
+      <div class="flex items-center gap-3">
+        <span class="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-blue-100 text-blue-800">
+          {{ user_role | default(value="Member") | capitalize }}
+        </span>
+        <button hx-post="/api/communities/{{ community_id }}/leave"
+                hx-confirm="Leave this community?"
+                hx-target="closest .join-button-container"
+                hx-swap="outerHTML"
+                class="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors">
+          Leave
+        </button>
+      </div>
+    {% else %}
+      {# User is not a member - show join/request button #}
+      {% if is_public %}
+        <button hx-post="/api/communities/{{ community_id }}/join"
+                hx-confirm="Join this community?"
+                hx-target="closest .join-button-container"
+                hx-swap="outerHTML"
+                class="inline-flex items-center px-6 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors">
+          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M8 16.5a1 1 0 11-2 0 1 1 0 012 0zM15 16.5a1 1 0 11-2 0 1 1 0 012 0z"></path>
+            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"></path>
+          </svg>
+          Join Community
+        </button>
+      {% else %}
+        <button hx-post="/api/communities/{{ community_id }}/request-join"
+                hx-confirm="Request to join this community?"
+                hx-target="closest .join-button-container"
+                hx-swap="outerHTML"
+                class="inline-flex items-center px-6 py-2 rounded-lg text-sm font-medium bg-yellow-600 text-white hover:bg-yellow-700 transition-colors">
+          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+          </svg>
+          Request to Join
+        </button>
+      {% endif %}
+    {% endif %}
+  {% else %}
+    {# User not authenticated #}
+    <a href="/auth/login?redirect=/communities/{{ community_id }}"
+       class="inline-flex items-center px-6 py-2 rounded-lg text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 transition-colors">
+      <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M3 1a1 1 0 011-1h12a1 1 0 011 1H3zm0 4a1 1 0 011-1h12a1 1 0 011 1H3zm0 4a1 1 0 011-1h12a1 1 0 011 1H3zm0 4a1 1 0 011-1h12a1 1 0 011 1H3z" clip-rule="evenodd"></path>
+      </svg>
+      Login to Join
+    </a>
+  {% endif %}
+</div>

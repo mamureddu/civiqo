@@ -1,0 +1,141 @@
+{# Members List Fragment - Paginated member listing #}
+{# Usage: {% include "fragments/members-list.html" %} #}
+{# Context: members (Vec<MemberResponse>), total (i64), page (u32), limit (u32), community_id (String), is_admin (bool) #}
+
+<div class="members-list-container">
+  {# Header #}
+  <div class="mb-6">
+    <h3 class="text-lg font-semibold text-gray-900">
+      Members <span class="text-gray-500 font-normal">({{ total }})</span>
+    </h3>
+  </div>
+
+  {# Members Table #}
+  {% if members | length > 0 %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+              Member
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+              Role
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+              Joined
+            </th>
+            {% if is_admin %}
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Actions
+              </th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for member in members %}
+            <tr class="hover:bg-gray-50 transition-colors">
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 h-10 w-10">
+                    <div class="h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold">
+                      {{ member.email | first | upper }}
+                    </div>
+                  </div>
+                  <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-900">{{ member.email }}</p>
+                    <p class="text-sm text-gray-500">{{ member.user_id | truncate(length=8) }}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+                  {% if member.role == 'admin' %}
+                    bg-purple-100 text-purple-800
+                  {% elif member.role == 'moderator' %}
+                    bg-blue-100 text-blue-800
+                  {% else %}
+                    bg-gray-100 text-gray-800
+                  {% endif %}">
+                  {{ member.role | capitalize }}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                {{ member.joined_at }}
+              </td>
+              {% if is_admin %}
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div class="flex items-center gap-2">
+                    {% if member.role != 'admin' %}
+                      <button hx-post="/api/communities/{{ community_id }}/promote/{{ member.user_id }}"
+                              hx-confirm="Promote {{ member.email }} to admin?"
+                              hx-target="closest tr"
+                              hx-swap="outerHTML"
+                              class="text-blue-600 hover:text-blue-900 transition-colors text-xs font-medium">
+                        Promote
+                      </button>
+                    {% endif %}
+                    {% if member.role == 'admin' %}
+                      <button hx-post="/api/communities/{{ community_id }}/demote/{{ member.user_id }}"
+                              hx-confirm="Demote {{ member.email }} to member?"
+                              hx-target="closest tr"
+                              hx-swap="outerHTML"
+                              class="text-yellow-600 hover:text-yellow-900 transition-colors text-xs font-medium">
+                        Demote
+                      </button>
+                    {% endif %}
+                    <button hx-delete="/api/communities/{{ community_id }}/members/{{ member.user_id }}"
+                            hx-confirm="Remove {{ member.email }} from community?"
+                            hx-target="closest tr"
+                            hx-swap="outerHTML swap:1s"
+                            class="text-red-600 hover:text-red-900 transition-colors text-xs font-medium">
+                      Remove
+                    </button>
+                  </div>
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# Pagination #}
+    {% set has_next = (page * limit) < total %}
+    {% set has_prev = page > 1 %}
+    
+    {% if has_next or has_prev %}
+      <div class="mt-6 flex items-center justify-between">
+        <div class="text-sm text-gray-600">
+          Showing {{ ((page - 1) * limit) + 1 }} to {{ [page * limit, total] | min }} of {{ total }} members
+        </div>
+        <div class="flex gap-2">
+          {% if has_prev %}
+            <button hx-get="/api/communities/{{ community_id }}/members?page={{ page - 1 }}&limit={{ limit }}"
+                    hx-target="closest .members-list-container"
+                    hx-swap="outerHTML"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              Previous
+            </button>
+          {% endif %}
+          
+          {% if has_next %}
+            <button hx-get="/api/communities/{{ community_id }}/members?page={{ page + 1 }}&limit={{ limit }}"
+                    hx-target="closest .members-list-container"
+                    hx-swap="outerHTML"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              Next
+            </button>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="text-center py-12">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-2a6 6 0 0112 0v2zm0 0h6v-2a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+      </svg>
+      <p class="mt-4 text-gray-600">No members yet</p>
+    </div>
+  {% endif %}
+</div>
