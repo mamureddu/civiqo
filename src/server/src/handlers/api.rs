@@ -640,9 +640,9 @@ pub async fn get_communities(
     tracing::info!("Executing communities query with user_id: {:?}", user.as_ref().map(|u| &u.user_id));
     
     // Execute query with proper parameter binding
-    let communities = if let Some(ref user) = user {
+    let communities = if let Some(ref _user) = user {
         sqlx::query(&query)
-            .bind(&user.user_id)
+            .bind(&_user.user_id)
             .bind(search_param)
             .bind(params.limit as i64)
             .bind(offset as i64)
@@ -733,7 +733,7 @@ pub async fn get_community_detail(
     let community_uuid = uuid::Uuid::parse_str(&community_id_or_slug);
     
     // Build query based on whether we have UUID or slug - ALWAYS use parameterized queries
-    let (query, param_count) = if community_uuid.is_ok() {
+    let (query, _param_count) = if community_uuid.is_ok() {
         let main_query = format!(
             "SELECT c.id, c.name, c.description, c.slug, c.is_public, c.requires_approval, 
                     c.created_at, c.updated_at,
