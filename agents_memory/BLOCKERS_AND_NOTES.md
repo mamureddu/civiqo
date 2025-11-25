@@ -1,197 +1,84 @@
-# Blockers and Notes: Community CRUD Routes
+# 📝 Blockers & Notes: Phase 2 - Posts & Comments
 
-**Agent 1**: Document issues, decisions, and questions here  
-**Agent 2**: Provide guidance and answers
-
----
-
-## 🚨 Blockers
-
-### RESOLVED: create_community Handler Compliance
-**Issue**: Pre-existing handler didn't comply with Agent 2 guidelines
-**Details**:
-- Used auto-generated slugs instead of user-provided
-- Allowed 2000 char descriptions instead of 1000
-- Returned modified slug instead of 409 Conflict on duplicate
-- Allowed 255 char names instead of 100
-
-**Solution**: Recreated handler to comply with all guidelines
-- ✅ Now validates user-provided slug (3-50 chars, lowercase, alphanumeric + hyphens)
-- ✅ Description limited to 1000 chars
-- ✅ Name limited to 100 chars
-- ✅ Returns 409 Conflict on duplicate slug
-- ✅ Returns 201 Created on success
-- ✅ Added slug field to CreateCommunityRequest struct
-
-**Status**: RESOLVED - Handler now fully compliant
-
-### RESOLVED: UUID/BIGINT Type Mismatch (CRITICAL)
-**Issue**: Agent 2 found critical type mismatch
-**Details**:
-- Schema defines communities.id as BIGINT (auto-generated)
-- Handlers were using Uuid::new_v4() for community IDs
-- Would cause runtime type errors and database constraint violations
-
-**Solution**: Updated all three handlers to use BIGINT
-- ✅ create_community: Removed manual UUID generation, let DB create BIGINT
-- ✅ update_community: Changed Path parameter from String to i64
-- ✅ delete_community: Changed Path parameter from String to i64
-- ✅ All queries updated to use i64 instead of UUID
-- ✅ Response parsing updated to extract i64 IDs
-
-**Status**: RESOLVED - All handlers now use BIGINT correctly
-
-### RESOLVED: Test Coverage (CRITICAL)
-**Issue**: Agent 2 identified missing test coverage
-**Details**:
-- No integration tests for CRUD endpoints
-- CASCADE delete not verified
-- Performance targets not measured
-- Security tests not implemented
-
-**Solution**: Created comprehensive test suite
-- ✅ community_crud_test.rs: 43 tests (6 passing unit + 37 integration stubs)
-- ✅ community_crud_integration_test.rs: 20+ database integration tests
-- ✅ Test categories: Success, Error, Security, Performance, Edge Cases
-- ✅ SQL injection prevention verified
-- ✅ CASCADE delete test structure ready
-- ✅ Performance benchmarking stubs included
-
-**Test Coverage**:
-- POST /api/communities: 9 tests
-- PUT /api/communities/:id: 9 tests
-- DELETE /api/communities/:id: 7 tests
-- Security: 3 tests
-- Edge Cases: 5 tests
-- Performance: 3 tests
-
-**Status**: RESOLVED - Test framework comprehensive and production-ready
-
-### RESOLVED: Dead Code Cleanup
-**Issue**: Unused helper functions causing warnings
-**Details**:
-- generate_slug() function unused
-- ensure_unique_slug() function unused
-- These functions no longer needed with new slug handling
-
-**Solution**: Removed dead code
-- ✅ Removed generate_slug() function
-- ✅ Removed ensure_unique_slug() function
-- ✅ Added documentation explaining removals
-- ✅ Slug now user-provided and validated
-- ✅ Uniqueness enforced by database constraint
-
-**Status**: RESOLVED - Dead code removed, warnings reduced
+**Created by**: Agent 2 (Tech Lead)  
+**Date**: November 25, 2025
 
 ---
 
-## 💡 Technical Decisions
+## 🚧 Current Blockers
 
-### Decision 1: Response Format
-**Question**: Should endpoints return JSON or redirect?  
-**Decision**: TBD by Agent 1 based on existing patterns  
-**Rationale**: Check existing API endpoints for consistency
-
-### Decision 2: Role ID Lookup
-**Question**: How to get 'admin' role ID for community_members insert?  
-**Options**:
-1. Subquery: `(SELECT id FROM roles WHERE name = 'admin')`
-2. Cache role IDs in AppState
-3. Hardcode role ID (not recommended)
-
-**Recommendation**: Use subquery for simplicity and correctness
-
-### Decision 3: Transaction Handling
-**Question**: How to handle transaction errors?  
-**Recommendation**: 
-- Rollback on any error
-- Return appropriate HTTP status
-- Log error details for debugging
+*None at start of implementation*
 
 ---
 
 ## 📝 Implementation Notes
 
-### Note 1: BIGINT vs UUID
-**Important**: communities.id is BIGINT (i64), not UUID  
-**Impact**: Use `i64` in Rust structs, not `Uuid`  
-**Example**: `Path(id): Path<i64>`
+### Database Considerations
+- Use UUID for posts and comments (federation-ready)
+- Use BIGINT for reactions (high volume, no federation need)
+- CASCADE deletes for referential integrity
+- Indexes on foreign keys for performance
 
-### Note 2: Existing Indexes
-**Good News**: Schema already has indexes on:
-- `communities.slug` (unique)
-- `communities.created_by`
-- No need to add new indexes
+### Authorization Pattern
+- Reuse existing `AuthUser` extractor
+- Reuse existing `OptionalAuthUser` for public reads
+- Check community membership for write operations
+- Check author/admin status for edit/delete
 
-### Note 3: Cascade Delete
-**Schema**: ON DELETE CASCADE already configured for:
-- community_members
-- community_boundaries
-- businesses
-- proposals
-- chat_rooms
+### Threading Strategy
+- Use `parent_id` for comment replies
+- Fetch comments flat, build tree in Rust
+- Limit nesting depth to 10 levels (optional)
 
-**Action**: Test thoroughly to verify cascade works
+### Reaction Types
+- Start with: "like", "upvote", "heart", "celebrate"
+- Store as VARCHAR(20) for flexibility
+- Use UNIQUE constraint on (post_id, user_id)
 
 ---
 
 ## ❓ Questions for Agent 2
 
-(Agent 1 will add questions here during implementation)
+*Agent 1 can add questions here during implementation*
 
 ---
 
-## 🔍 Important Findings
+## ✅ Decisions Made
 
-(Agent 1 will document discoveries here)
-
----
-
-## 🐛 Bugs Found
-
-(Document any bugs discovered during implementation)
+1. **UUID vs BIGINT**: UUID for posts/comments (federation-ready), BIGINT for reactions
+2. **Threading**: Flat storage with parent_id, tree built in application
+3. **Reactions**: One reaction per user per post (UNIQUE constraint)
+4. **Content Type**: Support markdown and plain text
+5. **Soft Delete**: Not implemented (hard delete with CASCADE)
 
 ---
 
-## ⚡ Performance Notes
+## 🐛 Issues Encountered
 
-(Document any performance observations)
-
----
-
-## 🔒 Security Notes
-
-(Document security considerations and implementations)
+*Agent 1 will document issues here*
 
 ---
 
-## 📚 Useful References
+## 💡 Improvements for Future
 
-### Existing Code Patterns
-- `src/server/src/handlers/pages.rs` - AuthUser usage examples
-- `src/server/src/handlers/api.rs` - Existing API handlers
-- `src/server/src/auth.rs` - AuthUser extractor implementation
-
-### Database Schema
-- `src/migrations/001_initial_schema_with_bigint.sql` - Full schema
-
-### Dependencies
-- `validator` docs: https://docs.rs/validator/
-- `axum` docs: https://docs.rs/axum/
-- `sqlx` docs: https://docs.rs/sqlx/
+- [ ] Add post categories/tags
+- [ ] Add post scheduling
+- [ ] Add comment mentions (@user)
+- [ ] Add rich media embeds
+- [ ] Add post bookmarks
+- [ ] Add comment reactions
 
 ---
 
-## 📊 Progress Notes
+## 📊 Progress Log
 
-(Agent 1 will update with progress notes during implementation)
+| Time | Action | Status |
+|------|--------|--------|
+| 23:24 | Phase 0 Planning Complete | ✅ |
+| | Step 1: Database Migration | ⏳ |
+| | Step 2: Posts CRUD | ⏳ |
+| | Step 3: Comments System | ⏳ |
+| | Step 4: Reactions System | ⏳ |
+| | Step 5: Routes | ⏳ |
+| | Step 6: Tests | ⏳ |
 
----
-
-## ✅ Completed Items
-
-(Move completed items here from other sections)
-
----
-
-**Last Updated**: November 25, 2025 (Agent 2 Planning Phase)

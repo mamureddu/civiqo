@@ -15,7 +15,7 @@ use shared::database::Database;
 mod handlers;
 mod auth;
 
-use handlers::{pages, htmx, api, stubs::health_check};
+use handlers::{pages, htmx, api, posts, comments, reactions, stubs::health_check};
 use auth::{login, callback, logout}; // Auth handlers
 
 pub struct AppState {
@@ -142,8 +142,6 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/communities/:id", get(api::get_community_detail))
         .route("/api/communities/:id", put(api::update_community))
         .route("/api/communities/:id", delete(api::delete_community))
-        .route("/api/communities/:id/posts", axum::routing::post(api::create_post))
-        .route("/api/communities/:id/posts", get(api::get_posts))
         
         // Membership endpoints
         .route("/api/communities/:id/join", post(api::join_community))
@@ -161,6 +159,24 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/communities/:id/transfer-ownership/:user_id", post(api::transfer_ownership))
         .route("/api/communities/:id/promote/:user_id", post(api::promote_to_admin))
         .route("/api/communities/:id/demote/:user_id", post(api::demote_to_member))
+        
+        // Posts endpoints
+        .route("/api/communities/:id/posts", post(posts::create_post))
+        .route("/api/communities/:id/posts", get(posts::list_posts))
+        .route("/api/posts/:id", get(posts::get_post))
+        .route("/api/posts/:id", put(posts::update_post))
+        .route("/api/posts/:id", delete(posts::delete_post))
+        
+        // Comments endpoints
+        .route("/api/posts/:id/comments", post(comments::create_comment))
+        .route("/api/posts/:id/comments", get(comments::list_comments))
+        .route("/api/comments/:id", put(comments::update_comment))
+        .route("/api/comments/:id", delete(comments::delete_comment))
+        
+        // Reactions endpoints
+        .route("/api/posts/:id/reactions", post(reactions::add_reaction))
+        .route("/api/posts/:id/reactions", delete(reactions::remove_reaction))
+        .route("/api/posts/:id/reactions", get(reactions::list_reactions))
         
         // Static files
         .nest_service("/static", ServeDir::new(static_path))

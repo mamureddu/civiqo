@@ -40,13 +40,6 @@ pub struct CreateCommunityRequest {
     pub requires_approval: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CreatePostRequest {
-    pub title: String,
-    pub content: String,
-    pub author_id: String,
-}
-
 #[derive(Debug, Serialize)]
 pub struct ApiResponse<T> {
     pub success: bool,
@@ -67,14 +60,6 @@ pub struct CommunityResponse {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub created_at: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct PostResponse {
-    pub id: String,
-    pub title: String,
-    pub content: String,
     pub created_at: String,
 }
 
@@ -430,89 +415,6 @@ pub async fn create_community(
             ))
         }
     }
-}
-
-// ============================================================================
-// Post Endpoints
-// ============================================================================
-
-/// Create a new post in a community (PROTECTED - requires authentication)
-pub async fn create_post(
-    AuthUser(_user): AuthUser, // Requires authentication
-    State(state): State<Arc<AppState>>,
-    Path(community_id): Path<String>,
-    Json(payload): Json<CreatePostRequest>,
-) -> Result<Json<ApiResponse<PostResponse>>, StatusCode> {
-    let post_id = Uuid::new_v4();
-    let community_uuid = Uuid::parse_str(&community_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    let author_uuid = Uuid::parse_str(&payload.author_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    
-    let result = sqlx::query(
-        "INSERT INTO posts (id, community_id, author_id, title, content) 
-         VALUES ($1, $2, $3, $4, $5)"
-    )
-    .bind(post_id)
-    .bind(community_uuid)
-    .bind(author_uuid)
-    .bind(&payload.title)
-    .bind(&payload.content)
-    .execute(&state.db.pool)
-    .await;
-    
-    match result {
-        Ok(_) => {
-            let post = PostResponse {
-                id: post_id.to_string(),
-                title: payload.title,
-                content: payload.content,
-                created_at: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
-            };
-            
-            Ok(Json(ApiResponse {
-                success: true,
-                data: Some(post),
-                message: Some("Post created successfully".to_string()),
-            }))
-        }
-        Err(e) => {
-            tracing::error!("Failed to create post: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-/// Get posts for a community
-pub async fn get_posts(
-    State(state): State<Arc<AppState>>,
-    Path(community_id): Path<String>,
-) -> Result<Json<Vec<PostResponse>>, StatusCode> {
-    use sqlx::Row;
-    
-    let community_uuid = Uuid::parse_str(&community_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    
-    let posts = sqlx::query(
-        "SELECT id, title, content, created_at FROM posts 
-         WHERE community_id = $1 
-         ORDER BY created_at DESC"
-    )
-    .bind(community_uuid)
-    .fetch_all(&state.db.pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    let posts_data: Vec<PostResponse> = posts.iter().map(|row| {
-        PostResponse {
-            id: row.get::<Uuid, _>("id").to_string(),
-            title: row.get::<String, _>("title"),
-            content: row.get::<String, _>("content"),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
-        }
-    }).collect();
-    
-    Ok(Json(posts_data))
 }
 
 // ============================================================================

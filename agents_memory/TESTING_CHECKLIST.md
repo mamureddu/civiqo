@@ -1,219 +1,143 @@
-# Testing Checklist: Community CRUD Routes
+# 🧪 Testing Checklist: Phase 2 - Posts & Comments
 
-**Agent 1**: Track testing progress here  
-**Update**: Check off items as tests pass
-
----
-
-## Unit Tests
-
-### Validation Tests
-- [ ] `CreateCommunityRequest` - Valid data
-- [ ] `CreateCommunityRequest` - Name too short (< 3 chars)
-- [ ] `CreateCommunityRequest` - Name too long (> 100 chars)
-- [ ] `CreateCommunityRequest` - Description too long (> 1000 chars)
-- [ ] `CreateCommunityRequest` - Invalid slug (uppercase)
-- [ ] `CreateCommunityRequest` - Invalid slug (special chars)
-- [ ] `CreateCommunityRequest` - Slug too short (< 3 chars)
-- [ ] `CreateCommunityRequest` - Slug too long (> 50 chars)
-- [ ] `UpdateCommunityRequest` - Valid data
-- [ ] `UpdateCommunityRequest` - All fields None (should fail)
-- [ ] `UpdateCommunityRequest` - Name too short
-- [ ] `UpdateCommunityRequest` - Name too long
+**Created by**: Agent 2 (Tech Lead)  
+**Date**: November 25, 2025
 
 ---
 
-## Integration Tests - POST /api/communities
+## 📋 Integration Tests Required
 
-### Success Cases
-- [ ] Create community with all fields
-- [ ] Create community with minimal fields (name + slug)
-- [ ] Create community with is_public = false
-- [ ] Verify creator added as admin member
-- [ ] Verify response contains correct data
+### Posts Tests (`posts_integration.rs`)
 
-### Error Cases
-- [ ] Duplicate slug returns 409 Conflict
-- [ ] Invalid name (too short) returns 400
-- [ ] Invalid name (too long) returns 400
-- [ ] Invalid slug format returns 400
-- [ ] Missing required fields returns 400
-- [ ] Unauthenticated request returns 401
+#### Create Post
+- [ ] `test_create_post_as_member` - Member can create post
+- [ ] `test_create_post_as_non_member` - Non-member cannot create post (403)
+- [ ] `test_create_post_unauthenticated` - Unauthenticated returns 401
+- [ ] `test_create_post_empty_title` - Empty title returns 400
+- [ ] `test_create_post_empty_content` - Empty content returns 400
 
-### Database Verification
-- [ ] Community inserted with correct data
-- [ ] Creator added to community_members
-- [ ] Creator has 'admin' role
-- [ ] created_at and updated_at set correctly
+#### List Posts
+- [ ] `test_list_posts_public_community` - Anyone can list posts
+- [ ] `test_list_posts_private_community_member` - Member can list posts
+- [ ] `test_list_posts_private_community_non_member` - Non-member cannot list (403)
+- [ ] `test_list_posts_pagination` - Pagination works correctly
+- [ ] `test_list_posts_empty` - Empty list returns correctly
 
----
+#### Get Post
+- [ ] `test_get_post_exists` - Returns post with details
+- [ ] `test_get_post_not_found` - Returns 404
+- [ ] `test_get_post_increments_view_count` - View count increases
 
-## Integration Tests - PUT /api/communities/:id
+#### Update Post
+- [ ] `test_update_post_as_author` - Author can update
+- [ ] `test_update_post_as_non_author` - Non-author cannot update (403)
+- [ ] `test_update_post_not_found` - Returns 404
 
-### Success Cases
-- [ ] Update name only
-- [ ] Update description only
-- [ ] Update is_public only
-- [ ] Update multiple fields
-- [ ] Verify updated_at changed
-- [ ] Verify response contains updated data
-
-### Error Cases
-- [ ] Non-owner update returns 403 Forbidden
-- [ ] Non-existent community returns 404 Not Found
-- [ ] Invalid name (too short) returns 400
-- [ ] Invalid name (too long) returns 400
-- [ ] All fields None returns 400
-- [ ] Unauthenticated request returns 401
-
-### Database Verification
-- [ ] Only specified fields updated
-- [ ] updated_at timestamp changed
-- [ ] Other fields unchanged
+#### Delete Post
+- [ ] `test_delete_post_as_author` - Author can delete
+- [ ] `test_delete_post_as_admin` - Admin can delete
+- [ ] `test_delete_post_as_non_author` - Non-author cannot delete (403)
+- [ ] `test_delete_post_not_found` - Returns 404
 
 ---
 
-## Integration Tests - DELETE /api/communities/:id
+### Comments Tests (`comments_integration.rs`)
 
-### Success Cases
-- [ ] Delete own community returns 200/204
-- [ ] Verify community deleted from database
-- [ ] Verify cascade delete worked (members deleted)
-- [ ] Verify cascade delete worked (boundaries deleted)
+#### Create Comment
+- [ ] `test_create_comment_on_post` - Member can comment
+- [ ] `test_create_comment_reply` - Can reply to comment
+- [ ] `test_create_comment_invalid_parent` - Invalid parent returns 404
+- [ ] `test_create_comment_locked_post` - Locked post returns 403
+- [ ] `test_create_comment_unauthenticated` - Returns 401
 
-### Error Cases
-- [ ] Non-owner delete returns 403 Forbidden
-- [ ] Non-existent community returns 404 Not Found
-- [ ] Unauthenticated request returns 401
+#### List Comments
+- [ ] `test_list_comments_flat` - Returns flat list
+- [ ] `test_list_comments_threaded` - Returns nested structure
+- [ ] `test_list_comments_empty` - Empty list returns correctly
 
-### Database Verification
-- [ ] Community removed from communities table
-- [ ] Related community_members removed
-- [ ] Related community_boundaries removed
-- [ ] Related businesses removed (if any)
+#### Update Comment
+- [ ] `test_update_comment_as_author` - Author can update
+- [ ] `test_update_comment_sets_edited_flag` - is_edited becomes true
+- [ ] `test_update_comment_as_non_author` - Non-author cannot update (403)
 
----
-
-## Manual Testing
-
-### Create Community
-- [ ] Test via UI form (if exists)
-- [ ] Test via curl/Postman
-- [ ] Test with valid data
-- [ ] Test with invalid data
-- [ ] Test duplicate slug
-- [ ] Test without authentication
-
-### Update Community
-- [ ] Test via UI form (if exists)
-- [ ] Test via curl/Postman
-- [ ] Test as owner
-- [ ] Test as non-owner
-- [ ] Test with valid data
-- [ ] Test with invalid data
-
-### Delete Community
-- [ ] Test via UI button (if exists)
-- [ ] Test via curl/Postman
-- [ ] Test as owner
-- [ ] Test as non-owner
-- [ ] Verify cascade delete
-- [ ] Verify redirect after delete
+#### Delete Comment
+- [ ] `test_delete_comment_as_author` - Author can delete
+- [ ] `test_delete_comment_as_admin` - Admin can delete
+- [ ] `test_delete_comment_cascades_replies` - Replies are deleted
 
 ---
 
-## Performance Testing
+### Reactions Tests
 
-- [ ] Create community < 200ms
-- [ ] Update community < 150ms
-- [ ] Delete community < 150ms
-- [ ] No N+1 queries
-- [ ] Proper index usage
+#### Add Reaction
+- [ ] `test_add_reaction_to_post` - Can add reaction
+- [ ] `test_add_reaction_changes_type` - Can change reaction type
+- [ ] `test_add_reaction_unauthenticated` - Returns 401
 
----
+#### Remove Reaction
+- [ ] `test_remove_reaction` - Can remove reaction
+- [ ] `test_remove_reaction_not_exists` - Returns 404
 
-## Security Testing
-
-### SQL Injection
-- [ ] Test with SQL in name field
-- [ ] Test with SQL in description field
-- [ ] Test with SQL in slug field
-- [ ] Verify parameterized queries used
-
-### XSS Prevention
-- [ ] Test with script tags in name
-- [ ] Test with script tags in description
-- [ ] Verify template escaping works
-
-### Authorization
-- [ ] Verify owner check for update
-- [ ] Verify owner check for delete
-- [ ] Verify AuthUser extractor works
-- [ ] Test with different users
+#### List Reactions
+- [ ] `test_list_reactions_grouped` - Returns grouped counts
+- [ ] `test_list_reactions_includes_user` - Includes current user's reaction
 
 ---
 
-## Edge Cases
+## 🔒 Security Tests
 
-- [ ] Create with empty description
-- [ ] Create with very long valid name (100 chars)
-- [ ] Create with very long valid slug (50 chars)
-- [ ] Update with same values (should succeed)
-- [ ] Delete already deleted community (404)
-- [ ] Concurrent creates with same slug (one should fail)
+- [ ] All endpoints validate authentication
+- [ ] All endpoints validate authorization
+- [ ] SQL injection attempts are blocked
+- [ ] Input validation rejects malicious content
 
 ---
 
-## Test Coverage
+## 📊 Performance Tests (Optional)
 
-**Target**: 80%+ coverage for new code
-
-- [ ] All handlers have tests
-- [ ] All validation logic tested
-- [ ] All error cases tested
-- [ ] All success cases tested
+- [ ] List posts with 1000+ posts performs well
+- [ ] Nested comments (10 levels) performs well
+- [ ] Reaction counts aggregate efficiently
 
 ---
 
-## Test Execution
+## ✅ Test Execution Commands
 
-### Commands
 ```bash
-# Run all tests
-cd src && cargo test --workspace
+# Run all Phase 2 tests
+cargo test -p server --test posts_integration
+cargo test -p server --test comments_integration
 
-# Run specific test file
-cd src && cargo test --test community_crud_test
+# Run specific test
+cargo test -p server --test posts_integration test_create_post_as_member
 
 # Run with output
-cd src && cargo test --workspace -- --nocapture
-
-# Run with coverage (if tool installed)
-cd src && cargo tarpaulin --workspace
+cargo test -p server --test posts_integration -- --nocapture
 ```
 
-### Results
-- Total Tests: ___ (to be filled)
-- Passing: ___ (to be filled)
-- Failing: ___ (to be filled)
-- Coverage: ___% (to be filled)
+---
+
+## 📈 Coverage Requirements
+
+- **Minimum**: 80% code coverage for new handlers
+- **Target**: 90% code coverage
+- **Critical paths**: 100% coverage
 
 ---
 
-## 🚨 Test Failures
+## 🎯 Test Progress
 
-(Document any test failures and fixes here)
+| Category | Total | Passed | Failed | Pending |
+|----------|-------|--------|--------|---------|
+| Posts Create | 5 | 0 | 0 | 5 |
+| Posts List | 5 | 0 | 0 | 5 |
+| Posts Get | 3 | 0 | 0 | 3 |
+| Posts Update | 3 | 0 | 0 | 3 |
+| Posts Delete | 4 | 0 | 0 | 4 |
+| Comments Create | 5 | 0 | 0 | 5 |
+| Comments List | 3 | 0 | 0 | 3 |
+| Comments Update | 3 | 0 | 0 | 3 |
+| Comments Delete | 3 | 0 | 0 | 3 |
+| Reactions | 6 | 0 | 0 | 6 |
+| **TOTAL** | **40** | **0** | **0** | **40** |
 
----
-
-## ✅ Sign-off
-
-- [ ] All unit tests passing
-- [ ] All integration tests passing
-- [ ] All manual tests completed
-- [ ] Performance targets met
-- [ ] Security tests passed
-- [ ] Edge cases handled
-- [ ] Coverage target met (80%+)
-
-**Ready for Agent 2 Review**: ⏳ Not Yet
