@@ -1,0 +1,6 @@
+<svg width="96" height="96"><rect width="96" height="96" rx="20" fill="white"/>
+<rect x="20" y="34" width="56" height="40" rx="6" fill="none" stroke="#3B7FBA" stroke-width="3"/>
+<path d="M28 44h10" stroke="#3B7FBA" stroke-width="3"/><circle cx="26" cy="44" r="3" fill="#2DA9A1"/>
+<path d="M28 56h10" stroke="#3B7FBA" stroke-width="3"/><circle cx="26" cy="56" r="3" fill="#F5C542"/>
+<path d="M28 68h10" stroke="#3B7FBA" stroke-width="3"/><circle cx="26" cy="68" r="3" fill="#EF6F5E"/>
+<path d="M50 40l8 10l14 -18" stroke="#57C98A" stroke-width="3" fill="none"/></svg>

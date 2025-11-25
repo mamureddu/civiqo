@@ -10,6 +10,14 @@ A decentralized community management platform enabling local communities to orga
 - Decentralized governance tools (polls, voting, decision-making)
 - Mobile-first design (web + future React Native app)
 
+## 🎨 Design & Brand
+> **Strict Adherence Required**: This project follows the **Civiqo Brand Book v1.1**.
+> 
+> All UI/UX decisions must align with the [Brand Guidelines](docs/BRAND_GUIDELINES.md).
+> - **Primary Color**: Civiqo Blue (`#3B7FBA`)
+> - **Fonts**: Nunito (Headings), Inter (Body)
+> - **Tone**: Human, Clear, Reassuring
+
 ## Architecture
 - **Frontend**: HTMX + Leptos WASM (100% Rust stack)
 - **Backend**: Rust microservices with cargo-lambda (Lambda → EC2 progression)

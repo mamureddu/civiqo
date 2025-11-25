@@ -112,6 +112,8 @@ pub async fn dashboard(
     AuthUser(user): AuthUser, // Requires authentication
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
+    use sqlx::Row;
+    
     tracing::info!("Rendering dashboard page for user: {}", user.user_id);
     
     let mut ctx = Context::new();
@@ -122,6 +124,38 @@ pub async fn dashboard(
     ctx.insert("email", &user.email);
     ctx.insert("username", &user.name.clone().unwrap_or_else(|| "User".to_string()));
     ctx.insert("picture", &user.picture);
+    
+    // Parse user_id as UUID
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Fetch user's communities from database
+    let communities = sqlx::query(
+        "SELECT c.id, c.name, c.description, c.created_at, COUNT(DISTINCT m.user_id) as member_count
+         FROM communities c
+         LEFT JOIN community_members m ON c.id = m.community_id
+         WHERE c.created_by = $1
+         GROUP BY c.id, c.name, c.description, c.created_at
+         ORDER BY c.created_at DESC
+         LIMIT 10"
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    let communities_data: Vec<serde_json::Value> = communities.iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<uuid::Uuid, _>("id").to_string(),
+            "name": row.get::<String, _>("name"),
+            "description": row.get::<Option<String>, _>("description").unwrap_or_default(),
+            "member_count": row.get::<i64, _>("member_count"),
+            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d").to_string(),
+        })
+    }).collect();
+    
+    ctx.insert("communities", &communities_data);
+    ctx.insert("communities_count", &communities_data.len());
     
     let html = state.tera.render("dashboard.html", &ctx)?;
     tracing::info!("Dashboard page rendered successfully");
@@ -290,7 +324,7 @@ pub async fn test_db(State(state): State<Arc<AppState>>) -> Result<Response, App
 
 /// Error type for page handlers
 #[derive(Debug)]
-pub struct AppError(anyhow::Error);
+pub struct AppError(pub anyhow::Error);
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {

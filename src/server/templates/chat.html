@@ -6,26 +6,21 @@
 <div class="max-w-6xl mx-auto">
     <div class="bg-white rounded-lg shadow-sm overflow-hidden" style="height: calc(100vh - 200px);">
         <!-- Chat Header (HTMX) -->
-        <div class="border-b p-4" 
-             hx-get="/api/chat/{{ room_id }}/header" 
-             hx-trigger="load"
-             hx-swap="innerHTML">
+        <div class="border-b border-civiqo-gray-200 p-4" hx-get="/api/chat/{{ room_id }}/header" hx-trigger="load"
+            hx-swap="innerHTML">
             <div class="flex items-center justify-between">
-                <h2 class="text-xl font-bold">{{ room_name }}</h2>
-                <div class="text-sm text-gray-500">Loading...</div>
+                <h2 class="text-xl font-brand font-bold text-civiqo-gray-900">{{ room_name }}</h2>
+                <div class="text-sm text-civiqo-gray-600">Loading...</div>
             </div>
         </div>
 
         <!-- Chat WASM Component -->
-        <div id="chat-root" 
-             class="h-full"
-             data-room-id="{{ room_id }}"
-             data-user-id="{{ user_id }}"
-             data-ws-url="ws://localhost:9002/ws/chat/{{ room_id }}">
+        <div id="chat-root" class="h-full" data-room-id="{{ room_id }}" data-user-id="{{ user_id }}"
+            data-ws-url="ws://localhost:9002/ws/chat/{{ room_id }}">
             <!-- WASM chat component will mount here -->
-            <div class="flex items-center justify-center h-full text-gray-500">
+            <div class="flex items-center justify-center h-full text-civiqo-gray-600">
                 <div class="text-center">
-                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-civiqo-blue mx-auto mb-4"></div>
                     <p>Loading chat...</p>
                 </div>
             </div>
@@ -40,7 +35,7 @@
     // This will be replaced with actual WASM loading
     // For now, just a placeholder
     console.log('Chat WASM component will be loaded here');
-    
+
     // Future WASM loading:
     // import init, { mount_chat } from '/static/wasm/chat.js';
     // await init('/static/wasm/chat_bg.wasm');

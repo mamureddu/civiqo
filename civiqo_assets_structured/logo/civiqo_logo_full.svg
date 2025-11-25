@@ -1,0 +1,19 @@
+<svg width="900" height="320" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="320" fill="white"/>
+  <g transform="translate(40,20)">
+    
+  <g fill="none" stroke="#3B7FBA" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 127.52 168.78 A 38.54 38.54 0 1 1 172.48 168.78" stroke-width="14"/>
+    <circle cx="150" cy="140" r="10.52" />
+    <circle cx="150" cy="140" r="6.5" fill="#3B7FBA" />
+    <line x1="150" y1="150.52" x2="150" y2="190.02" stroke-width="6.5"/>
+    <circle cx="150" cy="196.52" r="4.5" fill="#3B7FBA" />
+    <line x1="127.52" y1="168.78" x2="117.52" y2="188.78"/>
+    <line x1="172.48" y1="168.78" x2="182.48" y2="188.78"/>
+    <circle cx="117.52" cy="188.78" r="4.5" fill="#3B7FBA" />
+    <circle cx="182.48" cy="188.78" r="4.5" fill="#3B7FBA" />
+  </g>
+
+  </g>
+  <text x="280" y="195" fill="#3B7FBA" font-family="Nunito" font-weight="700" font-size="96" letter-spacing="2">Civiqo</text>
+</svg>

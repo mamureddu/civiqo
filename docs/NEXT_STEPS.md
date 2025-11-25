@@ -2,130 +2,42 @@
 
 ## 🚀 Prossime 24 Ore
 
-### 1. OAuth2 Code Exchange (2-3 ore)
+> [!IMPORTANT]
+> **Brand Compliance**: Tutte le nuove implementazioni UI devono seguire [BRAND_GUIDELINES.md](../docs/BRAND_GUIDELINES.md). Usa i colori `civiqo-*` e i font `font-brand`/`font-sans`.
+
+### ✅ 1. OAuth2 Code Exchange (COMPLETATO!)
 **File**: `src/server/src/auth.rs`
 
-```rust
-// Nel callback handler, dopo aver ricevuto il code:
-pub async fn callback(
-    Query(params): Query<HashMap<String, String>>,
-    State(state): State<Arc<AppState>>,
-    session: Session,
-) -> Result<Redirect, AppError> {
-    let code = params.get("code").ok_or("No code")?;
-    
-    // 1. Exchange code for tokens
-    let client = reqwest::Client::new();
-    let token_response = client
-        .post(format!("https://{}/oauth/token", env::var("AUTH0_DOMAIN")?))
-        .json(&serde_json::json!({
-            "grant_type": "authorization_code",
-            "client_id": env::var("AUTH0_CLIENT_ID")?,
-            "client_secret": env::var("AUTH0_CLIENT_SECRET")?,
-            "code": code,
-            "redirect_uri": env::var("AUTH0_CALLBACK_URL")?,
-        }))
-        .send()
-        .await?
-        .json::<TokenResponse>()
-        .await?;
-    
-    // 2. Get user info
-    let user_info = client
-        .get(format!("https://{}/userinfo", env::var("AUTH0_DOMAIN")?))
-        .bearer_auth(&token_response.access_token)
-        .send()
-        .await?
-        .json::<UserInfo>()
-        .await?;
-    
-    // 3. Save to session
-    session.insert("user", SessionData {
-        user_id: user_info.sub,
-        email: user_info.email,
-        name: user_info.name,
-    }).await?;
-    
-    // 4. Sync with database (next step)
-    
-    Ok(Redirect::to("/dashboard"))
-}
-```
+**Status**: ✅ DONE
+- [x] Code exchange implementation
+- [x] User info retrieval from Auth0
+- [x] Session creation
+- [x] Error handling with redirects
+- [x] Logout endpoint
 
-**Test**:
-```bash
-# 1. Start server
-cd src && cargo run --bin server
-
-# 2. Open browser
-open http://localhost:9001/auth/login
-
-# 3. Login with Auth0
-# 4. Verify redirect to /dashboard
-# 5. Check session in /auth/me
-```
+**What's implemented**:
+- `login()` - Redirects to Auth0 authorization
+- `callback()` - Handles OAuth2 callback, exchanges code for token, gets user info
+- `sync_user_to_database()` - Syncs Auth0 user to local database
+- `logout()` - Deletes session
+- `AuthUser` extractor - For protected routes
+- `OptionalAuthUser` extractor - For optional auth
 
 ---
 
-### 2. User Sync Auth0 ↔ Database (1-2 ore)
-**File**: `src/server/src/auth.rs`
+### 2. UI Login/Logout & Dashboard (1-2 ore) ⭐ NEXT
+**File**: `src/server/templates/base.html` + handlers
 
-```rust
-// Dopo aver ottenuto user_info nel callback:
+**What needs to be done**:
+1. Create base template with navbar
+2. Add login/logout buttons
+3. Show user info when authenticated
+4. Create dashboard page
+5. Update all handlers to pass auth context
 
-// Sync user to database
-let user_id = sqlx::query_scalar::<_, Uuid>(
-    "INSERT INTO users (id, auth0_id, email, username, picture, last_login)
-     VALUES ($1, $2, $3, $4, $5, NOW())
-     ON CONFLICT (auth0_id) DO UPDATE SET
-        email = EXCLUDED.email,
-        username = EXCLUDED.username,
-        picture = EXCLUDED.picture,
-        last_login = NOW()
-     RETURNING id"
-)
-.bind(Uuid::new_v4())
-.bind(&user_info.sub)
-.bind(&user_info.email)
-.bind(&user_info.name)
-.bind(&user_info.picture)
-.fetch_one(&state.db.pool)
-.await?;
-
-// Update session with local user_id
-session.insert("user", SessionData {
-    user_id: user_id.to_string(),
-    auth0_id: user_info.sub,
-    email: user_info.email,
-    name: user_info.name,
-}).await?;
-```
-
-**Migration necessaria**:
-```bash
-cd src
-sqlx migrate add add_auth0_id_to_users
-```
-
-**File**: `src/migrations/007_add_auth0_id_to_users.sql`
-```sql
-ALTER TABLE users ADD COLUMN IF NOT EXISTS auth0_id VARCHAR(255) UNIQUE;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;
-CREATE INDEX IF NOT EXISTS idx_users_auth0_id ON users(auth0_id);
-```
-
-**Run migration**:
-```bash
-sqlx migrate run
-cargo sqlx prepare --workspace
-```
-
----
-
-### 3. UI Login/Logout (1 ora)
-**File**: `src/server/templates/base.html`
-
+**Implementation**:
 ```html
+<!-- src/server/templates/base.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -170,7 +82,7 @@ cargo sqlx prepare --workspace
 </html>
 ```
 
-**Aggiornare tutti i handlers per passare `logged_in`**:
+**Update handlers**:
 ```rust
 pub async fn index(
     OptionalAuthUser(user): OptionalAuthUser,
@@ -193,13 +105,62 @@ pub async fn index(
 
 ---
 
+### 3. Dashboard Page (1 ora)
+**File**: `src/server/templates/dashboard.html`
+
+**What needs to be done**:
+1. Create dashboard template (protected route)
+2. Show user profile info
+3. Show user's communities
+4. Show recent activity
+5. Add create community button
+
+**Route**:
+```rust
+pub async fn dashboard(
+    AuthUser(user): AuthUser,  // Protected - requires auth
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    // Get user's communities from database
+    let communities = sqlx::query_as!(
+        Community,
+        "SELECT * FROM communities WHERE created_by = $1",
+        Uuid::parse_str(&user.user_id)?
+    )
+    .fetch_all(&state.db.pool)
+    .await?;
+    
+    let mut ctx = Context::new();
+    ctx.insert("user", &user);
+    ctx.insert("communities", &communities);
+    
+    let html = state.tera.render("dashboard.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+```
+
+---
+
 ## 🚀 Prossimi 3 Giorni
 
-### Giorno 1: Auth Complete ✅
+### Giorno 1: Auth Core ✅ (DONE)
 - [x] OAuth2 code exchange
-- [x] User sync
-- [x] UI login/logout
-- [ ] Test flow completo
+- [x] User sync to database
+- [x] Session management
+- [x] Logout endpoint
+- [x] Auth extractors (AuthUser, OptionalAuthUser)
+
+### Giorno 1.5: UI & Dashboard ✅ (COMPLETED)
+- [x] Base template with navbar
+- [x] Login/logout buttons (conditional)
+- [x] Dashboard page (protected with AuthUser)
+- [x] User profile display (name, email, avatar)
+- [x] Communities list in dashboard (from DB)
+- [x] Recent activity in dashboard (from DB)
+- [x] HTMX endpoints for dynamic loading
+- [x] Database queries with proper joins
+- [x] Tests created
+- [x] Build successful (200 tests passing)
 
 ### Giorno 2: Authorizer Deploy 🚀
 **Tasks**:

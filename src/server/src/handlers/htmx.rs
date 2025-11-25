@@ -4,8 +4,10 @@ use axum::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use sqlx::Row;
 
-use super::pages::AppState;
+use super::pages::{AppState, AppError};
+use crate::auth::AuthUser;
 
 /// Navigation fragment
 pub async fn nav_fragment(State(_state): State<Arc<AppState>>) -> Html<String> {
@@ -140,4 +142,113 @@ pub async fn chat_header(State(_state): State<Arc<AppState>>) -> Html<String> {
         </div>
     </div>
     "#.to_string())
+}
+
+/// User communities fragment (PROTECTED - requires authentication)
+pub async fn user_communities(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Html<String>, AppError> {
+    // Parse user_id as UUID
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Fetch user's communities from database
+    let communities = sqlx::query(
+        "SELECT c.id, c.name, c.description, COUNT(DISTINCT m.user_id) as member_count
+         FROM communities c
+         LEFT JOIN community_members m ON c.id = m.community_id
+         WHERE c.created_by = $1
+         GROUP BY c.id, c.name, c.description
+         ORDER BY c.created_at DESC
+         LIMIT 10"
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if communities.is_empty() {
+        return Ok(Html(r#"
+        <div class="text-center py-8 text-gray-500">
+            <p>No communities yet. <a href="/communities" class="text-indigo-600 hover:text-indigo-700">Browse communities</a> or create one!</p>
+        </div>
+        "#.to_string()));
+    }
+    
+    let mut html = String::new();
+    for row in communities {
+        let id = row.get::<uuid::Uuid, _>("id").to_string();
+        let name = row.get::<String, _>("name");
+        let description = row.get::<Option<String>, _>("description").unwrap_or_default();
+        let member_count = row.get::<i64, _>("member_count");
+        
+        html.push_str(&format!(
+            r#"<div class="flex items-center justify-between p-4 border-b hover:bg-gray-50 transition">
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900">{}</h3>
+                    <p class="text-sm text-gray-600">{}</p>
+                    <p class="text-xs text-gray-500 mt-1">👥 {} members</p>
+                </div>
+                <a href="/communities/{}" class="text-indigo-600 hover:text-indigo-700 font-medium">View →</a>
+            </div>"#,
+            name, description, member_count, id
+        ));
+    }
+    
+    Ok(Html(html))
+}
+
+/// User activity fragment (PROTECTED - requires authentication)
+pub async fn user_activity(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Html<String>, AppError> {
+    // Parse user_id as UUID
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Fetch recent posts from user's communities
+    let posts = sqlx::query(
+        "SELECT p.id, p.title, p.community_id, c.name as community_name, p.created_at
+         FROM posts p
+         JOIN communities c ON p.community_id = c.id
+         WHERE c.created_by = $1
+         ORDER BY p.created_at DESC
+         LIMIT 5"
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if posts.is_empty() {
+        return Ok(Html(r#"
+        <div class="text-center py-8 text-gray-500">
+            <p>No recent activity in your communities.</p>
+        </div>
+        "#.to_string()));
+    }
+    
+    let mut html = String::new();
+    for row in posts {
+        let title = row.get::<String, _>("title");
+        let community_name = row.get::<String, _>("community_name");
+        let created_at = row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+            .format("%Y-%m-%d %H:%M")
+            .to_string();
+        
+        html.push_str(&format!(
+            r#"<div class="flex items-start justify-between p-4 border-b hover:bg-gray-50 transition">
+                <div class="flex-1">
+                    <p class="font-semibold text-gray-900">{}</p>
+                    <p class="text-sm text-gray-600">in <span class="font-medium">{}</span></p>
+                    <p class="text-xs text-gray-500 mt-1">{}</p>
+                </div>
+            </div>"#,
+            title, community_name, created_at
+        ));
+    }
+    
+    Ok(Html(html))
 }

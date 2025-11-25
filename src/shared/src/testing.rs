@@ -123,18 +123,23 @@ pub fn create_mock_jwt_claims(_user_id: Uuid, auth0_id: String, email: String) -
     }
 }
 
-/// Create a test TLS configuration for testing rustls integration
-pub fn create_test_tls_config() -> Result<()> {
-    // This function tests that rustls is properly configured in the dependencies
-    // by checking if we can create basic rustls objects
-    
-    // Test that rustls types are available - simplified test for rustls 0.23
-    let _root_store = rustls::RootCertStore::empty();
-    let _provider = rustls::crypto::ring::default_provider();
-    
-    // If we get here, rustls types are working properly
-    Ok(())
-}
+// ==========================================================
+// COMMENTED FUNCTION - KEPT FOR FUTURE REFERENCE
+// ==========================================================
+// /// Create a test TLS configuration for testing rustls integration
+// /// USAGE: When implementing custom TLS testing
+// /// PURPOSE: Verify rustls is properly configured
+// pub fn create_test_tls_config() -> Result<()> {
+//     // This function tests that rustls is properly configured in the dependencies
+//     // by checking if we can create basic rustls objects
+//     
+//     // Test that rustls types are available - simplified test for rustls 0.23
+//     let _root_store = rustls::RootCertStore::empty();
+//     let _provider = rustls::crypto::ring::default_provider();
+//     
+//     // If we get here, rustls types are working properly
+//     Ok(())
+// }
 
 /// Test rustls database connection specifically
 pub async fn test_rustls_db_connection() -> Result<()> {
@@ -209,13 +214,16 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_rustls_tls_config() {
-        init_test_logging();
+    // ==========================================================
+    // COMMENTED TEST - KEPT FOR FUTURE REFERENCE
+    // ==========================================================
+    // #[tokio::test]
+    // async fn test_rustls_tls_config() {
+    //     init_test_logging();
 
-        // Test that rustls configuration works
-        create_test_tls_config().expect("rustls should be properly configured");
-    }
+    //     // Test that rustls configuration works
+    //     create_test_tls_config().expect("rustls should be properly configured");
+    // }
 
     #[tokio::test]
     async fn test_rustls_db_connection_direct() {

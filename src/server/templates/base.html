@@ -1,62 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Community Manager{% endblock %}</title>
-    
-    <!-- TailwindCSS CDN (for now, will be replaced with build process) -->
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Nunito:wght@700&display=swap"
+        rel="stylesheet">
+
+    <!-- TailwindCSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        civiqo: {
+                            blue: '#3B7FBA',
+                            'blue-dark': '#285A86',
+                            'blue-light': '#6FA3D3',
+                            teal: '#2DA9A1',
+                            'eco-green': '#3DAA5F',
+                            lilac: '#9B78D3',
+                            yellow: '#F5C542',
+                            coral: '#EF6F5E',
+                            green: '#57C98A',
+                            gray: {
+                                50: '#F7F9FB',
+                                200: '#D9E1E8',
+                                600: '#4D5A67',
+                                900: '#1C232A',
+                            }
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        brand: ['Nunito', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    
+
     <!-- Alpine.js for micro-interactions -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    
+
     <!-- Custom styles -->
     <link rel="stylesheet" href="/static/styles/main.css">
-    
+
     {% block head %}{% endblock %}
 </head>
-<body class="bg-gray-50 min-h-screen">
+
+<body class="bg-civiqo-gray-50 min-h-screen font-sans text-civiqo-gray-900">
     <!-- Navigation -->
-    <nav class="bg-white shadow-sm">
+    <nav class="bg-white shadow-sm border-b border-civiqo-gray-200">
         <div class="container mx-auto px-4 py-4">
             <div class="flex items-center justify-between">
                 <!-- Logo/Brand -->
-                <div class="flex items-center space-x-6">
-                    <a href="/" class="text-xl font-bold text-indigo-600 hover:text-indigo-700">
-                        Community Manager
+                <div class="flex items-center space-x-8">
+                    <a href="/" class="flex items-center gap-2 group">
+                        <!-- Logo Symbol (CSS approximation) -->
+                        <div class="w-8 h-8 rounded-full border-4 border-civiqo-blue flex items-center justify-center">
+                            <div class="w-3 h-3 bg-civiqo-blue rounded-full"></div>
+                        </div>
+                        <span
+                            class="text-2xl font-brand font-bold text-civiqo-blue tracking-wide group-hover:text-civiqo-blue-dark transition-colors">
+                            Civiqo
+                        </span>
                     </a>
-                    <div class="hidden md:flex space-x-4">
-                        <a href="/communities" class="text-gray-700 hover:text-indigo-600">Communities</a>
-                        <a href="/chat" class="text-gray-700 hover:text-indigo-600">Chat</a>
+                    <div class="hidden md:flex space-x-6">
+                        <a href="/communities"
+                            class="text-civiqo-gray-600 hover:text-civiqo-blue font-medium transition-colors">Communities</a>
+                        <a href="/chat"
+                            class="text-civiqo-gray-600 hover:text-civiqo-blue font-medium transition-colors">Chat</a>
                     </div>
                 </div>
-                
+
                 <!-- Auth Section -->
                 <div class="flex items-center space-x-4">
                     {% if logged_in %}
-                        <!-- Logged in user -->
-                        <div class="flex items-center space-x-3">
-                            {% if picture %}
-                                <img src="{{ picture }}" alt="{{ username }}" class="w-8 h-8 rounded-full">
-                            {% endif %}
-                            <span class="text-gray-700 font-medium">{{ username }}</span>
-                            <a href="/dashboard" class="text-indigo-600 hover:text-indigo-700">Dashboard</a>
-                            <button 
-                                onclick="logout()" 
-                                class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
-                                Logout
-                            </button>
-                        </div>
+                    <!-- Logged in user -->
+                    <div class="flex items-center space-x-4">
+                        {% if picture %}
+                        <img src="{{ picture }}" alt="{{ username }}"
+                            class="w-8 h-8 rounded-full border border-civiqo-gray-200">
+                        {% endif %}
+                        <span class="text-civiqo-gray-900 font-medium">{{ username }}</span>
+                        <a href="/dashboard"
+                            class="text-civiqo-blue hover:text-civiqo-blue-dark font-medium transition-colors">Dashboard</a>
+                        <button onclick="logout()"
+                            class="px-4 py-2 bg-civiqo-gray-200 text-civiqo-gray-900 rounded-lg hover:bg-civiqo-gray-200/80 transition-colors font-medium">
+                            Logout
+                        </button>
+                    </div>
                     {% else %}
-                        <!-- Not logged in -->
-                        <a href="/auth/login" 
-                           class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">
-                            Login
-                        </a>
+                    <!-- Not logged in -->
+                    <a href="/auth/login"
+                        class="px-6 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue-dark transition-colors font-medium shadow-sm hover:shadow-md">
+                        Login
+                    </a>
                     {% endif %}
                 </div>
             </div>
@@ -69,25 +118,25 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t mt-12">
-        <div class="container mx-auto px-4 py-6 text-center text-gray-600 text-sm">
-            &copy; 2025 Community Manager. Built with Rust + HTMX + WASM.
+    <footer class="bg-white border-t border-civiqo-gray-200 mt-12">
+        <div class="container mx-auto px-4 py-8 text-center text-civiqo-gray-600 text-sm">
+            <p>&copy; 2025 Civiqo. La tecnologia che avvicina le comunità.</p>
         </div>
     </footer>
 
     {% block scripts %}{% endblock %}
-    
+
     <!-- Global scripts -->
     <script>
         async function logout() {
             try {
-                const response = await fetch('/auth/logout', { 
+                const response = await fetch('/auth/logout', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 });
-                
+
                 if (response.ok) {
                     window.location.href = '/';
                 } else {
@@ -101,4 +150,5 @@
         }
     </script>
 </body>
+
 </html>
