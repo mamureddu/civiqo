@@ -159,15 +159,18 @@ This code will be released open-source. Self-hosted instances should:
 
 ### Key Concepts
 
-#### 1. Community Codes
-Each community has a unique `code` (like a federation ID):
+#### 1. Community IDs (UUIDv7)
+Each community has a UUIDv7 as its primary key:
 ```sql
-ALTER TABLE communities ADD COLUMN code VARCHAR(20) UNIQUE NOT NULL;
--- Example: "cvq_abc123", "cvq_xyz789"
+CREATE TABLE communities (
+    id UUID PRIMARY KEY,  -- UUIDv7 generated in application
+    ...
+);
 ```
-- Used for federation identification
-- Allows individual community federation
-- Format: `{instance_prefix}_{random}` (e.g., `cvq_abc123`)
+- **Globally unique**: No collision across federated instances
+- **Time-ordered**: Sortable, better index performance than UUIDv4
+- **Federation-ready**: UUID IS the federation identifier (no separate code needed)
+- **Generated in code**: `let id = Uuid::now_v7();`
 
 #### 2. Dual-Auth Support
 Users can authenticate via:
@@ -190,15 +193,15 @@ CREATE TABLE users (
 ### Current Implementation (Lean)
 - Single host, multiple communities
 - Auth0 for authentication
-- Community codes for future federation
+- UUIDv7 for community IDs (federation-ready)
 - No federation features yet (but ready)
 
 ### Future-Proofing Checklist
+- [x] Community IDs are UUIDv7 (globally unique, time-ordered)
 - [ ] No hardcoded URLs (use APP_URL env var)
-- [ ] Community codes generated on creation
 - [ ] HTMX fragments are self-contained
 - [ ] Auth extractor accepts any valid UUID
-- [ ] User table has `federated_from` field (NULL for local)
+- [x] User table has `federated_from` field (NULL for local)
 - [ ] API endpoints can have CORS enabled later
 - [ ] Config file for deployment settings
 
@@ -217,15 +220,9 @@ CREATE TABLE users (
 let app_url = std::env::var("APP_URL")
     .unwrap_or_else(|_| "http://localhost:9001".to_string());
 
-// 2. Generate community codes on creation
-fn generate_community_code() -> String {
-    let prefix = std::env::var("INSTANCE_PREFIX").unwrap_or_else(|_| "cvq".to_string());
-    let random: String = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(8)
-        .map(char::from)
-        .collect();
-    format!("{}_{}", prefix, random.to_lowercase())
+// 2. Generate UUIDv7 for community IDs
+fn create_community_id() -> Uuid {
+    Uuid::now_v7()  // Time-ordered, globally unique
 }
 
 // 3. Auth extractor accepts any UUID (local or federated)
@@ -262,8 +259,8 @@ if !user.auth0_id.starts_with("auth0|") {  // ❌ Too restrictive
 // 3. HTMX assuming parent context
 Html(r#"<div hx-target="#main-content">..."#)  // ❌ Assumes #main-content exists
 
-// 4. Hardcoded instance prefix
-let code = format!("civiqo_{}", random);  // ❌ Should use env var
+// 4. Using UUIDv4 instead of UUIDv7 for community IDs
+let id = Uuid::new_v4();  // ❌ Use Uuid::now_v7() for time-ordering
 ```
 
 ### SQL Style
@@ -273,14 +270,14 @@ let code = format!("civiqo_{}", random);  // ❌ Should use env var
 -- ✅ GOOD: Federation-ready schema
 -- ============================================================================
 
--- Community with unique code for federation
+-- Community with UUIDv7 primary key (federation-ready)
 CREATE TABLE communities (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
-    code VARCHAR(20) UNIQUE NOT NULL,  -- Federation identifier
+    id UUID PRIMARY KEY,  -- UUIDv7 generated in application code
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     -- ... other fields
 );
+-- Note: UUID is the federation identifier (no separate code needed)
 
 -- User supports multiple auth sources
 CREATE TABLE users (
@@ -293,7 +290,8 @@ CREATE TABLE users (
 
 -- Index for federated lookups
 CREATE INDEX idx_users_federated_from ON users(federated_from);
-CREATE INDEX idx_communities_code ON communities(code);
+CREATE INDEX idx_communities_slug ON communities(slug);
+CREATE INDEX idx_communities_created_by ON communities(created_by);
 ```
 
 ### HTMX/HTML Style
@@ -305,8 +303,7 @@ CREATE INDEX idx_communities_code ON communities(code);
 
 <!-- Self-contained card (works anywhere) -->
 <div class="community-card" 
-     id="community-{{ community.id }}"
-     data-code="{{ community.code }}">
+     id="community-{{ community.id }}">
     <h3>{{ community.name }}</h3>
     <p>{{ community.description }}</p>
     
@@ -341,7 +338,6 @@ CREATE INDEX idx_communities_code ON communities(code);
 
 # Instance identification
 APP_URL=https://my-instance.com
-INSTANCE_PREFIX=myinst              # Used in community codes: myinst_abc123
 
 # Authentication
 AUTH0_DOMAIN=my-tenant.auth0.com
