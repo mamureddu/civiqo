@@ -75,10 +75,10 @@
 | Time | Action | Status |
 |------|--------|--------|
 | 23:24 | Phase 0 Planning Complete | ✅ |
-| | Step 1: Database Migration | ⏳ |
-| | Step 2: Posts CRUD | ⏳ |
-| | Step 3: Comments System | ⏳ |
-| | Step 4: Reactions System | ⏳ |
-| | Step 5: Routes | ⏳ |
-| | Step 6: Tests | ⏳ |
+| 23:26 | Step 1: Database Migration | ✅ |
+| 23:30 | Step 2: Posts CRUD | ✅ |
+| 23:32 | Step 3: Comments System | ✅ |
+| 23:33 | Step 4: Reactions System | ✅ |
+| 23:34 | Step 5: Routes | ✅ |
+| 23:38 | Step 6: Tests (12 tests) | ✅ |
 
