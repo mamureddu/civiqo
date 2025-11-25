@@ -15,54 +15,10 @@ use crate::auth::{AuthUser, OptionalAuthUser};
 // Helper Functions
 // ============================================================================
 
-/// Generate a URL-friendly slug from a community name
-fn generate_slug(name: &str) -> String {
-    name.to_lowercase()
-        .chars()
-        .map(|c| match c {
-            'a'..='z' | '0'..='9' => c,
-            ' ' => '-',
-            _ if c.is_ascii_punctuation() => '-',
-            _ => '\0', // Will be filtered out
-        })
-        .filter(|&c| c != '\0')
-        .collect::<String>()
-        .split('-')
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<&str>>()
-        .join("-")
-        .trim_matches('-')
-        .to_string()
-}
-
-/// Ensure slug is unique by appending number if needed
-async fn ensure_unique_slug(
-    base_slug: &str,
-    pool: &sqlx::PgPool,
-) -> Result<String, StatusCode> {
-    let mut slug = base_slug.to_string();
-    let mut counter = 1;
-    
-    // Check if slug exists, if so append number
-    while sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM communities WHERE slug = $1)"
-    )
-    .bind(&slug)
-    .fetch_one(pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    {
-        slug = format!("{}-{}", base_slug, counter);
-        counter += 1;
-        
-        // Prevent infinite loop
-        if counter > 1000 {
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    }
-    
-    Ok(slug)
-}
+// NOTE: generate_slug and ensure_unique_slug functions removed
+// Slug generation is now handled by client (user provides slug)
+// Slug uniqueness is enforced by database constraint (UNIQUE on slug column)
+// This simplifies the API and makes slug handling explicit
 
 // ============================================================================
 // Request/Response Types
