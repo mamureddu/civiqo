@@ -1005,3 +1005,559 @@ pub async fn delete_community(
         }
     }
 }
+
+// ============================================================================
+// Membership Request/Response Types
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateRoleRequest {
+    pub role: String,  // "admin", "moderator", "member"
+}
+
+#[derive(Debug, Serialize)]
+pub struct MemberResponse {
+    pub user_id: String,
+    pub email: String,
+    pub role: String,
+    pub joined_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MembersListResponse {
+    pub members: Vec<MemberResponse>,
+    pub total: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MembershipResponse {
+    pub community_id: String,
+    pub role: String,
+    pub joined_at: String,
+}
+
+// ============================================================================
+// Membership Endpoints
+// ============================================================================
+
+/// Join a community (PROTECTED - requires authentication)
+pub async fn join_community(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<Uuid>,
+) -> Result<(StatusCode, Json<ApiResponse<MembershipResponse>>), StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check community exists and is public
+    let community: Option<(bool, bool)> = sqlx::query_as(
+        "SELECT is_public, requires_approval FROM communities WHERE id = $1"
+    )
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch community: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let (is_public, _requires_approval) = match community {
+        Some(c) => c,
+        None => {
+            return Ok((
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Community not found".to_string()),
+                }),
+            ));
+        }
+    };
+
+    if !is_public {
+        return Ok((
+            StatusCode::FORBIDDEN,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Cannot join private community".to_string()),
+            }),
+        ));
+    }
+
+    // Check user not already member
+    let existing: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check membership: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if existing.is_some() {
+        return Ok((
+            StatusCode::CONFLICT,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("User already member of this community".to_string()),
+            }),
+        ));
+    }
+
+    // Get member role ID
+    let member_role_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM roles WHERE name = 'member' LIMIT 1"
+    )
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to get member role: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Insert membership
+    let result = sqlx::query(
+        "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at)
+         VALUES ($1, $2, $3, 'active', NOW())
+         RETURNING joined_at"
+    )
+    .bind(user_uuid)
+    .bind(community_id)
+    .bind(member_role_id)
+    .fetch_one(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(row) => {
+            tracing::info!("User {} joined community {}", user.user_id, community_id);
+            
+            Ok((
+                StatusCode::CREATED,
+                Json(ApiResponse {
+                    success: true,
+                    data: Some(MembershipResponse {
+                        community_id: community_id.to_string(),
+                        role: "member".to_string(),
+                        joined_at: row.get::<chrono::DateTime<chrono::Utc>, _>("joined_at")
+                            .format("%Y-%m-%d %H:%M").to_string(),
+                    }),
+                    message: Some("Successfully joined community".to_string()),
+                }),
+            ))
+        }
+        Err(e) => {
+            tracing::error!("Failed to join community: {}", e);
+            Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Failed to join community".to_string()),
+                }),
+            ))
+        }
+    }
+}
+
+/// Leave a community (PROTECTED - requires authentication)
+pub async fn leave_community(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<Uuid>,
+) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check user is member
+    let membership: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check membership: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if membership.is_none() {
+        return Ok((
+            StatusCode::NOT_FOUND,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("User is not a member of this community".to_string()),
+            }),
+        ));
+    }
+
+    // Check if user is the only admin
+    let admin_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM community_members cm
+         JOIN roles r ON cm.role_id = r.id
+         WHERE cm.community_id = $1 AND r.name = 'admin'"
+    )
+    .bind(community_id)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to count admins: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if admin_count == 1 {
+        // Check if this user is the admin
+        let is_admin: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                SELECT 1 FROM community_members cm
+                JOIN roles r ON cm.role_id = r.id
+                WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
+            )"
+        )
+        .bind(community_id)
+        .bind(user_uuid)
+        .fetch_one(&state.db.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to check admin status: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        if is_admin {
+            return Ok((
+                StatusCode::FORBIDDEN,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Cannot leave: you are the only admin. Transfer ownership first.".to_string()),
+                }),
+            ));
+        }
+    }
+
+    // Delete membership
+    let result = sqlx::query(
+        "DELETE FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("User {} left community {}", user.user_id, community_id);
+            
+            Ok((
+                StatusCode::NO_CONTENT,
+                Json(ApiResponse {
+                    success: true,
+                    data: None,
+                    message: Some("Successfully left community".to_string()),
+                }),
+            ))
+        }
+        Err(e) => {
+            tracing::error!("Failed to leave community: {}", e);
+            Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Failed to leave community".to_string()),
+                }),
+            ))
+        }
+    }
+}
+
+/// List community members (PROTECTED for private communities)
+pub async fn list_members(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<Uuid>,
+) -> Result<Json<ApiResponse<MembersListResponse>>, StatusCode> {
+    // Check community exists and access
+    let is_public: bool = sqlx::query_scalar(
+        "SELECT is_public FROM communities WHERE id = $1"
+    )
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch community: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Check access for private communities
+    if !is_public {
+        let user_uuid = match user {
+            Some(u) => Uuid::parse_str(&u.user_id)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+            None => {
+                return Ok(Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Cannot view members of private community without authentication".to_string()),
+                }));
+            }
+        };
+
+        let is_member: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2)"
+        )
+        .bind(community_id)
+        .bind(user_uuid)
+        .fetch_one(&state.db.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to check membership: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        if !is_member {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("You are not a member of this community".to_string()),
+            }));
+        }
+    }
+
+    // Fetch members
+    let rows = sqlx::query(
+        "SELECT cm.user_id, u.email, r.name as role, cm.joined_at
+         FROM community_members cm
+         JOIN users u ON cm.user_id = u.id
+         JOIN roles r ON cm.role_id = r.id
+         WHERE cm.community_id = $1 AND cm.status = 'active'
+         ORDER BY cm.joined_at DESC"
+    )
+    .bind(community_id)
+    .fetch_all(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch members: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let total = rows.len() as i64;
+    let members: Vec<MemberResponse> = rows
+        .iter()
+        .map(|row| MemberResponse {
+            user_id: row.get::<Uuid, _>("user_id").to_string(),
+            email: row.get::<String, _>("email"),
+            role: row.get::<String, _>("role"),
+            joined_at: row.get::<chrono::DateTime<chrono::Utc>, _>("joined_at")
+                .format("%Y-%m-%d %H:%M").to_string(),
+        })
+        .collect();
+
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(MembersListResponse { members, total }),
+        message: Some(format!("Found {} members", total)),
+    }))
+}
+
+/// Update member role (PROTECTED - admin only)
+pub async fn update_member_role(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path((community_id, member_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<UpdateRoleRequest>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check requester is admin
+    let is_admin: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM community_members cm
+            JOIN roles r ON cm.role_id = r.id
+            WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
+        )"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check admin status: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if !is_admin {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Only admins can update member roles".to_string()),
+        }));
+    }
+
+    // Check target user is member
+    let member_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2)"
+    )
+    .bind(community_id)
+    .bind(member_id)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check membership: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if !member_exists {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("User is not a member of this community".to_string()),
+        }));
+    }
+
+    // Get role ID
+    let role_id: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM roles WHERE name = $1 LIMIT 1"
+    )
+    .bind(&payload.role)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch role: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let role_id = match role_id {
+        Some(id) => id,
+        None => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some(format!("Invalid role: {}", payload.role)),
+            }));
+        }
+    };
+
+    // Update role
+    let result = sqlx::query(
+        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3"
+    )
+    .bind(role_id)
+    .bind(community_id)
+    .bind(member_id)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("Updated role for user {} in community {} to {}", member_id, community_id, payload.role);
+            
+            Ok(Json(ApiResponse {
+                success: true,
+                data: None,
+                message: Some(format!("Member role updated to {}", payload.role)),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to update member role: {}", e);
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Failed to update member role".to_string()),
+            }))
+        }
+    }
+}
+
+/// Remove member from community (PROTECTED - admin only)
+pub async fn remove_member(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path((community_id, member_id)): Path<(Uuid, Uuid)>,
+) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check requester is admin
+    let is_admin: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM community_members cm
+            JOIN roles r ON cm.role_id = r.id
+            WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
+        )"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check admin status: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if !is_admin {
+        return Ok((
+            StatusCode::FORBIDDEN,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Only admins can remove members".to_string()),
+            }),
+        ));
+    }
+
+    // Delete membership
+    let result = sqlx::query(
+        "DELETE FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(member_id)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(rows) => {
+            if rows.rows_affected() == 0 {
+                return Ok((
+                    StatusCode::NOT_FOUND,
+                    Json(ApiResponse {
+                        success: false,
+                        data: None,
+                        message: Some("User is not a member of this community".to_string()),
+                    }),
+                ));
+            }
+
+            tracing::info!("Admin {} removed user {} from community {}", user.user_id, member_id, community_id);
+            
+            Ok((
+                StatusCode::NO_CONTENT,
+                Json(ApiResponse {
+                    success: true,
+                    data: None,
+                    message: Some("Member removed successfully".to_string()),
+                }),
+            ))
+        }
+        Err(e) => {
+            tracing::error!("Failed to remove member: {}", e);
+            Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Failed to remove member".to_string()),
+                }),
+            ))
+        }
+    }
+}
