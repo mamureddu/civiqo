@@ -1,673 +1,758 @@
-# 🗺️ **Project Roadmap - Community Manager**
+# 🗺️ **Project Roadmap - Community Manager (MVC Complete)**
 
-**Version**: 3.0 - Federation-Compatible Architecture  
+**Version**: 4.0 - MVC Architecture  
 **Last Updated**: November 25, 2025  
 **Architecture**: Single Instance (Federation-Ready for Phase 9)  
 **Total Estimated Time**: 10-14 weeks (+ 2-3 weeks for Phase 9 Federation)
 
 ---
 
+## 📐 **MVC Architecture Overview**
+
+Ogni fase include implementazione completa di:
+- **Model (M)**: Database schema, migrations, SQLx queries
+- **View (V)**: HTMX templates, UI fragments, pages
+- **Controller (C)**: API handlers, business logic, validation
+
+```
+src/
+├── migrations/           # Model - Database schema
+├── server/
+│   ├── src/handlers/    # Controller - API handlers
+│   └── templates/       # View - HTMX templates
+│       ├── pages/       # Full pages
+│       └── fragments/   # Reusable UI components
+└── shared/              # Shared models and utilities
+```
+
+---
+
 ## 📊 **Current Status**
 
-### ✅ Completed (Phase 1)
-- [x] MVC Project Structure
-- [x] CockroachDB Cloud Integration
-- [x] Migrations Applied (7+)
-- [x] Axum Server with HTMX
-- [x] Auth0 OAuth2 Flow Complete
-- [x] 18 API Endpoints (Community Management)
-- [x] 41 Integration Tests (100% passing)
-- [x] Membership System (join, leave, list, roles)
-- [x] Public/Private Communities
-- [x] Join Requests & Approval Workflow
-- [x] Discovery Endpoints (my, trending)
-- [x] Owner/Admin Management (transfer, promote, demote)
-- [x] HTMX Fragments (card, join-button, members)
-- [x] Brand Compliance 100% (Civiqo Colors)
-- [x] Zero Security Vulnerabilities
-- [x] **UUIDv7 for Community IDs (Federation-Ready)**
-
-### 🚧 In Progress
-- 🔄 Agent 2 Review (APPROVED ✅ - Score 9.2/10)
+### ✅ Completed
+- [x] **Phase 1**: Core Communities (M+V+C Complete)
+- [x] **Phase 2**: Posts & Comments (M+C Complete, V Partial)
 
 ### ⏳ To Do
-- [ ] **PHASE 2**: Posts & Comments System
-- [ ] **PHASE 3**: User Profiles & Search
-- [ ] **PHASE 4**: Business Features
-- [ ] **PHASE 5**: Governance & Voting
-- [ ] **PHASE 6**: Chat & Real-time
-- [ ] **PHASE 7**: Advanced Features & Analytics
-- [ ] **PHASE 8**: Deployment & Polish
-- [ ] **PHASE 9**: Federation Architecture (BONUS)
+- [ ] **Phase 2**: Complete Views
+- [ ] **Phase 3-8**: Full MVC Implementation
+- [ ] **Phase 9**: Federation (BONUS)
 
 ---
 
 ## 🎯 **PHASE 1: Core Community Features ✅ COMPLETED**
 
-### Status: ✅ DONE
-All core community management features implemented and tested.
+### Model (M) ✅
+- ✅ `communities` table (UUIDv7 PK)
+- ✅ `community_members` table
+- ✅ `roles` table
+- ✅ Foreign keys and indexes
+- ✅ Migration: `001_initial_schema_with_bigint.sql`
 
-**Deliverables**:
-- ✅ 18 API Endpoints
-- ✅ 41 Integration Tests
-- ✅ 100% Brand Compliance
-- ✅ Zero Security Vulnerabilities
-- ✅ UUIDv7 Primary Keys (Federation-Ready)
+### View (V) ✅
+- ✅ `templates/fragments/community-card.html`
+- ✅ `templates/fragments/join-button.html`
+- ✅ `templates/fragments/members-list.html`
+- ✅ Brand compliance (Civiqo colors)
 
-**Key Features**:
-- Community CRUD (create, read, update, delete)
-- Membership Management (join, leave, list, roles)
-- Public/Private Communities
-- Join Requests & Approval Workflow
-- Discovery Endpoints (my, trending)
-- Admin Management (transfer, promote, demote)
-- HTMX Fragments for UI
-- Civiqo Brand Compliance
+### Controller (C) ✅
+- ✅ `handlers/api.rs` - 18 endpoints
+- ✅ Community CRUD
+- ✅ Membership management
+- ✅ Join requests & approval
+- ✅ Admin management
+
+### Tests ✅
+- ✅ 21 integration tests
+- ✅ 100% passing
 
 ---
 
 ## 🎯 **PHASE 2: Posts & Comments System (2-3 weeks)**
 
-### 2.1 Posts CRUD ⚡ PRIORITY HIGH
-**Objective**: Complete posts system
+### 2.1 Model (M) ✅ DONE
 
-**Endpoints**:
-- `POST /api/communities/:id/posts` - Create post
-- `GET /api/communities/:id/posts` - List posts
-- `GET /api/posts/:id` - Get post detail
-- `PUT /api/posts/:id` - Update post (author only)
-- `DELETE /api/posts/:id` - Delete post (author/admin only)
+#### Database Schema
+```sql
+-- posts table
+CREATE TABLE posts (
+    id UUID PRIMARY KEY,
+    community_id UUID REFERENCES communities(id),
+    author_id UUID REFERENCES users(id),
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    content_type VARCHAR(20) DEFAULT 'markdown',
+    media_url VARCHAR(500),
+    is_pinned BOOLEAN DEFAULT false,
+    is_locked BOOLEAN DEFAULT false,
+    view_count BIGINT DEFAULT 0,
+    created_at, updated_at
+);
 
-**Tasks**:
-- [ ] Create posts table with schema
-  - `id` (UUIDv7)
-  - `community_id` (FK to communities)
-  - `author_id` (FK to users)
-  - `title` (VARCHAR)
-  - `content` (TEXT)
-  - `created_at`, `updated_at`
-- [ ] Implement post creation with validation
-- [ ] Implement post listing with pagination
-- [ ] Implement post updates (author only)
-- [ ] Implement post deletion (author/admin only)
-- [ ] Add rich text editor support (Markdown)
-- [ ] Add media upload support (images)
-- [ ] Write comprehensive tests
+-- comments table
+CREATE TABLE comments (
+    id UUID PRIMARY KEY,
+    post_id UUID REFERENCES posts(id),
+    author_id UUID REFERENCES users(id),
+    parent_id UUID REFERENCES comments(id),  -- threading
+    content TEXT NOT NULL,
+    is_edited BOOLEAN DEFAULT false,
+    created_at, updated_at
+);
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: Phase 1  
-**Output**: Posts system complete
+-- reactions table
+CREATE TABLE reactions (
+    id BIGINT PRIMARY KEY,
+    post_id UUID REFERENCES posts(id),
+    user_id UUID REFERENCES users(id),
+    reaction_type VARCHAR(20) NOT NULL,
+    UNIQUE(post_id, user_id)
+);
+```
 
-### 2.2 Comments System ⚡ PRIORITY HIGH
-**Objective**: Complete comments system
+#### Tasks ✅
+- [x] Migration: `004_posts_comments_reactions.sql`
+- [x] Indexes for performance
+- [x] CASCADE deletes
 
-**Endpoints**:
-- `POST /api/posts/:id/comments` - Create comment
-- `GET /api/posts/:id/comments` - List comments
-- `PUT /api/comments/:id` - Update comment (author only)
-- `DELETE /api/comments/:id` - Delete comment (author/admin only)
+### 2.2 View (V) ⏳ TODO
 
-**Tasks**:
-- [ ] Create comments table with schema
-  - `id` (UUIDv7)
-  - `post_id` (FK to posts)
-  - `author_id` (FK to users)
-  - `content` (TEXT)
-  - `parent_id` (FK to comments - for threading)
-  - `created_at`, `updated_at`
-- [ ] Implement comment creation
-- [ ] Implement comment threading (replies)
-- [ ] Implement comment listing with nesting
-- [ ] Implement comment updates
-- [ ] Implement comment deletion
-- [ ] Add comment notifications
-- [ ] Write comprehensive tests
+#### Pages da creare
+- [ ] `templates/pages/community-posts.html` - Lista posts di una community
+- [ ] `templates/pages/post-detail.html` - Dettaglio post con commenti
+- [ ] `templates/pages/create-post.html` - Form creazione post
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: 2.1  
-**Output**: Comments system complete
+#### Fragments da creare
+- [ ] `templates/fragments/post-card.html` - Card singolo post
+- [ ] `templates/fragments/post-form.html` - Form creazione/modifica post
+- [ ] `templates/fragments/comment-item.html` - Singolo commento
+- [ ] `templates/fragments/comment-form.html` - Form commento
+- [ ] `templates/fragments/comment-thread.html` - Thread commenti nested
+- [ ] `templates/fragments/reaction-buttons.html` - Pulsanti reazioni
+- [ ] `templates/fragments/reaction-counts.html` - Contatori reazioni
 
-### 2.3 Reactions System ⚡ PRIORITY MEDIUM
-**Objective**: Like/upvote system
+#### UI Components
+```html
+<!-- post-card.html -->
+<div class="post-card bg-white rounded-lg shadow p-4 mb-4">
+    <div class="post-header flex items-center mb-2">
+        <img src="{{ author.avatar }}" class="w-10 h-10 rounded-full">
+        <div class="ml-3">
+            <span class="font-semibold">{{ author.name }}</span>
+            <span class="text-gray-500 text-sm">{{ created_at }}</span>
+        </div>
+    </div>
+    <h3 class="text-xl font-bold mb-2">{{ title }}</h3>
+    <div class="post-content prose">{{ content | safe }}</div>
+    <div class="post-footer flex items-center mt-4 pt-4 border-t">
+        <!-- Reactions -->
+        <div hx-get="/api/posts/{{ id }}/reactions" hx-trigger="load">
+            Loading reactions...
+        </div>
+        <!-- Comments count -->
+        <span class="ml-4 text-gray-500">
+            {{ comment_count }} commenti
+        </span>
+    </div>
+</div>
+```
 
-**Endpoints**:
-- `POST /api/posts/:id/reactions` - Add reaction
-- `DELETE /api/posts/:id/reactions/:type` - Remove reaction
-- `GET /api/posts/:id/reactions` - List reactions
+#### Brand Compliance
+- [ ] Primary color: `#57C98A` (buttons, links)
+- [ ] Secondary color: `#3B7FBA` (headers)
+- [ ] Accent color: `#EF6F5E` (alerts, reactions)
+- [ ] Typography: Brand fonts
+- [ ] Spacing: Brand guidelines
 
-**Tasks**:
-- [ ] Create reactions table
-- [ ] Implement reaction types (like, upvote, etc.)
-- [ ] Implement reaction aggregation
-- [ ] Add reaction counts to posts/comments
-- [ ] Write tests
+### 2.3 Controller (C) ✅ DONE
 
-**Time Estimate**: 1 day  
-**Dependencies**: 2.2  
-**Output**: Reactions system
+#### Handlers
+- [x] `handlers/posts.rs`
+  - `create_post` - POST /api/communities/:id/posts
+  - `list_posts` - GET /api/communities/:id/posts
+  - `get_post` - GET /api/posts/:id
+  - `update_post` - PUT /api/posts/:id
+  - `delete_post` - DELETE /api/posts/:id
 
-**MILESTONE 2**: ✅ Posts & Comments Complete
+- [x] `handlers/comments.rs`
+  - `create_comment` - POST /api/posts/:id/comments
+  - `list_comments` - GET /api/posts/:id/comments
+  - `update_comment` - PUT /api/comments/:id
+  - `delete_comment` - DELETE /api/comments/:id
+
+- [x] `handlers/reactions.rs`
+  - `add_reaction` - POST /api/posts/:id/reactions
+  - `remove_reaction` - DELETE /api/posts/:id/reactions
+  - `list_reactions` - GET /api/posts/:id/reactions
+
+#### Page Handlers da aggiungere
+- [ ] `handlers/pages.rs` - Aggiungere:
+  - `community_posts_page` - GET /communities/:id/posts
+  - `post_detail_page` - GET /posts/:id
+  - `create_post_page` - GET /communities/:id/posts/new
+
+### 2.4 Tests ✅ DONE
+- [x] 12 integration tests
+- [x] Posts CRUD tests
+- [x] Comments threading tests
+- [x] Reactions tests
+- [x] Cascade delete tests
+
+### Phase 2 Completion Checklist
+- [x] **Model**: Database schema complete
+- [ ] **View**: Templates and fragments
+- [x] **Controller**: API handlers complete
+- [x] **Tests**: Integration tests passing
 
 ---
 
 ## 🎯 **PHASE 3: User Profiles & Search (2-3 weeks)**
 
-### 3.1 User Profiles 👤
-**Objective**: Complete user profile system
+### 3.1 Model (M)
 
-**Endpoints**:
-- `GET /api/users/:id` - Get user profile
-- `PUT /api/users/:id` - Update profile (user only)
-- `GET /api/users/:id/posts` - User's posts
-- `GET /api/users/:id/communities` - User's communities
-- `POST /api/users/:id/follow` - Follow user
-- `DELETE /api/users/:id/follow` - Unfollow user
+#### Database Schema
+```sql
+-- Extend user_profiles table
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS
+    bio TEXT,
+    cover_image VARCHAR(500),
+    website VARCHAR(255),
+    location VARCHAR(100),
+    social_links JSONB;
 
-**Tasks**:
-- [ ] Extend user profile schema
-  - Bio, avatar, cover image
-  - Social links
-  - Preferences
-- [ ] Implement profile updates
-- [ ] Implement follow/unfollow
-- [ ] Implement user activity feed
-- [ ] Add user statistics (posts, followers, etc.)
-- [ ] Create profile UI with HTMX
-- [ ] Write tests
+-- user_follows table
+CREATE TABLE user_follows (
+    id BIGINT PRIMARY KEY,
+    follower_id UUID REFERENCES users(id),
+    following_id UUID REFERENCES users(id),
+    created_at TIMESTAMP,
+    UNIQUE(follower_id, following_id)
+);
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: Phase 2  
-**Output**: User profiles complete
+-- activity_log table
+CREATE TABLE activity_log (
+    id BIGINT PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
+    action_type VARCHAR(50),
+    target_type VARCHAR(50),
+    target_id UUID,
+    metadata JSONB,
+    created_at TIMESTAMP
+);
 
-### 3.2 Search System 🔍
-**Objective**: Search across communities, posts, users
+-- notifications table
+CREATE TABLE notifications (
+    id BIGINT PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
+    type VARCHAR(50),
+    title VARCHAR(255),
+    message TEXT,
+    is_read BOOLEAN DEFAULT false,
+    data JSONB,
+    created_at TIMESTAMP
+);
+```
 
-**Endpoints**:
-- `GET /api/search?q=query&type=communities|posts|users` - Global search
-- `GET /api/communities/:id/search?q=query` - Community search
+#### Tasks
+- [ ] Migration: `005_user_profiles_search.sql`
+- [ ] Full-text search indexes
+- [ ] Activity log indexes
 
-**Tasks**:
-- [ ] Implement full-text search
-- [ ] Search communities by name/description
-- [ ] Search posts by title/content
-- [ ] Search users by name/bio
-- [ ] Add search filters and sorting
-- [ ] Implement search caching
-- [ ] Add pagination to search results
-- [ ] Write tests
+### 3.2 View (V)
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: 3.1  
-**Output**: Search system complete
+#### Pages
+- [ ] `templates/pages/user-profile.html` - Profilo utente
+- [ ] `templates/pages/edit-profile.html` - Modifica profilo
+- [ ] `templates/pages/user-posts.html` - Posts dell'utente
+- [ ] `templates/pages/user-communities.html` - Community dell'utente
+- [ ] `templates/pages/followers.html` - Lista followers
+- [ ] `templates/pages/following.html` - Lista following
+- [ ] `templates/pages/search-results.html` - Risultati ricerca
+- [ ] `templates/pages/notifications.html` - Notifiche
 
-### 3.3 User Activity & Notifications 🔔
-**Objective**: Activity tracking and notifications
+#### Fragments
+- [ ] `templates/fragments/user-card.html` - Card utente
+- [ ] `templates/fragments/user-avatar.html` - Avatar con stato
+- [ ] `templates/fragments/follow-button.html` - Pulsante follow/unfollow
+- [ ] `templates/fragments/profile-header.html` - Header profilo
+- [ ] `templates/fragments/profile-stats.html` - Statistiche profilo
+- [ ] `templates/fragments/search-bar.html` - Barra di ricerca
+- [ ] `templates/fragments/search-filters.html` - Filtri ricerca
+- [ ] `templates/fragments/notification-item.html` - Singola notifica
+- [ ] `templates/fragments/notification-badge.html` - Badge notifiche
+- [ ] `templates/fragments/activity-item.html` - Item attività
 
-**Tasks**:
-- [ ] Create activity log table
-- [ ] Track user actions (posts, comments, follows)
-- [ ] Create notification system
-- [ ] Implement notification preferences
-- [ ] Add notification UI
-- [ ] Write tests
+### 3.3 Controller (C)
 
-**Time Estimate**: 1 day  
-**Dependencies**: 3.2  
-**Output**: Activity & notifications
+#### API Handlers
+- [ ] `handlers/users.rs`
+  - `get_user_profile` - GET /api/users/:id
+  - `update_user_profile` - PUT /api/users/:id
+  - `get_user_posts` - GET /api/users/:id/posts
+  - `get_user_communities` - GET /api/users/:id/communities
+  - `follow_user` - POST /api/users/:id/follow
+  - `unfollow_user` - DELETE /api/users/:id/follow
+  - `get_followers` - GET /api/users/:id/followers
+  - `get_following` - GET /api/users/:id/following
 
-**MILESTONE 3**: ✅ User Profiles & Search Complete
+- [ ] `handlers/search.rs`
+  - `global_search` - GET /api/search
+  - `community_search` - GET /api/communities/:id/search
+
+- [ ] `handlers/notifications.rs`
+  - `list_notifications` - GET /api/notifications
+  - `mark_as_read` - PUT /api/notifications/:id/read
+  - `mark_all_read` - PUT /api/notifications/read-all
+
+#### Page Handlers
+- [ ] `handlers/pages.rs` - Aggiungere:
+  - `user_profile_page` - GET /users/:id
+  - `edit_profile_page` - GET /users/:id/edit
+  - `search_page` - GET /search
+  - `notifications_page` - GET /notifications
+
+### 3.4 Tests
+- [ ] User profile CRUD tests
+- [ ] Follow/unfollow tests
+- [ ] Search tests
+- [ ] Notification tests
 
 ---
 
 ## 🎯 **PHASE 4: Business Features (2-3 weeks)**
 
-### 4.1 Business Entities 💼
-**Objective**: Business management system
+### 4.1 Model (M)
 
-**Tasks**:
-- [ ] Create business entities table
-- [ ] Implement business CRUD
-- [ ] Business profiles and verification
-- [ ] Business categories and tags
-- [ ] Business ratings and reviews
-- [ ] Create business UI
-- [ ] Write tests
+#### Database Schema
+```sql
+-- businesses table
+CREATE TABLE businesses (
+    id UUID PRIMARY KEY,
+    owner_id UUID REFERENCES users(id),
+    community_id UUID REFERENCES communities(id),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    category VARCHAR(100),
+    address TEXT,
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    website VARCHAR(255),
+    logo_url VARCHAR(500),
+    cover_url VARCHAR(500),
+    is_verified BOOLEAN DEFAULT false,
+    rating_avg DECIMAL(3,2) DEFAULT 0,
+    review_count INT DEFAULT 0,
+    created_at, updated_at
+);
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: Phase 3  
-**Output**: Business entities
+-- business_hours table
+CREATE TABLE business_hours (
+    id BIGINT PRIMARY KEY,
+    business_id UUID REFERENCES businesses(id),
+    day_of_week INT,
+    open_time TIME,
+    close_time TIME,
+    is_closed BOOLEAN DEFAULT false
+);
 
-### 4.2 Products & Services 🛍️
-**Objective**: Product catalog system
+-- products table
+CREATE TABLE products (
+    id UUID PRIMARY KEY,
+    business_id UUID REFERENCES businesses(id),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2),
+    currency VARCHAR(3) DEFAULT 'EUR',
+    image_url VARCHAR(500),
+    is_available BOOLEAN DEFAULT true,
+    stock_quantity INT,
+    created_at, updated_at
+);
 
-**Tasks**:
-- [ ] Create products table
-- [ ] Implement product CRUD
-- [ ] Product images and descriptions
-- [ ] Product pricing and inventory
-- [ ] Product search and filtering
-- [ ] Create product UI
-- [ ] Write tests
+-- reviews table
+CREATE TABLE reviews (
+    id UUID PRIMARY KEY,
+    business_id UUID REFERENCES businesses(id),
+    user_id UUID REFERENCES users(id),
+    rating INT CHECK (rating >= 1 AND rating <= 5),
+    title VARCHAR(255),
+    content TEXT,
+    created_at, updated_at,
+    UNIQUE(business_id, user_id)
+);
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: 4.1  
-**Output**: Products & services
+-- orders table
+CREATE TABLE orders (
+    id UUID PRIMARY KEY,
+    business_id UUID REFERENCES businesses(id),
+    user_id UUID REFERENCES users(id),
+    status VARCHAR(50) DEFAULT 'pending',
+    total_amount DECIMAL(10,2),
+    currency VARCHAR(3) DEFAULT 'EUR',
+    notes TEXT,
+    created_at, updated_at
+);
 
-### 4.3 Transactions & Orders 💰
-**Objective**: Order and transaction system
+-- order_items table
+CREATE TABLE order_items (
+    id BIGINT PRIMARY KEY,
+    order_id UUID REFERENCES orders(id),
+    product_id UUID REFERENCES products(id),
+    quantity INT,
+    unit_price DECIMAL(10,2),
+    total_price DECIMAL(10,2)
+);
+```
 
-**Tasks**:
-- [ ] Create orders table
-- [ ] Implement order CRUD
-- [ ] Order status tracking
-- [ ] Payment integration (Stripe/PayPal)
-- [ ] Invoice generation
-- [ ] Refund system
-- [ ] Create order UI
-- [ ] Write tests
+### 4.2 View (V)
 
-**Time Estimate**: 2 days  
-**Dependencies**: 4.2  
-**Output**: Transactions & orders
+#### Pages
+- [ ] `templates/pages/businesses.html` - Lista business
+- [ ] `templates/pages/business-detail.html` - Dettaglio business
+- [ ] `templates/pages/create-business.html` - Crea business
+- [ ] `templates/pages/edit-business.html` - Modifica business
+- [ ] `templates/pages/products.html` - Lista prodotti
+- [ ] `templates/pages/product-detail.html` - Dettaglio prodotto
+- [ ] `templates/pages/cart.html` - Carrello
+- [ ] `templates/pages/checkout.html` - Checkout
+- [ ] `templates/pages/orders.html` - I miei ordini
+- [ ] `templates/pages/order-detail.html` - Dettaglio ordine
 
-**MILESTONE 4**: ✅ Business Features Complete
+#### Fragments
+- [ ] `templates/fragments/business-card.html`
+- [ ] `templates/fragments/business-header.html`
+- [ ] `templates/fragments/business-hours.html`
+- [ ] `templates/fragments/product-card.html`
+- [ ] `templates/fragments/product-grid.html`
+- [ ] `templates/fragments/review-card.html`
+- [ ] `templates/fragments/review-form.html`
+- [ ] `templates/fragments/rating-stars.html`
+- [ ] `templates/fragments/cart-item.html`
+- [ ] `templates/fragments/order-summary.html`
+- [ ] `templates/fragments/order-status.html`
+
+### 4.3 Controller (C)
+
+#### API Handlers
+- [ ] `handlers/businesses.rs`
+- [ ] `handlers/products.rs`
+- [ ] `handlers/reviews.rs`
+- [ ] `handlers/orders.rs`
+
+#### Page Handlers
+- [ ] Business pages
+- [ ] Product pages
+- [ ] Order pages
+
+### 4.4 Tests
+- [ ] Business CRUD tests
+- [ ] Product tests
+- [ ] Review tests
+- [ ] Order flow tests
 
 ---
 
 ## 🎯 **PHASE 5: Governance & Voting (2-3 weeks)**
 
-### 5.1 Proposals System 🗳️
-**Objective**: Community proposals
+### 5.1 Model (M)
 
-**Tasks**:
-- [ ] Create proposals table
-- [ ] Implement proposal types (text, poll, budget)
-- [ ] Proposal lifecycle (draft, active, closed)
-- [ ] Discussion threads on proposals
-- [ ] Proposal search and filtering
-- [ ] Create proposal UI
-- [ ] Write tests
+#### Database Schema
+```sql
+-- proposals table
+CREATE TABLE proposals (
+    id UUID PRIMARY KEY,
+    community_id UUID REFERENCES communities(id),
+    author_id UUID REFERENCES users(id),
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    proposal_type VARCHAR(50), -- 'text', 'poll', 'budget'
+    status VARCHAR(50) DEFAULT 'draft',
+    voting_start TIMESTAMP,
+    voting_end TIMESTAMP,
+    quorum_required INT,
+    created_at, updated_at
+);
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: Phase 4  
-**Output**: Proposals system
+-- proposal_options table (for polls)
+CREATE TABLE proposal_options (
+    id BIGINT PRIMARY KEY,
+    proposal_id UUID REFERENCES proposals(id),
+    option_text VARCHAR(255),
+    vote_count INT DEFAULT 0
+);
 
-### 5.2 Voting System 🗳️
-**Objective**: Voting mechanism
+-- votes table
+CREATE TABLE votes (
+    id BIGINT PRIMARY KEY,
+    proposal_id UUID REFERENCES proposals(id),
+    user_id UUID REFERENCES users(id),
+    option_id BIGINT REFERENCES proposal_options(id),
+    vote_weight DECIMAL(10,2) DEFAULT 1,
+    created_at TIMESTAMP,
+    UNIQUE(proposal_id, user_id)
+);
 
-**Tasks**:
-- [ ] Create votes table
-- [ ] Implement voting types (simple, weighted, quadratic)
-- [ ] Vote counting and aggregation
-- [ ] Vote verification
-- [ ] Voting UI
-- [ ] Write tests
+-- decisions table
+CREATE TABLE decisions (
+    id UUID PRIMARY KEY,
+    proposal_id UUID REFERENCES proposals(id),
+    community_id UUID REFERENCES communities(id),
+    outcome VARCHAR(50),
+    implementation_status VARCHAR(50) DEFAULT 'pending',
+    notes TEXT,
+    decided_at TIMESTAMP,
+    implemented_at TIMESTAMP
+);
+```
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: 5.1  
-**Output**: Voting system
+### 5.2 View (V)
 
-### 5.3 Decisions & Outcomes 📋
-**Objective**: Decision tracking
+#### Pages
+- [ ] `templates/pages/proposals.html` - Lista proposte
+- [ ] `templates/pages/proposal-detail.html` - Dettaglio proposta
+- [ ] `templates/pages/create-proposal.html` - Crea proposta
+- [ ] `templates/pages/voting.html` - Pagina votazione
+- [ ] `templates/pages/decisions.html` - Decisioni prese
 
-**Tasks**:
-- [ ] Create decisions table
-- [ ] Decision tracking and status
-- [ ] Implementation tracking
-- [ ] Outcome reporting
-- [ ] Decision UI
-- [ ] Write tests
+#### Fragments
+- [ ] `templates/fragments/proposal-card.html`
+- [ ] `templates/fragments/proposal-status.html`
+- [ ] `templates/fragments/voting-options.html`
+- [ ] `templates/fragments/vote-results.html`
+- [ ] `templates/fragments/vote-progress.html`
+- [ ] `templates/fragments/decision-card.html`
 
-**Time Estimate**: 1 day  
-**Dependencies**: 5.2  
-**Output**: Decision system
+### 5.3 Controller (C)
 
-**MILESTONE 5**: ✅ Governance Complete
+#### API Handlers
+- [ ] `handlers/proposals.rs`
+- [ ] `handlers/votes.rs`
+- [ ] `handlers/decisions.rs`
+
+### 5.4 Tests
+- [ ] Proposal lifecycle tests
+- [ ] Voting tests
+- [ ] Decision tests
 
 ---
 
 ## 🎯 **PHASE 6: Chat & Real-time (1-2 weeks)**
 
-### 6.1 WebSocket Chat 💬
-**Objective**: Real-time chat system
+### 6.1 Model (M)
 
-**Tasks**:
-- [ ] Setup WebSocket server
-- [ ] Create chat rooms
-- [ ] Implement message persistence
-- [ ] Message history
-- [ ] Chat UI with HTMX
-- [ ] Write tests
+#### Database Schema
+```sql
+-- chat_rooms table (già esistente, estendere)
+-- messages table
+CREATE TABLE messages (
+    id UUID PRIMARY KEY,
+    room_id UUID REFERENCES chat_rooms(id),
+    sender_id UUID REFERENCES users(id),
+    content TEXT NOT NULL,
+    message_type VARCHAR(20) DEFAULT 'text',
+    is_edited BOOLEAN DEFAULT false,
+    created_at TIMESTAMP
+);
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: Phase 5  
-**Output**: Chat system
+-- message_reads table
+CREATE TABLE message_reads (
+    id BIGINT PRIMARY KEY,
+    message_id UUID REFERENCES messages(id),
+    user_id UUID REFERENCES users(id),
+    read_at TIMESTAMP,
+    UNIQUE(message_id, user_id)
+);
+```
 
-### 6.2 Real-time Notifications 🔔
-**Objective**: Real-time notifications
+### 6.2 View (V)
 
-**Tasks**:
-- [ ] WebSocket notification delivery
-- [ ] Notification preferences
-- [ ] Notification UI
-- [ ] Write tests
+#### Pages
+- [ ] `templates/pages/chat.html` - Chat principale
+- [ ] `templates/pages/chat-room.html` - Singola chat room
 
-**Time Estimate**: 1 day  
-**Dependencies**: 6.1  
-**Output**: Notifications
+#### Fragments
+- [ ] `templates/fragments/chat-sidebar.html`
+- [ ] `templates/fragments/chat-room-list.html`
+- [ ] `templates/fragments/chat-message.html`
+- [ ] `templates/fragments/chat-input.html`
+- [ ] `templates/fragments/online-users.html`
+- [ ] `templates/fragments/typing-indicator.html`
 
-### 6.3 Presence System 👥
-**Objective**: User presence tracking
+### 6.3 Controller (C)
 
-**Tasks**:
-- [ ] Online/offline status
-- [ ] Activity tracking
-- [ ] Presence UI
-- [ ] Write tests
+#### WebSocket Handlers
+- [ ] `handlers/websocket.rs`
+  - Connection management
+  - Message broadcasting
+  - Presence updates
 
-**Time Estimate**: 0.5 days  
-**Dependencies**: 6.2  
-**Output**: Presence system
+#### API Handlers
+- [ ] `handlers/chat.rs`
+  - Room management
+  - Message history
+  - Read receipts
 
-**MILESTONE 6**: ✅ Chat & Real-time Complete
+### 6.4 Tests
+- [ ] WebSocket connection tests
+- [ ] Message delivery tests
+- [ ] Presence tests
 
 ---
 
 ## 🎯 **PHASE 7: Advanced Features & Analytics (1-2 weeks)**
 
-### 7.1 Analytics & Reporting 📊
-**Objective**: Community analytics
+### 7.1 Model (M)
 
-**Tasks**:
-- [ ] Community statistics
-- [ ] User engagement metrics
-- [ ] Business analytics
-- [ ] Analytics dashboard
-- [ ] Export reports
-- [ ] Write tests
+#### Database Schema
+```sql
+-- analytics_events table
+CREATE TABLE analytics_events (
+    id BIGINT PRIMARY KEY,
+    event_type VARCHAR(100),
+    user_id UUID REFERENCES users(id),
+    community_id UUID REFERENCES communities(id),
+    metadata JSONB,
+    created_at TIMESTAMP
+);
 
-**Time Estimate**: 1.5 days  
-**Dependencies**: Phase 6  
-**Output**: Analytics system
+-- moderation_queue table
+CREATE TABLE moderation_queue (
+    id UUID PRIMARY KEY,
+    content_type VARCHAR(50),
+    content_id UUID,
+    reported_by UUID REFERENCES users(id),
+    reason VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'pending',
+    moderator_id UUID REFERENCES users(id),
+    resolution TEXT,
+    created_at, resolved_at
+);
 
-### 7.2 Admin Dashboard 🎛️
-**Objective**: Admin management interface
+-- audit_logs table
+CREATE TABLE audit_logs (
+    id BIGINT PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
+    action VARCHAR(100),
+    target_type VARCHAR(50),
+    target_id UUID,
+    old_value JSONB,
+    new_value JSONB,
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP
+);
+```
 
-**Tasks**:
-- [ ] Community management
-- [ ] User management
-- [ ] Content moderation
-- [ ] System health monitoring
-- [ ] Admin UI
-- [ ] Write tests
+### 7.2 View (V)
 
-**Time Estimate**: 1 day  
-**Dependencies**: 7.1  
-**Output**: Admin dashboard
+#### Pages
+- [ ] `templates/pages/admin/dashboard.html`
+- [ ] `templates/pages/admin/users.html`
+- [ ] `templates/pages/admin/communities.html`
+- [ ] `templates/pages/admin/moderation.html`
+- [ ] `templates/pages/admin/analytics.html`
+- [ ] `templates/pages/admin/audit-log.html`
 
-### 7.3 Moderation Tools 🛡️
-**Objective**: Content moderation
+#### Fragments
+- [ ] `templates/fragments/admin/stats-card.html`
+- [ ] `templates/fragments/admin/chart.html`
+- [ ] `templates/fragments/admin/user-row.html`
+- [ ] `templates/fragments/admin/moderation-item.html`
+- [ ] `templates/fragments/admin/audit-entry.html`
 
-**Tasks**:
-- [ ] Content moderation queue
-- [ ] User moderation
-- [ ] Appeal system
-- [ ] Audit logs
-- [ ] Moderation UI
-- [ ] Write tests
+### 7.3 Controller (C)
 
-**Time Estimate**: 1 day  
-**Dependencies**: 7.2  
-**Output**: Moderation tools
+#### API Handlers
+- [ ] `handlers/admin.rs`
+- [ ] `handlers/analytics.rs`
+- [ ] `handlers/moderation.rs`
 
-**MILESTONE 7**: ✅ Advanced Features Complete
+### 7.4 Tests
+- [ ] Admin access tests
+- [ ] Analytics tests
+- [ ] Moderation workflow tests
 
 ---
 
 ## 🎯 **PHASE 8: Deployment & Polish (1-2 weeks)**
 
-### 8.1 End-to-end Testing
-**Objective**: Comprehensive testing
-
-**Tasks**:
-- [ ] Integration tests
+### 8.1 Testing
+- [ ] End-to-end tests
 - [ ] Load testing
-- [ ] Security testing
+- [ ] Security audit
 - [ ] Performance testing
-- [ ] User acceptance testing
 
-**Time Estimate**: 1 day  
-**Dependencies**: Phase 7  
-**Output**: Test suite complete
+### 8.2 Optimization
+- [ ] Database query optimization
+- [ ] Caching (Redis)
+- [ ] CDN for static assets
+- [ ] Image optimization
 
-### 8.2 Performance Optimization
-**Objective**: Optimize performance
-
-**Tasks**:
-- [ ] Database optimization
-- [ ] Query optimization
-- [ ] Caching strategy
-- [ ] CDN integration
-- [ ] Load balancing
-
-**Time Estimate**: 1 day  
-**Dependencies**: 8.1  
-**Output**: Performance optimized
-
-### 8.3 Production Deployment
-**Objective**: Deploy to production
-
-**Tasks**:
-- [ ] Infrastructure setup
+### 8.3 Deployment
 - [ ] CI/CD pipeline
-- [ ] Monitoring & alerting
-- [ ] Backup & recovery
-- [ ] Documentation
+- [ ] Monitoring (Prometheus/Grafana)
+- [ ] Logging (structured logs)
+- [ ] Backup strategy
 
-**Time Estimate**: 1 day  
-**Dependencies**: 8.2  
-**Output**: Production ready
-
-**MILESTONE 8**: ✅ Production Ready
+### 8.4 Documentation
+- [ ] API documentation (OpenAPI)
+- [ ] User guide
+- [ ] Admin guide
+- [ ] Developer guide
 
 ---
 
-## 🎯 **PHASE 9: FEDERATION ARCHITECTURE (BONUS - 2-3 weeks)**
+## 🎯 **PHASE 9: FEDERATION (BONUS - 2-3 weeks)**
 
-### ⚠️ **IMPORTANT**: This phase is separate and optional
-Federation is implemented **AFTER** all core features are complete and production-ready.
+### ⚠️ Implementato DOPO che Phases 1-8 sono complete
 
-### 9.1 Federation Database Schema
-**Objective**: Add federation support to database
+### 9.1 Model (M)
+- [ ] `federation_requests` table
+- [ ] `federation_instances` table
+- [ ] Federation fields su tabelle esistenti
 
-**Tasks**:
-- [ ] Create `federation_requests` table
-- [ ] Create `federation_instances` table
-- [ ] Add federation fields to existing tables
-- [ ] Create federation indexes
+### 9.2 View (V)
+- [ ] `templates/pages/admin/federation.html`
+- [ ] `templates/fragments/federation-instance.html`
+- [ ] `templates/fragments/federation-request.html`
 
-**Time Estimate**: 1 day  
-**Dependencies**: Phase 8  
-**Output**: Federation schema
-
-### 9.2 Federation Request & Verification
-**Objective**: Federation request workflow
-
-**Tasks**:
-- [ ] Email verification flow
-- [ ] Domain verification (DNS + .well-known)
-- [ ] Request approval workflow
-- [ ] Admin interface for federation
-
-**Time Estimate**: 1.5 days  
-**Dependencies**: 9.1  
-**Output**: Federation verification
-
-### 9.3 Key Management & Security
-**Objective**: Ed25519 keypair management
-
-**Tasks**:
-- [ ] Generate Ed25519 keypairs
-- [ ] Secure key distribution
-- [ ] Key rotation support
-- [ ] Signature verification
-
-**Time Estimate**: 1 day  
-**Dependencies**: 9.2  
-**Output**: Key management
-
-### 9.4 Multi-Instance Communication
-**Objective**: Cross-instance communication
-
-**Tasks**:
-- [ ] Federation protocol implementation
-- [ ] Signed requests (Ed25519)
-- [ ] Timestamp validation
-- [ ] Nonce for replay prevention
-
-**Time Estimate**: 1.5 days  
-**Dependencies**: 9.3  
-**Output**: Federation protocol
-
-### 9.5 Data Synchronization
-**Objective**: Sync data across instances
-
-**Tasks**:
-- [ ] Community sync
-- [ ] User profile sync
-- [ ] Posts & comments sync
-- [ ] Conflict resolution
-
-**Time Estimate**: 1 day  
-**Dependencies**: 9.4  
-**Output**: Data sync
-
-### 9.6 Federated Search & Discovery
-**Objective**: Search across federation
-
-**Tasks**:
-- [ ] Federated search
-- [ ] Federated trending
-- [ ] Cross-instance discovery
-
-**Time Estimate**: 1 day  
-**Dependencies**: 9.5  
-**Output**: Federated discovery
-
-**MILESTONE 9**: ✅ Federation Complete (BONUS)
+### 9.3 Controller (C)
+- [ ] `handlers/federation.rs`
+- [ ] Key management
+- [ ] Instance verification
+- [ ] Data sync
 
 ---
 
 ## 📈 **Timeline Summary**
 
-| Phase | Duration | Status | Type |
-|-------|----------|--------|------|
-| **1** | 2-3w | ✅ DONE | Core Communities |
-| **2** | 2-3w | ⏳ NEXT | Posts & Comments |
-| **3** | 2-3w | ⏳ TODO | User Profiles & Search |
-| **4** | 2-3w | ⏳ TODO | Business Features |
-| **5** | 2-3w | ⏳ TODO | Governance |
-| **6** | 1-2w | ⏳ TODO | Chat & Real-time |
-| **7** | 1-2w | ⏳ TODO | Advanced Features |
-| **8** | 1-2w | ⏳ TODO | Deployment |
-| **9** | 2-3w | ⏳ BONUS | Federation |
-
-**Total**: 10-14 weeks (+ 2-3 weeks for Phase 9 Federation)
-
----
-
-## 🏗️ **Architecture - Federation-Ready**
-
-### Current Architecture (Phases 1-8)
-```
-Single Instance (Monolith)
-├── Communities
-├── Users
-├── Posts
-├── Comments
-├── Business
-├── Governance
-└── Chat
-```
-
-### Federation-Ready Design
-- ✅ UUIDv7 for all primary keys (globally unique)
-- ✅ Signed request infrastructure ready
-- ✅ Timestamp validation ready
-- ✅ Nonce system ready
-- ✅ Trust scoring ready
-
-### Phase 9 - Federation Architecture
-```
-Central Aggregator
-├── Federation Management
-├── Instance Verification
-├── Key Management
-└── Aggregated Data
-
-Self-Hosted Instances
-├── Local Data
-└── Federation Sync
-```
-
----
-
-## 🔐 **Security Throughout**
-
-- ✅ Authentication (Auth0 OAuth2)
-- ✅ Authorization (role-based access control)
-- ✅ Input validation
-- ✅ SQL injection prevention
-- ✅ CSRF protection
-- ✅ Rate limiting
-- ✅ Audit logging
-- ✅ Federation-ready signatures (Phase 9)
-
----
-
-## 📊 **Success Metrics**
-
-### Phase 1-8 (Production)
-- [ ] All endpoints tested and working
-- [ ] 100% brand compliance
-- [ ] Zero security vulnerabilities
-- [ ] All tests passing
-- [ ] Performance < 200ms per endpoint
-- [ ] Uptime > 99.9%
-
-### Phase 9 (Federation - Optional)
-- [ ] Federation instances verified
-- [ ] Cross-instance communication working
-- [ ] Data synchronization reliable
-- [ ] Federated search functional
-
----
-
-## 📚 **Documentation**
-
-- `docs/ARCHITECTURE.md` - System architecture
-- `docs/API_GUIDE.md` - API documentation
-- `docs/DEVELOPMENT.md` - Development guide
-- `federation_management_plan/` - Federation docs (Phase 9)
+| Phase | M | V | C | Tests | Duration | Status |
+|-------|---|---|---|-------|----------|--------|
+| **1** | ✅ | ✅ | ✅ | ✅ | 2-3w | ✅ DONE |
+| **2** | ✅ | ⏳ | ✅ | ✅ | 2-3w | 🔄 IN PROGRESS |
+| **3** | ⏳ | ⏳ | ⏳ | ⏳ | 2-3w | ⏳ TODO |
+| **4** | ⏳ | ⏳ | ⏳ | ⏳ | 2-3w | ⏳ TODO |
+| **5** | ⏳ | ⏳ | ⏳ | ⏳ | 2-3w | ⏳ TODO |
+| **6** | ⏳ | ⏳ | ⏳ | ⏳ | 1-2w | ⏳ TODO |
+| **7** | ⏳ | ⏳ | ⏳ | ⏳ | 1-2w | ⏳ TODO |
+| **8** | - | - | - | ✅ | 1-2w | ⏳ TODO |
+| **9** | ⏳ | ⏳ | ⏳ | ⏳ | 2-3w | 🎁 BONUS |
 
 ---
 
 ## 🎯 **Next Steps**
 
-### Immediate (This Week)
-1. Review Phase 2 requirements
-2. Plan implementation tasks
-3. Setup development environment
-
-### Phase 2 (Next 2-3 Weeks)
-1. Implement posts CRUD
-2. Implement comments system
-3. Add reactions system
-4. Comprehensive testing
+### Immediate: Complete Phase 2 Views
+1. Create `post-card.html` fragment
+2. Create `comment-thread.html` fragment
+3. Create `reaction-buttons.html` fragment
+4. Create `community-posts.html` page
+5. Create `post-detail.html` page
+6. Add page handlers to `pages.rs`
+7. Wire routes in `main.rs`
 
 ---
 
-**Status**: ✅ Ready for Phase 2 Implementation
+**Status**: 🔄 Phase 2 - Views in progress
 
-🚀 **Target**: Production-ready app in 10-14 weeks + optional Federation in Phase 9
+🚀 **Target**: Complete MVC for each phase before moving to next
 
