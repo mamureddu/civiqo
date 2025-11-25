@@ -137,6 +137,8 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/users", get(api::get_users))
         .route("/api/communities", axum::routing::post(api::create_community))
         .route("/api/communities", get(api::get_communities))
+        .route("/api/communities/my", get(api::get_my_communities))
+        .route("/api/communities/trending", get(api::get_trending_communities))
         .route("/api/communities/:id", get(api::get_community_detail))
         .route("/api/communities/:id", put(api::update_community))
         .route("/api/communities/:id", delete(api::delete_community))

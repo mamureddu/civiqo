@@ -1901,3 +1901,171 @@ pub async fn remove_member(
         }
     }
 }
+
+// ============================================================================
+// Discovery Endpoints
+// ============================================================================
+
+/// Get user's communities (PROTECTED - requires authentication)
+pub async fn get_my_communities(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<CommunitiesQueryParams>,
+) -> Result<Json<ApiResponse<CommunitiesListResponse>>, StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let offset = ((params.page.saturating_sub(1)) * params.limit) as i64;
+    let search_param = params.search.as_deref().unwrap_or("").to_string();
+
+    // Fetch user's communities (both created and member of)
+    let communities = sqlx::query(
+        "SELECT DISTINCT c.id, c.name, c.description, c.slug, c.is_public, c.created_at,
+                COUNT(DISTINCT m.user_id) as member_count,
+                CASE WHEN c.created_by = $1 THEN 'owner' 
+                     WHEN cm.role_id = (SELECT id FROM roles WHERE name = 'admin') THEN 'admin'
+                     ELSE 'member' END as user_role
+         FROM communities c
+         LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
+         LEFT JOIN community_members cm ON c.id = cm.community_id AND cm.user_id = $1 AND cm.status = 'active'
+         WHERE (c.created_by = $1 OR cm.user_id = $1)
+         AND ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')
+         GROUP BY c.id, c.name, c.description, c.slug, c.is_public, c.created_at, c.created_by, cm.role_id
+         ORDER BY c.created_at DESC
+         LIMIT $3 OFFSET $4"
+    )
+    .bind(user_uuid)
+    .bind(&search_param)
+    .bind(params.limit as i64)
+    .bind(offset)
+    .fetch_all(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch user communities: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Get total count
+    let total_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT c.id)
+         FROM communities c
+         LEFT JOIN community_members cm ON c.id = cm.community_id AND cm.user_id = $1 AND cm.status = 'active'
+         WHERE (c.created_by = $1 OR cm.user_id = $1)
+         AND ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')"
+    )
+    .bind(user_uuid)
+    .bind(&search_param)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to count user communities: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let communities_data: Vec<CommunityListResponse> = communities.iter().map(|row| {
+        CommunityListResponse {
+            id: row.get::<uuid::Uuid, _>("id").to_string(),
+            name: row.get::<String, _>("name"),
+            description: row.get::<Option<String>, _>("description"),
+            slug: row.get::<String, _>("slug"),
+            is_public: row.get::<bool, _>("is_public"),
+            member_count: row.get::<i64, _>("member_count"),
+            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%Y-%m-%d %H:%M").to_string(),
+            user_role: row.get::<Option<String>, _>("user_role"),
+        }
+    }).collect();
+
+    let has_next = (params.page * params.limit) < total_count as u32;
+    let has_prev = params.page > 1;
+
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(CommunitiesListResponse {
+            communities: communities_data,
+            total_count,
+            page: params.page,
+            limit: params.limit,
+            has_next,
+            has_prev,
+        }),
+        message: Some(format!("Found {} communities", total_count)),
+    }))
+}
+
+/// Get trending communities (public, sorted by member count)
+pub async fn get_trending_communities(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<CommunitiesQueryParams>,
+) -> Result<Json<ApiResponse<CommunitiesListResponse>>, StatusCode> {
+    let offset = ((params.page.saturating_sub(1)) * params.limit) as i64;
+    let search_param = params.search.as_deref().unwrap_or("").to_string();
+
+    // Fetch trending communities (public, sorted by member count)
+    let communities = sqlx::query(
+        "SELECT c.id, c.name, c.description, c.slug, c.is_public, c.created_at,
+                COUNT(DISTINCT m.user_id) as member_count,
+                NULL as user_role
+         FROM communities c
+         LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
+         WHERE c.is_public = true
+         AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')
+         GROUP BY c.id, c.name, c.description, c.slug, c.is_public, c.created_at
+         ORDER BY member_count DESC, c.created_at DESC
+         LIMIT $2 OFFSET $3"
+    )
+    .bind(&search_param)
+    .bind(params.limit as i64)
+    .bind(offset)
+    .fetch_all(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch trending communities: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Get total count
+    let total_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT c.id)
+         FROM communities c
+         WHERE c.is_public = true
+         AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')"
+    )
+    .bind(&search_param)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to count trending communities: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let communities_data: Vec<CommunityListResponse> = communities.iter().map(|row| {
+        CommunityListResponse {
+            id: row.get::<uuid::Uuid, _>("id").to_string(),
+            name: row.get::<String, _>("name"),
+            description: row.get::<Option<String>, _>("description"),
+            slug: row.get::<String, _>("slug"),
+            is_public: row.get::<bool, _>("is_public"),
+            member_count: row.get::<i64, _>("member_count"),
+            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%Y-%m-%d %H:%M").to_string(),
+            user_role: row.get::<Option<String>, _>("user_role"),
+        }
+    }).collect();
+
+    let has_next = (params.page * params.limit) < total_count as u32;
+    let has_prev = params.page > 1;
+
+    Ok(Json(ApiResponse {
+        success: true,
+        data: Some(CommunitiesListResponse {
+            communities: communities_data,
+            total_count,
+            page: params.page,
+            limit: params.limit,
+            has_next,
+            has_prev,
+        }),
+        message: Some(format!("Found {} trending communities", total_count)),
+    }))
+}
