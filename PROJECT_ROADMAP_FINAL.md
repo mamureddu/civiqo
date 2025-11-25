@@ -31,11 +31,11 @@ src/
 
 ### ✅ Completed
 - [x] **Phase 1**: Core Communities (M+V+C Complete)
-- [x] **Phase 2**: Posts & Comments (M+C Complete, V Partial)
+- [x] **Phase 2**: Posts & Comments (M+V+C Complete) ✅
 
 ### ⏳ To Do
-- [ ] **Phase 2**: Complete Views
-- [ ] **Phase 3-8**: Full MVC Implementation
+- [ ] **Phase 3**: User Profiles & Search
+- [ ] **Phase 4-8**: Full MVC Implementation
 - [ ] **Phase 9**: Federation (BONUS)
 
 ---
