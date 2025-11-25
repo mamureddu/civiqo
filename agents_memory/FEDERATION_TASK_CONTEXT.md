@@ -11,9 +11,42 @@
 Implement federated architecture to overcome digital sovereignty issues:
 
 1. **Self-Hosted Communities**: Allow communities to run on their own servers
-2. **Federation Protocol**: Standard API for inter-instance communication
-3. **Aggregator**: civiqo.com shows both local and federated communities
-4. **HTMX Proxy**: Seamlessly display federated content in main UI
+2. **Direct HTMX Federation**: No proxy - direct HTMX requests to federated instances
+3. **Public Key Verification**: Cryptographic proof of instance authenticity
+4. **Pre-Verification**: Email + Domain verification before issuing keys
+5. **Trust Levels**: Community, Verified, Partner tiers
+
+---
+
+## 🏗️ Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    civiqo.com (Aggregator)                       │
+│                                                                  │
+│  CSP: script-src 'self'    Cookies: SameSite=Strict             │
+│                                                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
+│  │ Local       │  │ Direct HTMX │  │ Direct HTMX │              │
+│  │ Community   │  │ from remote1│  │ from remote2│              │
+│  └─────────────┘  └──────┬──────┘  └──────┬──────┘              │
+│                          │                 │                     │
+└──────────────────────────┼─────────────────┼─────────────────────┘
+                           │                 │
+                    ┌──────▼──────┐   ┌──────▼──────┐
+                    │ remote1.com │   │ remote2.org │
+                    │ CORS: ✓     │   │ CORS: ✓     │
+                    │ Keys: ✓     │   │ Keys: ✓     │
+                    └─────────────┘   └─────────────┘
+```
+
+### Key Design Decisions
+
+1. **No Proxy Layer**: Direct HTMX requests to federated instances
+2. **Security via CSP**: `script-src 'self'` blocks malicious scripts
+3. **Cookie Protection**: `SameSite=Strict` prevents cross-origin cookie access
+4. **Public Key Auth**: Each instance has unique keypair for verification
+5. **Pre-Verification**: Must verify email + domain before getting keys
 
 ---
 
@@ -21,16 +54,22 @@ Implement federated architecture to overcome digital sovereignty issues:
 
 ### Functional
 - [ ] Communities can be marked as self-hosted with hosting URL
-- [ ] Self-hosted instances can register with aggregator
-- [ ] Aggregator lists both local and federated communities
-- [ ] HTMX fragments from federated instances display correctly
-- [ ] Federation status visible in UI (active, pending, suspended)
-- [ ] Health checks monitor federated instance availability
+- [ ] Pre-verification: Email verification required
+- [ ] Pre-verification: Domain verification (DNS TXT or .well-known file)
+- [ ] Public key issued only after verification
+- [ ] Instances can sign challenges with private key
+- [ ] Aggregator verifies signatures with stored public key
+- [ ] Key rotation via signing new key with old key
+- [ ] Trust levels displayed: Community, Verified, Partner
+- [ ] Version warnings for old instances
+- [ ] Direct HTMX from federated instances (no proxy)
+- [ ] Graceful fallback when instance offline
 
 ### Non-Functional
-- [ ] Federation requests < 500ms (with caching)
-- [ ] Graceful degradation when federated instance offline
-- [ ] Security: Content sanitization, key verification
+- [ ] Direct HTMX requests (no server overhead)
+- [ ] CSP: `script-src 'self'` for security
+- [ ] Cookies: `SameSite=Strict` protection
+- [ ] HTTPS required for all federation
 - [ ] Zero compilation errors
 - [ ] All tests passing
 

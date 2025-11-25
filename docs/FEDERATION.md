@@ -1,7 +1,7 @@
 # Federation Architecture
 
 **Status**: Planned  
-**Version**: 1.0  
+**Version**: 2.0  
 **Last Updated**: November 25, 2025
 
 ---
@@ -13,6 +13,7 @@ Civiqo supports a **federated architecture** to overcome digital sovereignty iss
 1. **Self-host** their own instance on their own servers
 2. **Federate** with the main Civiqo aggregator at civiqo.com
 3. Maintain **data ownership** while being discoverable globally
+4. **Cryptographically verify** their identity via public key authentication
 
 ---
 
@@ -20,26 +21,32 @@ Civiqo supports a **federated architecture** to overcome digital sovereignty iss
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     civiqo.com (Aggregator)                      │
+│                    civiqo.com (Aggregator)                       │
+│                                                                  │
+│  Security: CSP script-src 'self' | Cookies: SameSite=Strict     │
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │ Local       │  │ Federated   │  │ Federated   │              │
-│  │ Community A │  │ Community B │  │ Community C │              │
-│  │ (hosted)    │  │ (external)  │  │ (external)  │              │
+│  │ Local       │  │ Direct HTMX │  │ Direct HTMX │              │
+│  │ Community   │  │ ✓ Verified  │  │ ⚠ Community │              │
 │  └─────────────┘  └──────┬──────┘  └──────┬──────┘              │
 │                          │                 │                     │
-│                    HTMX Proxy         HTMX Proxy                │
-│                          │                 │                     │
 └──────────────────────────┼─────────────────┼─────────────────────┘
-                           │                 │
+                           │ (no proxy!)     │
                     ┌──────▼──────┐   ┌──────▼──────┐
-                    │ community-b │   │ community-c │
-                    │ .example.com│   │ .org        │
-                    │             │   │             │
-                    │ Self-Hosted │   │ Self-Hosted │
-                    │ Instance    │   │ Instance    │
+                    │ remote1.com │   │ remote2.org │
+                    │ CORS: ✓     │   │ CORS: ✓     │
+                    │ Public Key  │   │ Public Key  │
+                    │ HTTPS: ✓    │   │ HTTPS: ✓    │
                     └─────────────┘   └─────────────┘
 ```
+
+### Key Design Principles
+
+1. **No Proxy**: Direct HTMX requests to federated instances (zero server overhead)
+2. **Security via CSP**: `script-src 'self'` blocks malicious scripts from federated content
+3. **Cookie Protection**: `SameSite=Strict` prevents cross-origin cookie access
+4. **Public Key Verification**: Each instance has unique Ed25519 keypair
+5. **Pre-Verification**: Email + Domain verification required before key issuance
 
 ---
 
@@ -64,94 +71,122 @@ Civiqo supports a **federated architecture** to overcome digital sovereignty iss
 
 ---
 
-## Federation Protocol
+## Registration Flow
 
-### Discovery Endpoint
+### Step 1: Request Federation
 ```
-GET /api/federation/info
-```
+POST /api/aggregator/request
+Content-Type: application/json
 
-Returns instance metadata:
-```json
 {
-  "instance_url": "https://community.example.com",
-  "instance_name": "Example Community",
-  "api_version": "v1",
-  "public_key": "...",
-  "supported_features": ["htmx", "api", "webhooks"]
+  "hosting_url": "https://community.example.com",
+  "admin_email": "admin@example.com",
+  "organization_name": "Example Org",
+  "description": "Community for example purposes"
 }
 ```
 
-### Community List
-```
-GET /api/federation/communities
-```
-
-Returns public communities:
+Response:
 ```json
 {
-  "communities": [
-    {
-      "id": 123,
-      "name": "Example Community",
-      "slug": "example",
-      "description": "...",
-      "member_count": 1500,
-      "is_public": true
-    }
+  "request_id": 123,
+  "status": "pending_verification",
+  "domain_token": "abc123...",
+  "next_steps": [
+    "Check email for verification link",
+    "Add DNS TXT: civiqo-verify=abc123...",
+    "Or place file at /.well-known/civiqo-verify.txt"
   ]
 }
 ```
 
-### HTMX Fragments
+### Step 2: Email Verification
 ```
-GET /api/federation/communities/:id/htmx/:fragment
+GET /api/aggregator/verify-email?token=xxx&request_id=123
 ```
 
-Returns embeddable HTMX content for:
-- `detail` - Community detail view
-- `members` - Member list
-- `posts` - Recent posts
-- `sidebar` - Sidebar widget
+### Step 3: Domain Verification (Optional but speeds approval)
+Either:
+- Add DNS TXT record: `civiqo-verify=<domain_token>`
+- Place file at: `https://your-domain.com/.well-known/civiqo-verify.txt`
+
+```
+POST /api/aggregator/verify-domain
+{ "request_id": 123 }
+```
+
+### Step 4: Approval & Key Issuance
+- **Auto-approve**: Email ✓ + Domain ✓ → Keys issued (trust: community)
+- **Manual review**: Email ✓ only → Admin reviews → Keys issued
+
+Private key sent via email. Store in `.env`:
+```
+FEDERATION_PRIVATE_KEY=base64_encoded_ed25519_private_key
+```
+
+### Step 5: Activation
+```
+POST /api/aggregator/activate
+{
+  "federation_id": 456,
+  "signed_challenge": "base64_signature_of_challenge"
+}
+```
 
 ---
 
-## Aggregator API
+## Ongoing Verification
 
-### Register Federation
+### Challenge-Response
+Aggregator periodically sends challenges:
 ```
-POST /api/aggregator/register
-Content-Type: application/json
+POST https://your-instance.com/api/federation/sign-challenge
+{ "challenge": "random_nonce" }
+```
 
+Instance responds with signature:
+```json
+{ "signature": "base64_ed25519_signature" }
+```
+
+Aggregator verifies with stored public key.
+
+### Key Rotation
+Sign new public key with old private key:
+```
+POST /api/aggregator/rotate-key
 {
-  "instance_url": "https://community.example.com",
-  "public_key": "...",
-  "community_id": 123,
-  "community_name": "Example Community",
-  "community_slug": "example"
+  "federation_id": 456,
+  "new_public_key": "base64_new_public_key",
+  "signature": "base64_signature_of_new_key_with_old_key"
 }
 ```
 
-### Verify Federation
-```
-POST /api/aggregator/verify
-Content-Type: application/json
+---
 
-{
-  "community_id": 123,
-  "verification_token": "..."
-}
-```
+## Direct HTMX (No Proxy)
 
-### Proxy Requests
-```
-GET /api/aggregator/proxy/:community_id/*path
+Federated content loaded directly from remote instances:
+
+```html
+<!-- On civiqo.com -->
+<div hx-get="https://remote-community.com/api/htmx/community/card"
+     hx-trigger="load"
+     hx-on:htmx:responseError="this.innerHTML='⚠️ Unavailable'">
+</div>
 ```
 
-Proxies requests to federated instance with:
-- Content sanitization
-- URL rewriting
-- Caching
+### Why No Proxy?
+- **Zero server overhead** on civiqo.com
+- **True decentralization** - data never touches aggregator
+- **Faster** - direct connection to source
+- **Scalable** - no bottleneck
+
+### Security (Without Proxy)
+- **CSP**: `script-src 'self'` blocks external scripts
+- **Cookies**: `SameSite=Strict` prevents cross-origin access
+- **HTMX Config**: `allowScriptTags: false`
+- **CORS**: Remote must allow civiqo.com origin
 
 ---
 
