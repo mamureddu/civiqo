@@ -112,6 +112,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/", get(pages::index))
         .route("/dashboard", get(pages::dashboard))
         .route("/communities", get(pages::communities))
+        .route("/communities/create", get(pages::create_community))
         .route("/communities/:id", get(pages::community_detail))
         .route("/businesses", get(pages::businesses))
         .route("/businesses/:id", get(pages::business_detail))

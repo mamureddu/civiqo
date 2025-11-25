@@ -1,0 +1,6 @@
+<svg width="96" height="96"><rect width="96" height="96" rx="20" fill="white"/>
+<path d="M20 26 h40 a8 8 0 0 1 8 8 v14 a8 8 0 0 1 -8 8 H34 l-10 10 v-10 H20 a8 8 0 0 1 -8 -8 V34 a8 8 0 0 1 8 -8z"
+ stroke="#3B7FBA" fill="none" stroke-width="3"/>
+<circle cx="32" cy="43" r="3" fill="#3B7FBA"/>
+<circle cx="44" cy="43" r="3" fill="#3B7FBA"/>
+<circle cx="56" cy="43" r="3" fill="#3B7FBA"/></svg>

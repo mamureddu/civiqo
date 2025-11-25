@@ -6,9 +6,63 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
+use sqlx::Row;
 
 use crate::handlers::pages::AppState;
 use crate::auth::AuthUser;
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/// Generate a URL-friendly slug from a community name
+fn generate_slug(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'a'..='z' | '0'..='9' => c,
+            ' ' => '-',
+            _ if c.is_ascii_punctuation() => '-',
+            _ => '\0', // Will be filtered out
+        })
+        .filter(|&c| c != '\0')
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<&str>>()
+        .join("-")
+        .trim_matches('-')
+        .to_string()
+}
+
+/// Ensure slug is unique by appending number if needed
+async fn ensure_unique_slug(
+    base_slug: &str,
+    pool: &sqlx::PgPool,
+) -> Result<String, StatusCode> {
+    let mut slug = base_slug.to_string();
+    let mut counter = 1;
+    
+    // Check if slug exists, if so append number
+    while sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM communities WHERE slug = $1)"
+    )
+    .bind(&slug)
+    .fetch_one(pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    {
+        slug = format!("{}-{}", base_slug, counter);
+        counter += 1;
+        
+        // Prevent infinite loop
+        if counter > 1000 {
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+    
+    Ok(slug)
+}
 
 // ============================================================================
 // Request/Response Types
@@ -25,7 +79,8 @@ pub struct CreateUserRequest {
 pub struct CreateCommunityRequest {
     pub name: String,
     pub description: Option<String>,
-    pub created_by: String, // user_id
+    pub is_public: Option<bool>,
+    pub requires_approval: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -142,32 +197,133 @@ pub async fn get_users(
 
 /// Create a new community (PROTECTED - requires authentication)
 pub async fn create_community(
-    AuthUser(_user): AuthUser, // Requires authentication
+    AuthUser(user): AuthUser, // Requires authentication
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateCommunityRequest>,
 ) -> Result<Json<ApiResponse<CommunityResponse>>, StatusCode> {
-    let community_id = Uuid::new_v4();
-    let creator_id = Uuid::parse_str(&payload.created_by)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    // Validate input
+    if payload.name.trim().is_empty() {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Community name cannot be empty".to_string()),
+        }));
+    }
     
-    let result = sqlx::query(
-        "INSERT INTO communities (id, name, description, created_by) 
-         VALUES ($1, $2, $3, $4)"
+    if payload.name.len() > 255 {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Community name too long (max 255 characters)".to_string()),
+        }));
+    }
+    
+    if let Some(ref description) = payload.description {
+        if description.len() > 2000 {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Description too long (max 2000 characters)".to_string()),
+            }));
+        }
+    }
+    
+    // Parse authenticated user ID
+    let creator_id = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // Generate unique slug
+    let base_slug = generate_slug(&payload.name);
+    let slug = ensure_unique_slug(&base_slug, &state.db.pool).await?;
+    
+    // Start transaction for atomic community creation + admin membership
+    let mut tx = state.db.pool.begin().await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let community_id = Uuid::new_v4();
+    
+    // Insert community
+    let community_result = sqlx::query(
+        "INSERT INTO communities (id, name, description, slug, is_public, requires_approval, created_by) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, created_at"
     )
     .bind(community_id)
-    .bind(&payload.name)
+    .bind(&payload.name.trim())
     .bind(&payload.description)
+    .bind(&slug)
+    .bind(payload.is_public.unwrap_or(true))
+    .bind(payload.requires_approval.unwrap_or(false))
     .bind(creator_id)
-    .execute(&state.db.pool)
+    .fetch_one(&mut *tx)
     .await;
     
-    match result {
+    let community_row = match community_result {
+        Ok(row) => row,
+        Err(e) => {
+            tracing::error!("Failed to create community: {}", e);
+            tx.rollback().await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+    
+    // Get default admin role (or create if doesn't exist)
+    let admin_role = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM roles WHERE name = 'admin' LIMIT 1"
+    )
+    .fetch_one(&mut *tx)
+    .await;
+    
+    let admin_role_id = match admin_role {
+        Ok(role_id) => role_id,
+        Err(_) => {
+            // Create default admin role if it doesn't exist
+            let new_role_id = Uuid::new_v4();
+            sqlx::query(
+                "INSERT INTO roles (id, name, description, permissions, is_default) 
+                 VALUES ($1, 'admin', 'Community administrator', '[\"manage_community\", \"manage_members\", \"manage_posts\"]', FALSE)"
+            )
+            .bind(new_role_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create admin role: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+            new_role_id
+        }
+    };
+    
+    // Add creator as admin member
+    let membership_result = sqlx::query(
+        "INSERT INTO community_members (id, user_id, community_id, role_id, status, joined_at) 
+         VALUES ($1, $2, $3, $4, 'active', NOW())"
+    )
+    .bind(Uuid::new_v4())
+    .bind(creator_id)
+    .bind(community_id)
+    .bind(admin_role_id)
+    .execute(&mut *tx)
+    .await;
+    
+    match membership_result {
         Ok(_) => {
+            // Commit transaction
+            tx.commit().await
+                .map_err(|e| {
+                    tracing::error!("Failed to commit transaction: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+            
+            tracing::info!("Community '{}' created successfully by user {}", payload.name, user.user_id);
+            
             let community = CommunityResponse {
                 id: community_id.to_string(),
-                name: payload.name,
+                name: payload.name.trim().to_string(),
                 description: payload.description,
-                created_at: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
+                created_at: community_row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                    .format("%Y-%m-%d %H:%M").to_string(),
             };
             
             Ok(Json(ApiResponse {
@@ -177,7 +333,9 @@ pub async fn create_community(
             }))
         }
         Err(e) => {
-            tracing::error!("Failed to create community: {}", e);
+            tracing::error!("Failed to add creator as member: {}", e);
+            tx.rollback().await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

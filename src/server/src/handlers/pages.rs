@@ -107,6 +107,27 @@ pub async fn chat_room(
     Ok(Html(html).into_response())
 }
 
+/// Create community page (PROTECTED - requires authentication)
+pub async fn create_community(
+    AuthUser(user): AuthUser, // Requires authentication
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    tracing::info!("Rendering create community page for user: {}", user.user_id);
+    
+    let mut ctx = Context::new();
+    
+    // Auth info (always logged in for create community)
+    ctx.insert("logged_in", &true);
+    ctx.insert("user_id", &user.user_id);
+    ctx.insert("email", &user.email);
+    ctx.insert("username", &user.name.clone().unwrap_or_else(|| "User".to_string()));
+    ctx.insert("picture", &user.picture);
+    
+    let html = state.tera.render("create_community.html", &ctx)?;
+    tracing::info!("Create community page rendered successfully");
+    Ok(Html(html).into_response())
+}
+
 /// User dashboard page (PROTECTED - requires authentication)
 pub async fn dashboard(
     AuthUser(user): AuthUser, // Requires authentication
