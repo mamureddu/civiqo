@@ -25,6 +25,22 @@
 
 **Status**: RESOLVED - Handler now fully compliant
 
+### RESOLVED: UUID/BIGINT Type Mismatch (CRITICAL)
+**Issue**: Agent 2 found critical type mismatch
+**Details**:
+- Schema defines communities.id as BIGINT (auto-generated)
+- Handlers were using Uuid::new_v4() for community IDs
+- Would cause runtime type errors and database constraint violations
+
+**Solution**: Updated all three handlers to use BIGINT
+- ✅ create_community: Removed manual UUID generation, let DB create BIGINT
+- ✅ update_community: Changed Path parameter from String to i64
+- ✅ delete_community: Changed Path parameter from String to i64
+- ✅ All queries updated to use i64 instead of UUID
+- ✅ Response parsing updated to extract i64 IDs
+
+**Status**: RESOLVED - All handlers now use BIGINT correctly
+
 ---
 
 ## 💡 Technical Decisions
