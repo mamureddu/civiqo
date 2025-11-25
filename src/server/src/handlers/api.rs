@@ -129,8 +129,6 @@ pub struct CommunitiesQueryParams {
     #[serde(default)]
     pub search: Option<String>,
     #[serde(default)]
-    pub filter: Option<String>, // "public", "my", "all"
-    #[serde(default)]
     pub sort: Option<String>, // "created", "name", "members"
 }
 

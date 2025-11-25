@@ -49,14 +49,14 @@
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
                   {% if member.role == 'admin' %}
-                    bg-purple-100 text-purple-800
+                    style="background-color: rgba(155, 120, 211, 0.2); color: #9B78D3;"
                   {% elif member.role == 'moderator' %}
-                    bg-blue-100 text-blue-800
+                    style="background-color: rgba(59, 127, 186, 0.2); color: #3B7FBA;"
                   {% else %}
-                    bg-gray-100 text-gray-800
-                  {% endif %}">
+                    style="background-color: rgba(107, 114, 128, 0.2); color: #6B7280;"
+                  {% endif %}>
                   {{ member.role | capitalize }}
                 </span>
               </td>
