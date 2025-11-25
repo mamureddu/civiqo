@@ -1478,6 +1478,346 @@ pub async fn update_member_role(
     }
 }
 
+/// Request to join a private community (PROTECTED - requires authentication)
+pub async fn request_join_community(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<Uuid>,
+) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check community exists and requires approval
+    let community: Option<(bool, bool)> = sqlx::query_as(
+        "SELECT is_public, requires_approval FROM communities WHERE id = $1"
+    )
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch community: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let (is_public, requires_approval) = match community {
+        Some(c) => c,
+        None => {
+            return Ok((
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Community not found".to_string()),
+                }),
+            ));
+        }
+    };
+
+    // Can only request join for private communities that require approval
+    if is_public {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Cannot request join for public community. Use /join instead.".to_string()),
+            }),
+        ));
+    }
+
+    if !requires_approval {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("This private community does not require approval. Contact owner for invite.".to_string()),
+            }),
+        ));
+    }
+
+    // Check user not already member or pending
+    let existing: Option<String> = sqlx::query_scalar(
+        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check membership: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match existing {
+        Some(status) if status == "active" => {
+            return Ok((
+                StatusCode::CONFLICT,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("User already member of this community".to_string()),
+                }),
+            ));
+        }
+        Some(status) if status == "pending" => {
+            return Ok((
+                StatusCode::CONFLICT,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Join request already pending".to_string()),
+                }),
+            ));
+        }
+        _ => {}
+    }
+
+    // Get member role ID
+    let member_role_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM roles WHERE name = 'member' LIMIT 1"
+    )
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to get member role: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Insert membership with 'pending' status
+    let result = sqlx::query(
+        "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at)
+         VALUES ($1, $2, $3, 'pending', NOW())
+         RETURNING joined_at"
+    )
+    .bind(user_uuid)
+    .bind(community_id)
+    .bind(member_role_id)
+    .fetch_one(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("User {} requested to join community {}", user.user_id, community_id);
+            
+            Ok((
+                StatusCode::CREATED,
+                Json(ApiResponse {
+                    success: true,
+                    data: None,
+                    message: Some("Join request submitted. Awaiting admin approval.".to_string()),
+                }),
+            ))
+        }
+        Err(e) => {
+            tracing::error!("Failed to request join: {}", e);
+            Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Failed to submit join request".to_string()),
+                }),
+            ))
+        }
+    }
+}
+
+/// Approve join request (PROTECTED - admin only)
+pub async fn approve_join_request(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path((community_id, member_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check requester is admin
+    let is_admin: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM community_members cm
+            JOIN roles r ON cm.role_id = r.id
+            WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
+        )"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check admin status: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if !is_admin {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Only admins can approve join requests".to_string()),
+        }));
+    }
+
+    // Check request exists and is pending
+    let status: Option<String> = sqlx::query_scalar(
+        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(member_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check request status: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match status {
+        Some(s) if s == "pending" => {}
+        Some(s) if s == "active" => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("User is already an active member".to_string()),
+            }));
+        }
+        _ => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("No pending join request found".to_string()),
+            }));
+        }
+    }
+
+    // Update status to active
+    let result = sqlx::query(
+        "UPDATE community_members SET status = 'active' WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(member_id)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("Admin {} approved join request for user {} in community {}", user.user_id, member_id, community_id);
+            
+            Ok(Json(ApiResponse {
+                success: true,
+                data: None,
+                message: Some("Join request approved".to_string()),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to approve join request: {}", e);
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Failed to approve join request".to_string()),
+            }))
+        }
+    }
+}
+
+/// Reject join request (PROTECTED - admin only)
+pub async fn reject_join_request(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path((community_id, member_id)): Path<(Uuid, Uuid)>,
+) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check requester is admin
+    let is_admin: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM community_members cm
+            JOIN roles r ON cm.role_id = r.id
+            WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
+        )"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check admin status: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if !is_admin {
+        return Ok((
+            StatusCode::FORBIDDEN,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Only admins can reject join requests".to_string()),
+            }),
+        ));
+    }
+
+    // Check request exists and is pending
+    let status: Option<String> = sqlx::query_scalar(
+        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(member_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check request status: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match status {
+        Some(s) if s == "pending" => {}
+        _ => {
+            return Ok((
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("No pending join request found".to_string()),
+                }),
+            ));
+        }
+    }
+
+    // Delete the pending request
+    let result = sqlx::query(
+        "DELETE FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(member_id)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("Admin {} rejected join request for user {} in community {}", user.user_id, member_id, community_id);
+            
+            Ok((
+                StatusCode::NO_CONTENT,
+                Json(ApiResponse {
+                    success: true,
+                    data: None,
+                    message: Some("Join request rejected".to_string()),
+                }),
+            ))
+        }
+        Err(e) => {
+            tracing::error!("Failed to reject join request: {}", e);
+            Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Failed to reject join request".to_string()),
+                }),
+            ))
+        }
+    }
+}
+
 /// Remove member from community (PROTECTED - admin only)
 pub async fn remove_member(
     AuthUser(user): AuthUser,

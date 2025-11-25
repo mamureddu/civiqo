@@ -150,6 +150,11 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/communities/:id/members/:user_id/role", put(api::update_member_role))
         .route("/api/communities/:id/members/:user_id", delete(api::remove_member))
         
+        // Join request endpoints (for private communities requiring approval)
+        .route("/api/communities/:id/request-join", post(api::request_join_community))
+        .route("/api/communities/:id/requests/:user_id/approve", post(api::approve_join_request))
+        .route("/api/communities/:id/requests/:user_id/reject", post(api::reject_join_request))
+        
         // Static files
         .nest_service("/static", ServeDir::new(static_path))
         
