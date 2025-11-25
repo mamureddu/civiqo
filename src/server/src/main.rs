@@ -157,6 +157,11 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/communities/:id/requests/:user_id/approve", post(api::approve_join_request))
         .route("/api/communities/:id/requests/:user_id/reject", post(api::reject_join_request))
         
+        // Owner/Admin management endpoints
+        .route("/api/communities/:id/transfer-ownership/:user_id", post(api::transfer_ownership))
+        .route("/api/communities/:id/promote/:user_id", post(api::promote_to_admin))
+        .route("/api/communities/:id/demote/:user_id", post(api::demote_to_member))
+        
         // Static files
         .nest_service("/static", ServeDir::new(static_path))
         

@@ -2069,3 +2069,303 @@ pub async fn get_trending_communities(
         message: Some(format!("Found {} trending communities", total_count)),
     }))
 }
+
+// ============================================================================
+// Owner/Admin Management Endpoints
+// ============================================================================
+
+/// Transfer community ownership (PROTECTED - owner only)
+pub async fn transfer_ownership(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path((community_id, new_owner_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check requester is owner
+    let is_owner: bool = sqlx::query_scalar(
+        "SELECT created_by = $1 FROM communities WHERE id = $2"
+    )
+    .bind(user_uuid)
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check ownership: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .unwrap_or(false);
+
+    if !is_owner {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Only community owner can transfer ownership".to_string()),
+        }));
+    }
+
+    // Check new owner is member
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active')"
+    )
+    .bind(community_id)
+    .bind(new_owner_id)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check membership: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if !is_member {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("New owner must be an active member of the community".to_string()),
+        }));
+    }
+
+    // Get admin role ID
+    let admin_role_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM roles WHERE name = 'admin' LIMIT 1"
+    )
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to get admin role: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Update new owner to admin role
+    sqlx::query(
+        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3"
+    )
+    .bind(admin_role_id)
+    .bind(community_id)
+    .bind(new_owner_id)
+    .execute(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to update new owner role: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Transfer ownership in communities table
+    let result = sqlx::query(
+        "UPDATE communities SET created_by = $1, updated_at = NOW() WHERE id = $2"
+    )
+    .bind(new_owner_id)
+    .bind(community_id)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("Owner {} transferred community {} to {}", user.user_id, community_id, new_owner_id);
+            
+            Ok(Json(ApiResponse {
+                success: true,
+                data: None,
+                message: Some("Ownership transferred successfully".to_string()),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to transfer ownership: {}", e);
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Failed to transfer ownership".to_string()),
+            }))
+        }
+    }
+}
+
+/// Promote member to admin (PROTECTED - owner only)
+pub async fn promote_to_admin(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path((community_id, member_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check requester is owner
+    let is_owner: bool = sqlx::query_scalar(
+        "SELECT created_by = $1 FROM communities WHERE id = $2"
+    )
+    .bind(user_uuid)
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check ownership: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .unwrap_or(false);
+
+    if !is_owner {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Only community owner can promote members".to_string()),
+        }));
+    }
+
+    // Check target is member
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active')"
+    )
+    .bind(community_id)
+    .bind(member_id)
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check membership: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if !is_member {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("User is not an active member of this community".to_string()),
+        }));
+    }
+
+    // Get admin role ID
+    let admin_role_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM roles WHERE name = 'admin' LIMIT 1"
+    )
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to get admin role: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Update role to admin
+    let result = sqlx::query(
+        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3"
+    )
+    .bind(admin_role_id)
+    .bind(community_id)
+    .bind(member_id)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("Owner {} promoted user {} to admin in community {}", user.user_id, member_id, community_id);
+            
+            Ok(Json(ApiResponse {
+                success: true,
+                data: None,
+                message: Some("Member promoted to admin".to_string()),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to promote member: {}", e);
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Failed to promote member".to_string()),
+            }))
+        }
+    }
+}
+
+/// Demote admin to member (PROTECTED - owner only)
+pub async fn demote_to_member(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path((community_id, member_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Check requester is owner
+    let is_owner: bool = sqlx::query_scalar(
+        "SELECT created_by = $1 FROM communities WHERE id = $2"
+    )
+    .bind(user_uuid)
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check ownership: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .unwrap_or(false);
+
+    if !is_owner {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Only community owner can demote members".to_string()),
+        }));
+    }
+
+    // Check target is not the owner
+    let is_target_owner: bool = sqlx::query_scalar(
+        "SELECT created_by = $1 FROM communities WHERE id = $2"
+    )
+    .bind(member_id)
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check if target is owner: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .unwrap_or(false);
+
+    if is_target_owner {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Cannot demote the community owner".to_string()),
+        }));
+    }
+
+    // Get member role ID
+    let member_role_id: i64 = sqlx::query_scalar(
+        "SELECT id FROM roles WHERE name = 'member' LIMIT 1"
+    )
+    .fetch_one(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to get member role: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Update role to member
+    let result = sqlx::query(
+        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3"
+    )
+    .bind(member_role_id)
+    .bind(community_id)
+    .bind(member_id)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("Owner {} demoted user {} to member in community {}", user.user_id, member_id, community_id);
+            
+            Ok(Json(ApiResponse {
+                success: true,
+                data: None,
+                message: Some("Admin demoted to member".to_string()),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to demote admin: {}", e);
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Failed to demote admin".to_string()),
+            }))
+        }
+    }
+}
