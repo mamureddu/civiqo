@@ -1,14 +1,8 @@
 # Agents Memory - Temporary Task Context Files
 # These files are created during task execution and should be cleaned up when complete
 
-# Task-specific memory files (temporary)
-TASK_CONTEXT.md
-IMPLEMENTATION_PLAN.md
-BLOCKERS_AND_NOTES.md
-TESTING_CHECKLIST.md
-
 # Keep README.md as documentation for the system
 !README.md
 
-# Note: Only README.md should be committed to git
-# All other files are temporary and should be deleted after task completion
+# Note: Memory files are temporary and should be deleted after task completion
+# They are NOT in .gitignore during active task to allow Agent 1 to create them
