@@ -1,178 +1,495 @@
-# Implementation Plan: Community CRUD Routes
+# Implementation Plan: Community Features (Federation-Ready)
 
-**Agent 1 Executor**: Follow this step-by-step plan  
-**Update Progress**: Check off items as you complete them
-
----
-
-## Phase 1: Setup & Dependencies (30 min)
-
-### Step 1.1: Add Dependencies
-- [x] Add `validator = "0.16"` to `server/Cargo.toml` (already in workspace)
-- [x] Add `validator_derive = "0.16"` to `server/Cargo.toml` (already in workspace)
-- [x] Run `cargo build --workspace` to verify
-
-### Step 1.2: Create Models Module
-- [x] Create `src/server/src/models/` directory if not exists
-- [x] Create `src/server/src/models/mod.rs`
-- [x] Create `src/server/src/models/community.rs`
-- [x] Add `pub mod models;` to `src/server/src/lib.rs`
+**Date**: November 25, 2025  
+**Agent 2 Planning**: Complete  
+**Estimated Time**: ~6-8 hours
 
 ---
 
-## Phase 2: POST /api/communities - Create (1-2 hours)
+## 📋 Current Status
 
-### Step 2.1: Define Request/Response Structs
-- [x] In `models/community.rs`, create `CreateCommunityRequest`
-  - Fields: name, description, slug, is_public
-  - Add validation attributes
-- [x] Create `CommunityResponse` struct
-  - Fields: id (i64), name, description, slug, is_public, created_by
+### ✅ Already Done
+- [x] Database schema with UUIDv7 for communities
+- [x] `users.federated_from` field for dual-auth
+- [x] Basic community CRUD handlers (partially updated for UUID)
+- [x] Authentication system (Auth0)
+- [x] Community create/update/delete handlers (need UUID fixes)
 
-### Step 2.2: Implement Create Handler
-- [x] In `handlers/api.rs`, create `create_community` function (ALREADY EXISTS)
-  - Already implemented with full validation and transaction support
-- [x] Validate request using `.validate()`
-- [x] Check slug uniqueness in database
-- [x] Start database transaction
-- [x] Insert into communities table
-- [x] Insert creator as admin in community_members
-- [x] Commit transaction
-- [x] Return 201 Created with redirect or JSON
-
-### Step 2.3: Add Route
-- [x] In `main.rs`, add route: `.route("/api/communities", post(api::create_community))` (ALREADY EXISTS)
-
-### Step 2.4: Test Manually
-- [x] Test with curl: `curl -X POST http://localhost:9001/api/communities -d "name=Test&slug=test&description=Test"`
-- [x] Test duplicate slug (should return 409)
-- [x] Test invalid data (should return 400)
-- [x] Test without auth (should return 401)
+### ❌ Needs Work
+- [ ] Fix UUID compilation issues (src/Cargo.toml updated)
+- [ ] Update tests for UUID community IDs
+- [ ] Add membership management endpoints
+- [ ] Add public/private community logic
+- [ ] Add community discovery (list, search)
+- [ ] Add owner/admin management
+- [ ] Add HTMX fragments for communities
 
 ---
 
-## Phase 3: PUT /api/communities/:id - Update (1 hour)
+## 🔧 Phase 1: Fix UUID Compilation & Tests (1 hour)
 
-### Step 3.1: Define Request Struct
-- [x] In `models/community.rs`, create `UpdateCommunityRequest`
-  - Fields: name (Option), description (Option), is_public (Option)
-  - Add validation attributes
-  - At least one field must be Some
+### Step 1.1: Verify UUID build
+```bash
+cd /Users/mariomureddu/CascadeProjects/community-manager/src
+cargo build -p server
+```
 
-### Step 3.2: Implement Update Handler
-- [x] In `handlers/api.rs`, create `update_community` function
-  - Signature: `async fn update_community(AuthUser(user): AuthUser, State(state): State<Arc<AppState>>, Path(id): Path<String>, Json(payload): Json<CreateCommunityRequest>) -> Result<Json<ApiResponse<CommunityResponse>>, StatusCode>`
-- [x] Validate request
-- [x] Check if community exists (404 if not)
-- [x] Check if user is owner (403 if not)
-- [x] Update only provided fields
-- [x] Update `updated_at` timestamp
-- [x] Return 200 OK with updated data
+### Step 1.2: Update integration tests for UUID
+**Files**: 
+- `src/server/tests/community_crud_integration.rs`
+- `src/server/tests/community_crud_integration_test.rs`
 
-### Step 3.3: Add Route
-- [x] In `main.rs`, add route: `.route("/api/communities/:id", put(api::update_community))`
+Changes needed:
+- [ ] Change `i64` to `Uuid` for community_id
+- [ ] Update `create_test_community()` to generate UUIDv7
+- [ ] Update all test assertions for UUID
+- [ ] Update cleanup functions for UUID
 
-### Step 3.4: Test Manually
-- [x] Test update as owner (should succeed)
-- [x] Test update as non-owner (should return 403)
-- [x] Test update non-existent community (should return 404)
-- [x] Test without auth (should return 401)
+### Step 1.3: Run tests
+```bash
+cargo test -p server
+```
 
 ---
 
-## Phase 4: DELETE /api/communities/:id - Delete (30 min)
+## 🔧 Phase 2: Community Membership (1.5 hours)
 
-### Step 4.1: Implement Delete Handler
-- [x] In `handlers/api.rs`, create `delete_community` function
-  - Signature: `async fn delete_community(AuthUser(user): AuthUser, State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode>`
-- [x] Check if community exists (404 if not)
-- [x] Check if user is owner (403 if not)
-- [x] Delete community (CASCADE handles related records)
-- [x] Return 200 OK or 204 No Content
+### Step 2.1: Join Community
+**Endpoint**: `POST /api/communities/:id/join`
+**Auth**: Required
 
-### Step 4.2: Add Route
-- [x] In `main.rs`, add route: `.route("/api/communities/:id", delete(api::delete_community))`
+```rust
+pub async fn join_community(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<Uuid>,
+) -> Result<Json<ApiResponse<MembershipResponse>>, StatusCode>
+```
 
-### Step 4.3: Test Manually
-- [x] Test delete as owner (should succeed)
-- [x] Test delete as non-owner (should return 403)
-- [x] Test delete non-existent community (should return 404)
-- [x] Verify cascade delete (check community_members, etc.)
-- [x] Test without auth (should return 401)
+**Logic**:
+1. Verify community exists
+2. Check if public OR user has pending invite
+3. Check user not already member
+4. Get 'member' role ID from roles table
+5. Insert into community_members
+6. Return membership details
+
+**SQL**:
+```sql
+-- Check community is public
+SELECT is_public, requires_approval FROM communities WHERE id = $1
+
+-- Check not already member
+SELECT id FROM community_members WHERE community_id = $1 AND user_id = $2
+
+-- Get member role
+SELECT id FROM roles WHERE name = 'member'
+
+-- Insert membership
+INSERT INTO community_members (user_id, community_id, role_id, status, joined_at)
+VALUES ($1, $2, $3, 'active', NOW())
+```
+
+### Step 2.2: Leave Community
+**Endpoint**: `POST /api/communities/:id/leave`
+**Auth**: Required
+
+```rust
+pub async fn leave_community(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<Uuid>,
+) -> Result<Json<ApiResponse<()>>, StatusCode>
+```
+
+**Logic**:
+1. Verify user is member
+2. Check if user is the ONLY admin (prevent orphan)
+3. If only admin, return error "Transfer ownership first"
+4. Delete from community_members
+5. Return success
+
+**SQL**:
+```sql
+-- Check membership
+SELECT role_id FROM community_members WHERE community_id = $1 AND user_id = $2
+
+-- Count admins
+SELECT COUNT(*) FROM community_members cm
+JOIN roles r ON cm.role_id = r.id
+WHERE cm.community_id = $1 AND r.name = 'admin'
+
+-- Delete membership
+DELETE FROM community_members WHERE community_id = $1 AND user_id = $2
+```
+
+### Step 2.3: List Members
+**Endpoint**: `GET /api/communities/:id/members`
+**Auth**: Optional (public communities) / Required (private)
+
+```rust
+pub async fn list_members(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<Uuid>,
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<ApiResponse<MembersListResponse>>, StatusCode>
+```
+
+**Response**:
+```rust
+pub struct MembersListResponse {
+    pub members: Vec<MemberResponse>,
+    pub total: i64,
+    pub page: i32,
+    pub per_page: i32,
+}
+
+pub struct MemberResponse {
+    pub user_id: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub role: String,
+    pub joined_at: String,
+}
+```
+
+### Step 2.4: Update Member Role (Admin only)
+**Endpoint**: `PUT /api/communities/:id/members/:user_id/role`
+**Auth**: Required (must be admin)
+
+```rust
+pub async fn update_member_role(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path((community_id, member_id)): Path<(Uuid, Uuid)>,
+    Json(payload): Json<UpdateRoleRequest>,
+) -> Result<Json<ApiResponse<()>>, StatusCode>
+```
+
+**Logic**:
+1. Verify requester is admin of community
+2. Verify target user is member
+3. Validate role name exists
+4. Update role_id in community_members
+5. Return success
+
+### Step 2.5: Remove Member (Admin only)
+**Endpoint**: `DELETE /api/communities/:id/members/:user_id`
+**Auth**: Required (must be admin)
 
 ---
 
-## Phase 5: Testing (1-2 hours)
+## 🔧 Phase 3: Public/Private Communities (45 min)
 
-### Step 5.1: Unit Tests
-- [ ] Test `CreateCommunityRequest` validation
-- [ ] Test `UpdateCommunityRequest` validation
-- [ ] Test slug format validation
+### Step 3.1: Update Community Detail Access
+**File**: `src/server/src/handlers/api.rs` - `get_community_detail`
 
-### Step 5.2: Integration Tests
-- [ ] Create `src/server/tests/community_crud_test.rs`
-- [ ] Test POST /api/communities - Success (201)
-- [ ] Test POST /api/communities - Duplicate slug (409)
-- [ ] Test POST /api/communities - Invalid data (400)
-- [ ] Test POST /api/communities - Unauthenticated (401)
-- [ ] Test PUT /api/communities/:id - Success (200)
-- [ ] Test PUT /api/communities/:id - Not owner (403)
-- [ ] Test PUT /api/communities/:id - Not found (404)
-- [ ] Test PUT /api/communities/:id - Unauthenticated (401)
-- [ ] Test DELETE /api/communities/:id - Success (200/204)
-- [ ] Test DELETE /api/communities/:id - Not owner (403)
-- [ ] Test DELETE /api/communities/:id - Not found (404)
-- [ ] Test DELETE /api/communities/:id - Unauthenticated (401)
+**Logic**:
+- Public community: Anyone can view
+- Private community: Only members can view
+- Already partially implemented, verify it works
 
-### Step 5.3: Run All Tests
-- [ ] Run `cargo test --workspace` from `src/` directory
-- [ ] Verify all tests pass (189+)
-- [ ] Fix any failing tests
+### Step 3.2: Update Community List Access
+**File**: `src/server/src/handlers/api.rs` - `list_communities`
 
----
+**Logic**:
+- Show all public communities
+- Show private communities user is member of
+- Filter: `WHERE is_public = true OR user is member`
 
-## Phase 6: Documentation & Cleanup (30 min)
+### Step 3.3: Join Request for Private Communities
+**Endpoint**: `POST /api/communities/:id/request-join`
+**Auth**: Required
 
-### Step 6.1: Add Documentation
-- [ ] Add rustdoc comments to all handlers
-- [ ] Add examples to comments
-- [ ] Document error cases
+For communities with `requires_approval = true`:
+1. Create pending membership request
+2. Notify admins
+3. Return "Request pending"
 
-### Step 6.2: Code Review Prep
-- [ ] Run `cargo fmt` to format code
-- [ ] Run `cargo clippy` to check for issues
-- [ ] Commit changes with descriptive message
-- [ ] Push to feature branch
-- [ ] Create PR for Agent 2 review
+### Step 3.4: Approve/Reject Join Request (Admin only)
+**Endpoint**: `PUT /api/communities/:id/requests/:request_id`
+**Auth**: Required (must be admin)
 
 ---
 
-## 📊 Progress Tracking
+## 🔧 Phase 4: Community Discovery (1 hour)
 
-**Phase 1**: ✅ COMPLETED (Setup & Dependencies)
-**Phase 2**: ✅ COMPLETED (POST /api/communities - Create)
-**Phase 3**: ✅ COMPLETED (PUT /api/communities/:id - Update)
-**Phase 4**: ✅ COMPLETED (DELETE /api/communities/:id - Delete)
-**Phase 5**: ⏳ In Progress (Testing)
-**Phase 6**: ⏳ Pending (Documentation & Cleanup)
+### Step 4.1: Search Communities
+**Endpoint**: `GET /api/communities/search`
+**Auth**: Optional
 
-**Overall**: 67% Complete (4/6 phases done)
+```rust
+pub async fn search_communities(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<SearchParams>,
+) -> Result<Json<ApiResponse<CommunitiesListResponse>>, StatusCode>
+```
+
+**Query Params**:
+```rust
+pub struct SearchParams {
+    pub q: Option<String>,        // Search term
+    pub sort: Option<String>,     // "newest", "popular", "name"
+    pub page: Option<i32>,
+    pub per_page: Option<i32>,
+}
+```
+
+**SQL**:
+```sql
+SELECT c.*, COUNT(m.user_id) as member_count
+FROM communities c
+LEFT JOIN community_members m ON c.id = m.community_id
+WHERE c.is_public = true
+  AND (c.name ILIKE $1 OR c.description ILIKE $1)
+GROUP BY c.id
+ORDER BY member_count DESC
+LIMIT $2 OFFSET $3
+```
+
+### Step 4.2: My Communities
+**Endpoint**: `GET /api/communities/my`
+**Auth**: Required
+
+Returns communities user is member of.
+
+### Step 4.3: Trending/Popular Communities
+**Endpoint**: `GET /api/communities/trending`
+**Auth**: Optional
+
+Returns communities sorted by recent activity/member count.
 
 ---
 
-## 🚨 Blockers
+## 🔧 Phase 5: Owner/Admin Management (45 min)
 
-(Document any blockers in BLOCKERS_AND_NOTES.md)
+### Step 5.1: Transfer Ownership
+**Endpoint**: `POST /api/communities/:id/transfer-ownership`
+**Auth**: Required (must be owner)
+
+```rust
+pub async fn transfer_ownership(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<Uuid>,
+    Json(payload): Json<TransferOwnershipRequest>,
+) -> Result<Json<ApiResponse<()>>, StatusCode>
+```
+
+**Logic**:
+1. Verify requester is owner (`created_by = user_id`)
+2. Verify new owner is member
+3. Update `communities.created_by` to new owner
+4. Ensure new owner has admin role
+5. Return success
+
+### Step 5.2: Promote to Admin
+**Endpoint**: `PUT /api/communities/:id/members/:user_id/promote`
+**Auth**: Required (must be owner)
+
+### Step 5.3: Demote from Admin
+**Endpoint**: `PUT /api/communities/:id/members/:user_id/demote`
+**Auth**: Required (must be owner)
 
 ---
 
-## ⏱️ Time Estimates
+## 🔧 Phase 6: HTMX Fragments (1 hour)
 
-- Phase 1: 30 min
-- Phase 2: 1-2 hours
-- Phase 3: 1 hour
-- Phase 4: 30 min
-- Phase 5: 1-2 hours
-- Phase 6: 30 min
+### Step 6.1: Community Card Fragment
+**Endpoint**: `GET /api/htmx/communities/:id/card`
 
-**Total**: 4-6 hours
+```html
+<div class="community-card" id="community-{{ id }}">
+    <h3>{{ name }}</h3>
+    <p>{{ description }}</p>
+    <span class="member-count">{{ member_count }} members</span>
+    <div hx-get="/api/htmx/communities/{{ id }}/join-button" 
+         hx-trigger="load"
+         hx-swap="innerHTML"></div>
+</div>
+```
+
+### Step 6.2: Join/Leave Button Fragment
+**Endpoint**: `GET /api/htmx/communities/:id/join-button`
+
+Returns:
+- "Join" button if not member
+- "Leave" button if member
+- "Pending" if request pending
+- Nothing if owner
+
+### Step 6.3: Member List Fragment
+**Endpoint**: `GET /api/htmx/communities/:id/members`
+
+### Step 6.4: Community List Fragment
+**Endpoint**: `GET /api/htmx/communities`
+
+---
+
+## 🔧 Phase 7: Routes & Final Testing (30 min)
+
+### Step 7.1: Add all routes to main.rs
+
+```rust
+// Membership
+.route("/api/communities/:id/join", post(api::join_community))
+.route("/api/communities/:id/leave", post(api::leave_community))
+.route("/api/communities/:id/members", get(api::list_members))
+.route("/api/communities/:id/members/:user_id/role", put(api::update_member_role))
+.route("/api/communities/:id/members/:user_id", delete(api::remove_member))
+
+// Discovery
+.route("/api/communities/search", get(api::search_communities))
+.route("/api/communities/my", get(api::my_communities))
+.route("/api/communities/trending", get(api::trending_communities))
+
+// Admin
+.route("/api/communities/:id/transfer-ownership", post(api::transfer_ownership))
+.route("/api/communities/:id/members/:user_id/promote", put(api::promote_member))
+.route("/api/communities/:id/members/:user_id/demote", put(api::demote_member))
+
+// HTMX
+.route("/api/htmx/communities/:id/card", get(htmx::community_card))
+.route("/api/htmx/communities/:id/join-button", get(htmx::join_button))
+.route("/api/htmx/communities/:id/members", get(htmx::community_members))
+```
+
+### Step 7.2: Regenerate SQLx cache
+```bash
+cd src && source .env && cargo sqlx prepare --workspace
+```
+
+### Step 7.3: Run all tests
+```bash
+cargo test --workspace
+```
+
+### Step 7.4: Manual testing
+- Test join/leave flow
+- Test public/private access
+- Test admin operations
+- Test HTMX fragments
+
+---
+
+## 📊 New Types
+
+### Request Types
+```rust
+#[derive(Debug, Deserialize)]
+pub struct UpdateRoleRequest {
+    pub role: String,  // "admin", "moderator", "member"
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TransferOwnershipRequest {
+    pub new_owner_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchParams {
+    pub q: Option<String>,
+    pub sort: Option<String>,
+    pub page: Option<i32>,
+    pub per_page: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PaginationParams {
+    pub page: Option<i32>,
+    pub per_page: Option<i32>,
+}
+```
+
+### Response Types
+```rust
+#[derive(Debug, Serialize)]
+pub struct MemberResponse {
+    pub user_id: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub role: String,
+    pub joined_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MembersListResponse {
+    pub members: Vec<MemberResponse>,
+    pub total: i64,
+    pub page: i32,
+    pub per_page: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MembershipResponse {
+    pub community_id: String,
+    pub role: String,
+    pub joined_at: String,
+}
+```
+
+---
+
+## ✅ Verification Checklist
+
+### Phase 1: UUID & Tests
+- [ ] Server builds with UUIDv7
+- [ ] All tests updated for UUID
+- [ ] Tests pass
+
+### Phase 2: Membership
+- [ ] join_community works (public)
+- [ ] leave_community works
+- [ ] list_members works
+- [ ] update_member_role works (admin only)
+- [ ] remove_member works (admin only)
+
+### Phase 3: Public/Private
+- [ ] Private communities hidden from non-members
+- [ ] Join requests for approval-required communities
+- [ ] Approve/reject flow works
+
+### Phase 4: Discovery
+- [ ] search_communities works
+- [ ] my_communities works
+- [ ] trending_communities works
+
+### Phase 5: Admin
+- [ ] transfer_ownership works
+- [ ] promote_member works
+- [ ] demote_member works
+
+### Phase 6: HTMX
+- [ ] All fragments standalone
+- [ ] No hardcoded URLs
+- [ ] Fragments work in isolation
+
+### Phase 7: Final
+- [ ] All routes added
+- [ ] SQLx cache regenerated
+- [ ] All tests pass
+- [ ] Zero compilation errors
+
+---
+
+## 🚀 Execution Order
+
+1. **Phase 1**: Fix UUID & Tests (CRITICAL)
+2. **Phase 2**: Membership endpoints
+3. **Phase 3**: Public/Private logic
+4. **Phase 4**: Discovery endpoints
+5. **Phase 5**: Admin management
+6. **Phase 6**: HTMX fragments
+7. **Phase 7**: Routes & final testing
+
+---
+
+## 📝 Federation-Ready Notes
+
+All code must follow these patterns:
+- UUIDv7 for community IDs: `Uuid::now_v7()`
+- No hardcoded URLs: Use `APP_URL` env var
+- HTMX fragments standalone: No parent assumptions
+- Auth accepts any UUID: Local or federated users
