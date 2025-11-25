@@ -6,12 +6,32 @@
 
 ---
 
+## 🤖 **IMPORTANT: Model Selection**
+
+**Before starting, manually select the appropriate model:**
+
+### Agent 1 (Executor) - Steps 1-4
+👉 **Use Model**: Claude 3.5 Haiku
+- Faster execution for implementation
+- Cost-effective for coding tasks
+- Good for following established patterns
+
+### Agent 2 (Tech Lead) - Steps 5-8
+👉 **Use Model**: Claude 3.5 Sonnet
+- Better analysis and reasoning
+- Comprehensive technical review
+- Complex problem solving
+
+**Note**: Automatic model selection is not yet supported by Windsurf workflows. This is a manual step until the feature is available.
+
+---
+
 ## 🚀 Phase 1: Agent 1 (Executor) Implementation
 
 ### Step 1: Planning & Analysis
 - Analyze the user's request and requirements
 - Review existing codebase for context and patterns
-- Check for any relevant memories or previous implementations
+- **Check memories and documentation** for similar issues
 - Create a detailed implementation plan with todo list
 - Identify potential risks and dependencies
 
@@ -22,9 +42,17 @@
 - Write clean, maintainable code with proper error handling
 - Add comprehensive logging for debugging
 
+**🆘 Escalation Protocol**: If you encounter a blocking issue after 2-3 attempts:
+1. Document what you tried and error messages
+2. Ask Agent 2 for help: "@Agent2 I need technical assistance with [issue]"
+3. Provide full context and error logs
+4. Wait for Agent 2's guidance before continuing
+
 ### Step 3: Testing & Validation
 - Run `cargo build --workspace` to ensure zero compilation errors
-- Run `SQLX_OFFLINE=true cargo test --workspace` to verify all tests pass
+- Run `cargo test --workspace` from `src/` directory (database is available)
+- **IMPLEMENT real integration tests** (not stubs)
+- **Use real database** for integration tests (no SQLX_OFFLINE unless needed)
 - Perform manual testing of key user flows
 - Check UI/UX consistency with existing patterns
 - Validate database queries and transactions
@@ -35,12 +63,15 @@
 - Create PR with detailed description
 - Include manual testing checklist
 - Mark implementation as ready for Agent 2 review
+- **DO NOT MERGE** - wait for Agent 2 review and user approval
 
 **🛑 STOP AND WAIT**: Agent 1 implementation complete. Switch to Agent 2 for technical review.
 
 ---
 
 ## 🔍 Phase 2: Agent 2 (Tech Lead) Verification
+
+**👉 Switch to Claude 3.5 Sonnet model now**
 
 ### Step 5: Security Review
 - Verify authentication enforcement (AuthUser extractors)
@@ -83,18 +114,23 @@
 - **APPROVE** for merge or **REQUEST CHANGES**
 - Document any recommendations for future iterations
 - Sign off with Agent 2 approval
+- **WAIT FOR USER TO EXPLICITLY APPROVE MERGE**
 
-**🛑 STOP AND WAIT**: Agent 2 review complete. Awaiting final approval decision.
+**🛑 STOP AND WAIT**: Agent 2 review complete. **USER MUST APPROVE MERGE BEFORE PROCEEDING**.
 
 ---
 
-## ✅ Phase 3: Merge & Cleanup (Upon Approval)
+## ✅ Phase 3: Merge & Cleanup (Upon User Approval)
+
+**⚠️ IMPORTANT**: Only proceed with this phase after receiving explicit user approval to merge.
 
 ### Step 11: Merge Process
+- **Confirm user approval received** before proceeding
 - Switch to main branch
 - Merge feature branch (fast-forward preferred)
 - Push changes to remote repository
-- Delete feature branch locally and remotely
+- Apply any Agent 2 recommendations (if applicable)
+- **Keep feature branch** (don't delete until user confirms)
 - Update project documentation
 
 ### Step 12: Documentation & Tracking
