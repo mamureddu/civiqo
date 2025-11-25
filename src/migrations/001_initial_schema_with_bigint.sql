@@ -310,17 +310,20 @@ CREATE INDEX idx_business_products_business_id ON business_products(business_id)
 CREATE INDEX idx_proposals_community_id ON proposals(community_id);
 CREATE INDEX idx_proposals_created_by ON proposals(created_by);
 CREATE INDEX idx_proposals_status ON proposals(status);
+CREATE INDEX idx_proposals_created_by_status ON proposals(created_by, status);
 CREATE INDEX idx_proposal_comments_proposal_id ON proposal_comments(proposal_id);
 CREATE INDEX idx_proposal_comments_user_id ON proposal_comments(user_id);
 CREATE INDEX idx_proposal_comments_parent_id ON proposal_comments(parent_id);
 CREATE INDEX idx_decisions_community_id ON decisions(community_id);
 CREATE INDEX idx_decisions_created_by ON decisions(created_by);
 CREATE INDEX idx_decisions_status ON decisions(status);
+CREATE INDEX idx_decisions_created_by_status ON decisions(created_by, status);
 
 -- Poll indexes
 CREATE INDEX idx_polls_community_id ON polls(community_id);
 CREATE INDEX idx_polls_created_by ON polls(created_by);
 CREATE INDEX idx_polls_status ON polls(status);
+CREATE INDEX idx_polls_created_by_status ON polls(created_by, status);
 CREATE INDEX idx_votes_poll_id ON votes(poll_id);
 CREATE INDEX idx_votes_user_id ON votes(user_id);
 
