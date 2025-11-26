@@ -187,12 +187,23 @@ pub async fn dashboard(
 
 /// Community detail page
 pub async fn community_detail(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(state): State<Arc<AppState>>,
     Path(community_id): Path<String>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
     
     let mut ctx = Context::new();
+    
+    // Add auth info to context
+    if let Some(ref u) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("picture", &u.picture);
+        ctx.insert("user_id", &u.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
     
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
@@ -246,7 +257,11 @@ pub async fn community_detail(
         
         ctx.insert("posts", &posts_data);
     } else {
-        return Err(AppError(anyhow::anyhow!("Community not found")));
+        // Return 404 Not Found for missing communities
+        return Ok((
+            StatusCode::NOT_FOUND,
+            Html("<h1>Community Not Found</h1><p>The requested community does not exist.</p>"),
+        ).into_response());
     }
     
     let html = state.tera.render("community_detail.html", &ctx)?;

@@ -10,8 +10,15 @@
 //! Total interactions: 40
 //!
 //! Run with: cargo test view_interaction -p server
+//!
+//! ## Note on Serial Tests
+//! Some tests that depend on database state (like community_detail) are marked
+//! with `#[serial]` to prevent race conditions when running in parallel.
+//! These tests create/read test data and can conflict with other tests
+//! that modify the same tables concurrently.
 
 use axum_test::TestServer;
+use serial_test::serial;
 use server::create_test_app;
 use shared::database::Database;
 use uuid::Uuid;
@@ -156,7 +163,11 @@ async fn test_view_interaction_05_communities_list_fragment() {
 #[tokio::test]
 async fn test_view_interaction_04b_communities_search() {
     let server = create_server().await;
-    let response = server.get("/htmx/communities/search?q=demo").await;
+    
+    // Test the search endpoint with query parameter using add_query_param
+    let response = server.get("/htmx/communities/search")
+        .add_query_param("q", "demo")
+        .await;
     
     response.assert_status_success();
     let body = response.text();
@@ -168,7 +179,18 @@ async fn test_view_interaction_04b_communities_search() {
 // ============================================================================
 
 /// Test #6: Community detail page loads
+/// 
+/// This test is marked `#[serial]` because it:
+/// 1. Creates a test community in the database via `get_or_create_test_community`
+/// 2. Immediately queries that community via HTTP request
+/// 
+/// When run in parallel with other tests that also create/modify communities,
+/// there can be race conditions where:
+/// - The community is created but not yet visible to the HTTP handler's DB connection
+/// - Another test deletes or modifies the test community
+/// - Database connection pool returns different connections with different transaction states
 #[tokio::test]
+#[serial]
 async fn test_view_interaction_06_community_detail_page() {
     let db = setup_db().await;
     let (community_id, _slug) = get_or_create_test_community(&db).await;

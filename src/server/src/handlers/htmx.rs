@@ -124,6 +124,14 @@ pub async fn communities_list(
     "#, filter_text, filter_text, filter_text))
 }
 
+/// Communities search fragment (same as list but with search query)
+pub async fn communities_search(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<CommunitiesQuery>,
+) -> Html<String> {
+    communities_list(State(state), Query(query)).await
+}
+
 /// Chat room header fragment
 pub async fn chat_header(State(_state): State<Arc<AppState>>) -> Html<String> {
     Html(r#"

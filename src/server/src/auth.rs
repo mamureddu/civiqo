@@ -354,6 +354,7 @@ where
 }
 
 /// Optional auth - returns None if not authenticated instead of error
+/// This extractor never fails - it returns None if no session or no user
 pub struct OptionalAuthUser(pub Option<SessionData>);
 
 #[async_trait]
@@ -361,17 +362,19 @@ impl<S> FromRequestParts<S> for OptionalAuthUser
 where
     S: Send + Sync,
 {
-    type Rejection = (StatusCode, &'static str);
+    type Rejection = std::convert::Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let session = parts
-            .extensions
-            .get::<Session>()
-            .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Session not found"))?;
+        // Try to get session, return None if not found
+        let session = match parts.extensions.get::<Session>() {
+            Some(s) => s,
+            None => return Ok(OptionalAuthUser(None)),
+        };
 
+        // Try to get user from session, return None on any error
         match session.get::<SessionData>("user").await {
             Ok(user) => Ok(OptionalAuthUser(user)),
-            Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, "Session error")),
+            Err(_) => Ok(OptionalAuthUser(None)),
         }
     }
 }
