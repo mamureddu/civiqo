@@ -15,7 +15,7 @@
             <div class="flex items-center space-x-2">
                 {# Avatar #}
                 <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B7FBA] to-[#57C98A] flex items-center justify-center text-white font-semibold text-xs">
-                    {{ comment.author_name | default(value=comment.author_email) | first | upper }}
+                    {{ comment.author_name | default(value=comment.author_email) | truncate(length=1) | upper }}
                 </div>
                 <div>
                     <span class="font-medium text-gray-800 text-sm">
@@ -23,7 +23,7 @@
                     </span>
                     <span class="text-gray-400 text-xs mx-1">•</span>
                     <time class="text-gray-500 text-xs" datetime="{{ comment.created_at }}">
-                        {{ comment.created_at | date(format="%d %b %Y, %H:%M") }}
+                        {{ comment.created_at }}
                     </time>
                     {% if comment.is_edited %}
                     <span class="text-gray-400 text-xs italic ml-1">(modificato)</span>

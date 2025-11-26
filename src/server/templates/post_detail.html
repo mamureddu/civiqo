@@ -30,13 +30,13 @@
                     <div class="flex items-center space-x-3">
                         {# Author avatar #}
                         <div class="w-12 h-12 rounded-full bg-gradient-to-br from-[#57C98A] to-[#3B7FBA] flex items-center justify-center text-white font-semibold">
-                            {{ post.author_name | default(value=post.author_email) | first | upper }}
+                            {{ post.author_name | default(value=post.author_email) | truncate(length=1) | upper }}
                         </div>
                         <div>
                             <span class="font-semibold text-gray-900">{{ post.author_name | default(value=post.author_email) }}</span>
                             <div class="flex items-center text-sm text-gray-500">
                                 <time datetime="{{ post.created_at }}">
-                                    {{ post.created_at | date(format="%d %B %Y, %H:%M") }}
+                                    {{ post.created_at }}
                                 </time>
                                 {% if post.updated_at and post.updated_at != post.created_at %}
                                 <span class="mx-1">•</span>

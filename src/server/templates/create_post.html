@@ -25,7 +25,7 @@
         {# Community info card #}
         <div class="bg-[#57C98A]/10 rounded-lg p-4 mb-6 flex items-center space-x-3">
             <div class="w-10 h-10 rounded-lg bg-[#57C98A] flex items-center justify-center text-white font-bold">
-                {{ community.name | first | upper }}
+                {{ community.name | truncate(length=1) | upper }}
             </div>
             <div>
                 <p class="text-sm text-gray-600">Stai pubblicando in</p>

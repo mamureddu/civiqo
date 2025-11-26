@@ -758,13 +758,8 @@ async fn test_view_interaction_06f_members_list_shows_data() {
 }
 
 /// Test: Post detail page shows correct data from DB
-/// 
-/// NOTE: This test is currently skipped because the post_detail handler
-/// has a template rendering issue that needs investigation.
-/// TODO: Fix post_detail.html template and re-enable this test
 #[tokio::test]
 #[serial]
-#[ignore]
 async fn test_view_interaction_06g_post_detail_shows_data() {
     let db = setup_db().await;
     
@@ -843,13 +838,8 @@ async fn test_view_interaction_06g_post_detail_shows_data() {
     let server = create_server().await;
     let response = server.get(&format!("/posts/{}", post_id)).await;
     
-    let status = response.status_code();
+    response.assert_status_success();
     let body = response.text();
-    
-    if !status.is_success() {
-        eprintln!("Post detail error ({}): {}", status, &body[..body.len().min(1000)]);
-    }
-    assert!(status.is_success(), "Post detail should return 200, got {}", status);
     
     // Verify post title appears
     assert!(body.contains(&unique_title), "Post detail should show title: {}", unique_title);

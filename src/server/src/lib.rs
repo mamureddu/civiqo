@@ -58,7 +58,9 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
     let mut tera = None;
     for path in &possible_paths {
         if let Ok(t) = Tera::new(path) {
-            if t.get_template_names().count() > 0 {
+            let count = t.get_template_names().count();
+            if count > 0 {
+                tracing::info!("Loaded {} templates from {}", count, path);
                 tera = Some(t);
                 break;
             }
@@ -66,6 +68,7 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
     }
     
     let mut tera = tera.ok_or_else(|| {
+        tracing::error!("Failed to load templates. Current dir: {:?}", current_dir);
         format!("Failed to load templates from any path. Current dir: {:?}", current_dir)
     })?;
     tera.autoescape_on(vec![]);

@@ -475,7 +475,7 @@ pub async fn post_detail(
     let uuid = uuid::Uuid::parse_str(&post_id)
         .map_err(|_| AppError(anyhow::anyhow!("Invalid post ID")))?;
     
-    // Add auth info
+    // Add auth info - always insert user_id (even as null) for template
     let user_uuid = if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
         ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
@@ -484,6 +484,7 @@ pub async fn post_detail(
         uuid::Uuid::parse_str(&u.user_id).ok()
     } else {
         ctx.insert("logged_in", &false);
+        ctx.insert("user_id", &Option::<String>::None);
         None
     };
     
@@ -551,16 +552,16 @@ pub async fn post_detail(
     };
     ctx.insert("is_admin", &is_admin);
     
-    // Post data
+    // Post data - handle nullable fields with defaults
     let post_data = serde_json::json!({
         "id": post.get::<uuid::Uuid, _>("id").to_string(),
         "title": post.get::<String, _>("title"),
         "content": post.get::<String, _>("content"),
         "content_type": post.get::<Option<String>, _>("content_type").unwrap_or_else(|| "text".to_string()),
         "media_url": post.get::<Option<String>, _>("media_url"),
-        "is_pinned": post.get::<bool, _>("is_pinned"),
-        "is_locked": post.get::<bool, _>("is_locked"),
-        "view_count": post.get::<i64, _>("view_count"),
+        "is_pinned": post.get::<Option<bool>, _>("is_pinned").unwrap_or(false),
+        "is_locked": post.get::<Option<bool>, _>("is_locked").unwrap_or(false),
+        "view_count": post.get::<Option<i64>, _>("view_count").unwrap_or(0),
         "author_id": author_id.to_string(),
         "author_name": post.get::<Option<String>, _>("author_name"),
         "author_email": post.get::<Option<String>, _>("author_email").unwrap_or_default(),

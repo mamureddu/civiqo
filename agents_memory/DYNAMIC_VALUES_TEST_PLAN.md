@@ -156,13 +156,19 @@ async fn test_view_interaction_communities_list_shows_data() {
 3. ✅ `test_view_interaction_06d_communities_list_shows_data` - FATTO
 4. ✅ `test_view_interaction_06e_index_recent_communities` - FATTO
 5. ✅ `test_view_interaction_06f_members_list_shows_data` - FATTO
-6. ⏸️ `test_view_interaction_06g_post_detail_shows_data` - IGNORATO (template issue)
+6. ✅ `test_view_interaction_06g_post_detail_shows_data` - FATTO
 
 ## Fix Implementati
 
 ### Handler HTMX Fixati (erano hardcoded!)
 - ✅ `recent_communities` - Ora legge dal DB
 - ✅ `communities_list` - Ora legge dal DB con supporto search
+
+### Template Fix
+- ✅ Sostituito `| first` con `| truncate(length=1)` in tutti i template (Tera `first` funziona solo su array)
+- ✅ Rimosso `| date()` filter dove `created_at` è già formattato come stringa
+- ✅ Aggiunto `user_id` al context anche per utenti non autenticati
+- ✅ Gestione nullable fields (`is_pinned`, `is_locked`, `view_count`) con `Option<T>`
 
 ---
 
