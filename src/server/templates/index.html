@@ -54,7 +54,7 @@
     <!-- Recent Communities (HTMX) -->
     <div class="mt-12">
         <h2 class="text-2xl font-brand font-bold mb-6 text-civiqo-gray-900">Recent Communities</h2>
-        <div hx-get="/api/communities/recent" hx-trigger="load" hx-swap="innerHTML"
+        <div hx-get="/htmx/communities/recent" hx-trigger="load" hx-swap="innerHTML"
             class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- Loading state -->
             <div class="col-span-full text-center py-8 text-civiqo-gray-600">

@@ -14,7 +14,7 @@
 
     <!-- Search and Filters -->
     <div class="bg-white p-4 rounded-lg shadow-sm mb-6 border border-civiqo-gray-200">
-        <form hx-get="/api/communities/search" hx-trigger="input changed delay:500ms from:#search, change from:#filter"
+        <form hx-get="/htmx/communities/search" hx-trigger="input changed delay:500ms from:#search, change from:#filter"
             hx-target="#communities-list">
             <div class="flex gap-4">
                 <input type="text" id="search" name="q" placeholder="Search communities..."
@@ -53,7 +53,7 @@
     </div>
 
     <!-- Communities List (HTMX) -->
-    <div id="communities-list" hx-get="/api/communities/list" hx-trigger="load" hx-swap="innerHTML">
+    <div id="communities-list" hx-get="/htmx/communities/list" hx-trigger="load" hx-swap="innerHTML">
         <!-- Loading state -->
         <div class="text-center py-12 text-civiqo-gray-600">
             <div class="animate-pulse">Loading communities...</div>

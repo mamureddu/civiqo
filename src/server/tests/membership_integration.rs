@@ -63,8 +63,8 @@ mod membership_integration_tests {
             .expect("Failed to get admin role");
 
         sqlx::query!(
-            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at)
-             VALUES ($1, $2, $3, 'active', NOW())",
+            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at, created_at, updated_at)
+             VALUES ($1, $2, $3, 'active', NOW(), NOW(), NOW())",
             creator_id,
             community_id,
             admin_role_id
@@ -83,8 +83,8 @@ mod membership_integration_tests {
             .expect("Failed to get role");
 
         let _ = sqlx::query!(
-            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at)
-             VALUES ($1, $2, $3, $4, NOW())
+            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, NOW(), NOW(), NOW())
              ON CONFLICT DO NOTHING",
             user_id,
             community_id,
@@ -155,8 +155,8 @@ mod membership_integration_tests {
             .unwrap();
 
         sqlx::query!(
-            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at)
-             VALUES ($1, $2, $3, 'active', NOW())",
+            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at, created_at, updated_at)
+             VALUES ($1, $2, $3, 'active', NOW(), NOW(), NOW())",
             member_id,
             community_id,
             member_role_id
@@ -198,8 +198,8 @@ mod membership_integration_tests {
         add_member(&db, member_id, community_id, "member", "active").await;
 
         let result = sqlx::query!(
-            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at)
-             VALUES ($1, $2, (SELECT id FROM roles WHERE name = 'member'), 'active', NOW())
+            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at, created_at, updated_at)
+             VALUES ($1, $2, (SELECT id FROM roles WHERE name = 'member'), 'active', NOW(), NOW(), NOW())
              ON CONFLICT DO NOTHING
              RETURNING id",
             member_id,

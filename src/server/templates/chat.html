@@ -6,7 +6,7 @@
 <div class="max-w-6xl mx-auto">
     <div class="bg-white rounded-lg shadow-sm overflow-hidden" style="height: calc(100vh - 200px);">
         <!-- Chat Header (HTMX) -->
-        <div class="border-b border-civiqo-gray-200 p-4" hx-get="/api/chat/{{ room_id }}/header" hx-trigger="load"
+        <div class="border-b border-civiqo-gray-200 p-4" hx-get="/htmx/chat/{{ room_id }}/header" hx-trigger="load"
             hx-swap="innerHTML">
             <div class="flex items-center justify-between">
                 <h2 class="text-xl font-brand font-bold text-civiqo-gray-900">{{ room_name }}</h2>

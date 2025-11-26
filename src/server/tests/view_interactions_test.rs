@@ -97,16 +97,16 @@ async fn test_view_interaction_01_homepage_loads() {
     // Verify HTMX is loaded
     assert!(body.contains("htmx") || body.contains("hx-"), "Should have HTMX");
     // Verify the recent communities fragment trigger exists
-    assert!(body.contains("hx-get=\"/api/communities/recent\"") || 
-            body.contains("hx-get='/api/communities/recent'"),
+    assert!(body.contains("hx-get=\"/htmx/communities/recent\"") || 
+            body.contains("hx-get='/htmx/communities/recent'"),
             "Should have hx-get for recent communities");
 }
 
-/// Test #1b: GET /api/communities/recent returns HTML fragment
+/// Test #1b: GET /htmx/communities/recent returns HTML fragment
 #[tokio::test]
 async fn test_view_interaction_01b_recent_communities_fragment() {
     let server = create_server().await;
-    let response = server.get("/api/communities/recent").await;
+    let response = server.get("/htmx/communities/recent").await;
     
     response.assert_status_success();
     let body = response.text();
@@ -137,11 +137,11 @@ async fn test_view_interaction_04_communities_page_loads() {
             "Should have HTMX search/list functionality");
 }
 
-/// Test #5: GET /api/communities/list returns community cards
+/// Test #5: GET /htmx/communities/list returns community cards
 #[tokio::test]
 async fn test_view_interaction_05_communities_list_fragment() {
     let server = create_server().await;
-    let response = server.get("/api/communities/list").await;
+    let response = server.get("/htmx/communities/list").await;
     
     response.assert_status_success();
     let body = response.text();
@@ -153,24 +153,14 @@ async fn test_view_interaction_05_communities_list_fragment() {
 }
 
 /// Test #4b: Communities search returns filtered results
-/// Note: This test may fail in test environment due to route ordering issues
-/// The endpoint works correctly in production (verified manually)
 #[tokio::test]
 async fn test_view_interaction_04b_communities_search() {
     let server = create_server().await;
-    let response = server.get("/api/communities/search?q=demo").await;
+    let response = server.get("/htmx/communities/search?q=demo").await;
     
-    let status = response.status_code();
-    
-    // Accept success OR 500 (known test environment issue with route ordering)
-    // In production, this endpoint works correctly
-    assert!(status.is_success() || status.as_u16() == 500, 
-            "Communities search should return 200 or 500, got {}", status);
-    
-    if status.is_success() {
-        let body = response.text();
-        assert!(body.contains("<"), "Should return HTML");
-    }
+    response.assert_status_success();
+    let body = response.text();
+    assert!(body.contains("<"), "Should return HTML");
 }
 
 // ============================================================================
@@ -484,7 +474,7 @@ async fn test_view_interaction_40_remove_reaction_requires_auth() {
 #[tokio::test]
 async fn test_view_interaction_02_dashboard_communities_requires_auth() {
     let server = create_server().await;
-    let response = server.get("/api/user/communities").await;
+    let response = server.get("/htmx/user/communities").await;
     
     response.assert_status_unauthorized();
 }
@@ -493,7 +483,7 @@ async fn test_view_interaction_02_dashboard_communities_requires_auth() {
 #[tokio::test]
 async fn test_view_interaction_03_dashboard_activity_requires_auth() {
     let server = create_server().await;
-    let response = server.get("/api/user/activity").await;
+    let response = server.get("/htmx/user/activity").await;
     
     response.assert_status_unauthorized();
 }
@@ -518,7 +508,7 @@ async fn test_view_interaction_dashboard_page_requires_auth() {
 #[tokio::test]
 async fn test_view_interaction_18_chat_header() {
     let server = create_server().await;
-    let response = server.get("/api/chat/test-room/header").await;
+    let response = server.get("/htmx/chat/test-room/header").await;
     
     response.assert_status_success();
     let body = response.text();
@@ -595,7 +585,7 @@ async fn test_view_health_check() {
 #[tokio::test]
 async fn test_view_nav_fragment() {
     let server = create_server().await;
-    let response = server.get("/api/nav").await;
+    let response = server.get("/htmx/nav").await;
     
     response.assert_status_success();
     let body = response.text();

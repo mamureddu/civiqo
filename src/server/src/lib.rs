@@ -109,14 +109,14 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/poi", get(pages::poi))
         .route("/test-db", get(pages::test_db))
         
-        // HTMX API Fragments
-        .route("/api/nav", get(htmx::nav_fragment))
-        .route("/api/communities/recent", get(htmx::recent_communities))
-        .route("/api/communities/list", get(htmx::communities_list))
-        .route("/api/communities/search", get(htmx::communities_list))
-        .route("/api/chat/:room_id/header", get(htmx::chat_header))
-        .route("/api/user/communities", get(htmx::user_communities))
-        .route("/api/user/activity", get(htmx::user_activity))
+        // HTMX Fragments (return HTML fragments for dynamic updates)
+        .route("/htmx/nav", get(htmx::nav_fragment))
+        .route("/htmx/communities/recent", get(htmx::recent_communities))
+        .route("/htmx/communities/list", get(htmx::communities_list))
+        .route("/htmx/communities/search", get(htmx::communities_list))
+        .route("/htmx/chat/:room_id/header", get(htmx::chat_header))
+        .route("/htmx/user/communities", get(htmx::user_communities))
+        .route("/htmx/user/activity", get(htmx::user_activity))
         
         // REST API Endpoints
         .route("/api/users", get(api::get_users))
