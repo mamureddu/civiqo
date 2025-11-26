@@ -28,35 +28,50 @@ pub async fn nav_fragment(State(_state): State<Arc<AppState>>) -> Html<String> {
     "#.to_string())
 }
 
-/// Recent communities fragment
-pub async fn recent_communities(State(_state): State<Arc<AppState>>) -> Html<String> {
-    // TODO: Fetch from database
-    Html(r#"
-    <div class="community-card fade-in">
-        <h3 class="text-xl font-bold mb-2">Tech Community Milano</h3>
-        <p class="text-gray-600 mb-4">A community for tech enthusiasts in Milan</p>
-        <div class="flex items-center justify-between text-sm text-gray-500">
-            <span>👥 245 members</span>
-            <a href="/communities/tech-milano" class="text-blue-600 hover:text-blue-700">View →</a>
+/// Recent communities fragment - fetches from database
+pub async fn recent_communities(State(state): State<Arc<AppState>>) -> Html<String> {
+    use sqlx::Row;
+    
+    // Fetch recent communities from database
+    let communities = sqlx::query(
+        "SELECT c.id, c.name, c.slug, c.description, 
+                COUNT(DISTINCT m.user_id) as member_count
+         FROM communities c
+         LEFT JOIN community_members m ON c.id = m.community_id
+         WHERE c.is_public = true
+         GROUP BY c.id, c.name, c.slug, c.description
+         ORDER BY c.created_at DESC
+         LIMIT 6"
+    )
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if communities.is_empty() {
+        return Html(r#"<div class="col-span-full text-center py-8 text-gray-500">No communities yet. Be the first to create one!</div>"#.to_string());
+    }
+    
+    let mut html = String::new();
+    for (i, row) in communities.iter().enumerate() {
+        let id: uuid::Uuid = row.get("id");
+        let name: String = row.get("name");
+        let description: Option<String> = row.get("description");
+        let member_count: i64 = row.get("member_count");
+        let desc = description.unwrap_or_else(|| "A community on Civiqo".to_string());
+        
+        html.push_str(&format!(r#"
+        <div class="community-card fade-in bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow" style="animation-delay: {}ms;">
+            <h3 class="text-xl font-bold mb-2 text-gray-900">{}</h3>
+            <p class="text-gray-600 mb-4 line-clamp-2">{}</p>
+            <div class="flex items-center justify-between text-sm text-gray-500">
+                <span>👥 {} members</span>
+                <a href="/communities/{}" class="text-blue-600 hover:text-blue-700">View →</a>
+            </div>
         </div>
-    </div>
-    <div class="community-card fade-in" style="animation-delay: 100ms;">
-        <h3 class="text-xl font-bold mb-2">Green Living Roma</h3>
-        <p class="text-gray-600 mb-4">Sustainable living and eco-friendly practices</p>
-        <div class="flex items-center justify-between text-sm text-gray-500">
-            <span>👥 189 members</span>
-            <a href="/communities/green-roma" class="text-blue-600 hover:text-blue-700">View →</a>
-        </div>
-    </div>
-    <div class="community-card fade-in" style="animation-delay: 200ms;">
-        <h3 class="text-xl font-bold mb-2">Startup Torino</h3>
-        <p class="text-gray-600 mb-4">Connect with entrepreneurs and innovators</p>
-        <div class="flex items-center justify-between text-sm text-gray-500">
-            <span>👥 312 members</span>
-            <a href="/communities/startup-torino" class="text-blue-600 hover:text-blue-700">View →</a>
-        </div>
-    </div>
-    "#.to_string())
+        "#, i * 100, name, desc, member_count, id));
+    }
+    
+    Html(html)
 }
 
 #[derive(Deserialize)]
@@ -82,46 +97,77 @@ pub struct CommunitiesQuery {
 //     1
 // }
 
-/// Communities list fragment
+/// Communities list fragment - fetches from database with optional search
 pub async fn communities_list(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Query(query): Query<CommunitiesQuery>,
 ) -> Html<String> {
-    // TODO: Fetch from database with filters
-    let filter_text = if !query.q.is_empty() {
-        format!(" matching '{}'", query.q)
+    use sqlx::Row;
+    
+    // Build query based on search term
+    let communities = if query.q.is_empty() {
+        sqlx::query(
+            "SELECT c.id, c.name, c.slug, c.description, 
+                    COUNT(DISTINCT m.user_id) as member_count
+             FROM communities c
+             LEFT JOIN community_members m ON c.id = m.community_id
+             WHERE c.is_public = true
+             GROUP BY c.id, c.name, c.slug, c.description
+             ORDER BY c.created_at DESC
+             LIMIT 20"
+        )
+        .fetch_all(&state.db.pool)
+        .await
+        .unwrap_or_default()
     } else {
-        String::new()
+        let search_pattern = format!("%{}%", query.q);
+        sqlx::query(
+            "SELECT c.id, c.name, c.slug, c.description, 
+                    COUNT(DISTINCT m.user_id) as member_count
+             FROM communities c
+             LEFT JOIN community_members m ON c.id = m.community_id
+             WHERE c.is_public = true AND (c.name ILIKE $1 OR c.description ILIKE $1)
+             GROUP BY c.id, c.name, c.slug, c.description
+             ORDER BY c.created_at DESC
+             LIMIT 20"
+        )
+        .bind(&search_pattern)
+        .fetch_all(&state.db.pool)
+        .await
+        .unwrap_or_default()
     };
     
-    Html(format!(r#"
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div class="community-card">
-            <h3 class="text-xl font-bold mb-2">Tech Community Milano</h3>
-            <p class="text-gray-600 mb-4">A community for tech enthusiasts in Milan{}</p>
+    if communities.is_empty() {
+        let msg = if query.q.is_empty() {
+            "No communities yet. Be the first to create one!"
+        } else {
+            "No communities found matching your search."
+        };
+        return Html(format!(r#"<div class="col-span-full text-center py-8 text-gray-500">{}</div>"#, msg));
+    }
+    
+    let mut html = String::from(r#"<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">"#);
+    for row in &communities {
+        let id: uuid::Uuid = row.get("id");
+        let name: String = row.get("name");
+        let description: Option<String> = row.get("description");
+        let member_count: i64 = row.get("member_count");
+        let desc = description.unwrap_or_else(|| "A community on Civiqo".to_string());
+        
+        html.push_str(&format!(r#"
+        <div class="community-card bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow">
+            <h3 class="text-xl font-bold mb-2 text-gray-900">{}</h3>
+            <p class="text-gray-600 mb-4 line-clamp-2">{}</p>
             <div class="flex items-center justify-between text-sm text-gray-500">
-                <span>👥 245 members</span>
-                <a href="/communities/tech-milano" class="text-blue-600 hover:text-blue-700">View →</a>
+                <span>👥 {} members</span>
+                <a href="/communities/{}" class="text-blue-600 hover:text-blue-700">View →</a>
             </div>
         </div>
-        <div class="community-card">
-            <h3 class="text-xl font-bold mb-2">Green Living Roma</h3>
-            <p class="text-gray-600 mb-4">Sustainable living and eco-friendly practices{}</p>
-            <div class="flex items-center justify-between text-sm text-gray-500">
-                <span>👥 189 members</span>
-                <a href="/communities/green-roma" class="text-blue-600 hover:text-blue-700">View →</a>
-            </div>
-        </div>
-        <div class="community-card">
-            <h3 class="text-xl font-bold mb-2">Startup Torino</h3>
-            <p class="text-gray-600 mb-4">Connect with entrepreneurs and innovators{}</p>
-            <div class="flex items-center justify-between text-sm text-gray-500">
-                <span>👥 312 members</span>
-                <a href="/communities/startup-torino" class="text-blue-600 hover:text-blue-700">View →</a>
-            </div>
-        </div>
-    </div>
-    "#, filter_text, filter_text, filter_text))
+        "#, name, desc, member_count, id));
+    }
+    html.push_str("</div>");
+    
+    Html(html)
 }
 
 /// Communities search fragment (same as list but with search query)
