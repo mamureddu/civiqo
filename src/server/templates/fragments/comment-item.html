@@ -42,6 +42,7 @@
             {# Reply button (only if not at max depth and user is member) #}
             {% if depth < max_depth and is_member %}
             <button type="button"
+                    aria-label="Rispondi al commento"
                     class="text-gray-500 hover:text-[#3B7FBA] transition-colors flex items-center space-x-1"
                     hx-get="/api/comments/{{ comment.id }}/reply-form"
                     hx-target="#reply-form-{{ comment.id }}"
@@ -56,6 +57,7 @@
             {# Edit button (only for author) #}
             {% if is_author %}
             <button type="button"
+                    aria-label="Modifica commento"
                     class="text-gray-500 hover:text-[#57C98A] transition-colors flex items-center space-x-1"
                     hx-get="/api/comments/{{ comment.id }}/edit-form"
                     hx-target="#comment-content-{{ comment.id }}"
@@ -68,6 +70,7 @@
             
             {# Delete button #}
             <button type="button"
+                    aria-label="Elimina commento"
                     class="text-gray-500 hover:text-[#EF6F5E] transition-colors flex items-center space-x-1"
                     hx-delete="/api/comments/{{ comment.id }}"
                     hx-target="#comment-{{ comment.id }}"

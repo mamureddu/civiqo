@@ -4,6 +4,7 @@
 <div class="reaction-buttons flex items-center space-x-2" id="reactions-{{ post_id }}">
     {# Like button #}
     <button type="button"
+            aria-label="Mi piace"
             class="reaction-btn group flex items-center space-x-1 px-3 py-1.5 rounded-full border transition-all duration-200
                    {% if user_reaction == 'like' %}
                    bg-[#57C98A]/10 border-[#57C98A] text-[#57C98A]
@@ -22,6 +23,7 @@
     
     {# Heart button #}
     <button type="button"
+            aria-label="Cuore"
             class="reaction-btn group flex items-center space-x-1 px-3 py-1.5 rounded-full border transition-all duration-200
                    {% if user_reaction == 'heart' %}
                    bg-[#EF6F5E]/10 border-[#EF6F5E] text-[#EF6F5E]
@@ -40,6 +42,7 @@
     
     {# Celebrate button #}
     <button type="button"
+            aria-label="Festeggia"
             class="reaction-btn group flex items-center space-x-1 px-3 py-1.5 rounded-full border transition-all duration-200
                    {% if user_reaction == 'celebrate' %}
                    bg-[#F59E0B]/10 border-[#F59E0B] text-[#F59E0B]
@@ -56,6 +59,7 @@
     
     {# Thinking button #}
     <button type="button"
+            aria-label="Interessante"
             class="reaction-btn group flex items-center space-x-1 px-3 py-1.5 rounded-full border transition-all duration-200
                    {% if user_reaction == 'thinking' %}
                    bg-[#8B5CF6]/10 border-[#8B5CF6] text-[#8B5CF6]

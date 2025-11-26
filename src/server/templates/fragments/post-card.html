@@ -29,7 +29,7 @@
     
     {# Title #}
     <h3 class="text-xl font-bold text-gray-900 mb-2 hover:text-[#3B7FBA] transition-colors">
-        <a href="/posts/{{ post.id }}">{{ post.title }}</a>
+        <a href="/posts/{{ post.id }}" aria-label="Vai al post: {{ post.title }}">{{ post.title }}</a>
     </h3>
     
     {# Content excerpt #}
@@ -75,6 +75,7 @@
         
         {# Read more link #}
         <a href="/posts/{{ post.id }}" 
+           aria-label="Leggi post: {{ post.title }}"
            class="inline-flex items-center text-[#3B7FBA] hover:text-[#57C98A] font-medium text-sm transition-colors">
             Leggi tutto
             <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

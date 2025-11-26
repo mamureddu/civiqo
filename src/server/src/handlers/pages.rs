@@ -354,14 +354,24 @@ pub async fn community_posts(
         _ => "p.created_at DESC",
     };
     
-    // Fetch posts with counts
+    // Fetch posts with counts using JOINs (more efficient than subqueries)
     let query = format!(
         "SELECT p.id, p.title, p.content, p.media_url, p.is_pinned, p.view_count, p.created_at,
                 u.username as author_name, u.email as author_email,
-                (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) as comment_count,
-                (SELECT COUNT(*) FROM reactions r WHERE r.post_id = p.id) as reaction_count
+                COALESCE(cc.comment_count, 0) as comment_count,
+                COALESCE(rc.reaction_count, 0) as reaction_count
          FROM posts p
          LEFT JOIN users u ON p.author_id = u.id
+         LEFT JOIN (
+             SELECT post_id, COUNT(*) as comment_count 
+             FROM comments 
+             GROUP BY post_id
+         ) cc ON cc.post_id = p.id
+         LEFT JOIN (
+             SELECT post_id, COUNT(*) as reaction_count 
+             FROM reactions 
+             GROUP BY post_id
+         ) rc ON rc.post_id = p.id
          WHERE p.community_id = $1
          ORDER BY {}
          LIMIT $2 OFFSET $3",
