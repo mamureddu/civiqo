@@ -260,3 +260,237 @@ pub async fn user_activity(
     
     Ok(Html(html))
 }
+
+// =============================================================================
+// COMMUNITY FEED FRAGMENT
+// =============================================================================
+
+/// Community feed fragment - shows posts for a specific community
+pub async fn community_feed(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<String>,
+) -> Result<Html<String>, AppError> {
+    let uuid = uuid::Uuid::parse_str(&community_id)
+        .map_err(|_| AppError(anyhow::anyhow!("Invalid community ID")))?;
+    
+    let posts = sqlx::query(
+        "SELECT p.id, p.title, p.content, p.created_at,
+                COALESCE(pr.name, u.email) as author_name
+         FROM posts p
+         JOIN users u ON p.author_id = u.id
+         LEFT JOIN user_profiles pr ON u.id = pr.user_id
+         WHERE p.community_id = $1
+         ORDER BY p.created_at DESC
+         LIMIT 20"
+    )
+    .bind(uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if posts.is_empty() {
+        return Ok(Html(r#"
+        <div class="text-center py-12 text-gray-500">
+            <p class="text-lg">No posts yet in this community.</p>
+            <p class="text-sm mt-2">Be the first to share something!</p>
+        </div>
+        "#.to_string()));
+    }
+    
+    let mut html = String::new();
+    for row in posts {
+        let title = row.get::<String, _>("title");
+        let content = row.get::<String, _>("content");
+        let author = row.get::<Option<String>, _>("author_name").unwrap_or_else(|| "Anonymous".to_string());
+        let created_at = row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+            .format("%Y-%m-%d %H:%M")
+            .to_string();
+        
+        html.push_str(&format!(
+            r#"<article class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">{}</h3>
+                <p class="text-gray-600 mb-4">{}</p>
+                <div class="flex items-center text-sm text-gray-500">
+                    <span>By {}</span>
+                    <span class="mx-2">•</span>
+                    <span>{}</span>
+                </div>
+            </article>"#,
+            title, content, author, created_at
+        ));
+    }
+    
+    Ok(Html(html))
+}
+
+// =============================================================================
+// BUSINESSES FRAGMENTS
+// =============================================================================
+
+/// Businesses list fragment
+pub async fn businesses_list(State(_state): State<Arc<AppState>>) -> Html<String> {
+    // TODO: Fetch from database when businesses table exists
+    Html(r#"
+    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
+        <div class="p-6">
+            <h3 class="text-lg font-semibold text-gray-900">Sample Business</h3>
+            <p class="text-gray-600 text-sm mt-1">A sample business listing</p>
+            <div class="mt-4 flex items-center text-sm text-gray-500">
+                <span>⭐ 4.5</span>
+                <span class="mx-2">•</span>
+                <span>Open Now</span>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="h-48 bg-gradient-to-r from-green-400 to-green-600"></div>
+        <div class="p-6">
+            <h3 class="text-lg font-semibold text-gray-900">Another Business</h3>
+            <p class="text-gray-600 text-sm mt-1">Another sample business</p>
+            <div class="mt-4 flex items-center text-sm text-gray-500">
+                <span>⭐ 4.8</span>
+                <span class="mx-2">•</span>
+                <span>Closed</span>
+            </div>
+        </div>
+    </div>
+    "#.to_string())
+}
+
+/// Businesses search fragment
+#[derive(Deserialize)]
+pub struct BusinessSearchQuery {
+    #[serde(default)]
+    pub q: String,
+}
+
+pub async fn businesses_search(
+    State(_state): State<Arc<AppState>>,
+    Query(query): Query<BusinessSearchQuery>,
+) -> Html<String> {
+    // TODO: Implement actual search when businesses table exists
+    let search_term = query.q;
+    Html(format!(r#"
+    <div class="col-span-full text-center py-8 text-gray-500">
+        <p>Search results for "{}"</p>
+        <p class="text-sm mt-2">No businesses found matching your search.</p>
+    </div>
+    "#, search_term))
+}
+
+/// Business posts fragment
+pub async fn business_posts(
+    axum::extract::Path(_business_id): axum::extract::Path<String>,
+) -> Html<String> {
+    Html(r#"
+    <div class="text-center py-4 text-gray-500">
+        <p>No updates from this business yet.</p>
+    </div>
+    "#.to_string())
+}
+
+/// Business reviews fragment
+pub async fn business_reviews(
+    axum::extract::Path(_business_id): axum::extract::Path<String>,
+) -> Html<String> {
+    Html(r#"
+    <div class="text-center py-4 text-gray-500">
+        <p>No reviews yet. Be the first to leave a review!</p>
+    </div>
+    "#.to_string())
+}
+
+// =============================================================================
+// GOVERNANCE FRAGMENTS
+// =============================================================================
+
+/// Governance proposals fragment
+pub async fn governance_proposals(State(_state): State<Arc<AppState>>) -> Html<String> {
+    // TODO: Fetch from database when governance tables exist
+    Html(r#"
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-start justify-between mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">Sample Proposal</h3>
+                <p class="text-gray-600 text-sm mt-1">This is a sample governance proposal</p>
+            </div>
+            <span class="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">Active</span>
+        </div>
+        <div class="flex items-center text-sm text-gray-500">
+            <span>Ends in 5 days</span>
+            <span class="mx-2">•</span>
+            <span>42 votes</span>
+        </div>
+    </div>
+    "#.to_string())
+}
+
+// =============================================================================
+// POI FRAGMENTS
+// =============================================================================
+
+/// POI nearby places fragment
+pub async fn poi_nearby(State(_state): State<Arc<AppState>>) -> Html<String> {
+    // TODO: Fetch from database/external API when POI feature is implemented
+    Html(r#"
+    <div class="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 cursor-pointer transition">
+        <h4 class="font-medium text-gray-900">Central Park</h4>
+        <p class="text-sm text-gray-600">0.5 km away</p>
+    </div>
+    <div class="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 cursor-pointer transition">
+        <h4 class="font-medium text-gray-900">City Library</h4>
+        <p class="text-sm text-gray-600">0.8 km away</p>
+    </div>
+    <div class="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 cursor-pointer transition">
+        <h4 class="font-medium text-gray-900">Community Center</h4>
+        <p class="text-sm text-gray-600">1.2 km away</p>
+    </div>
+    "#.to_string())
+}
+
+// =============================================================================
+// COMMENT FRAGMENTS
+// =============================================================================
+
+/// Comment reply form fragment
+pub async fn comment_reply_form(
+    axum::extract::Path(comment_id): axum::extract::Path<String>,
+) -> Html<String> {
+    Html(format!(r#"
+    <form hx-post="/api/comments/{}/replies" hx-swap="outerHTML" class="mt-2">
+        <textarea name="content" rows="2" 
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#57C98A] text-sm"
+                  placeholder="Write a reply..."></textarea>
+        <div class="flex justify-end mt-2 space-x-2">
+            <button type="button" hx-get="/htmx/empty" hx-target="closest form" hx-swap="outerHTML"
+                    class="px-3 py-1 text-gray-500 text-sm">Cancel</button>
+            <button type="submit" class="px-3 py-1 bg-[#57C98A] text-white text-sm rounded">Reply</button>
+        </div>
+    </form>
+    "#, comment_id))
+}
+
+/// Comment edit form fragment
+pub async fn comment_edit_form(
+    axum::extract::Path(comment_id): axum::extract::Path<String>,
+) -> Html<String> {
+    // TODO: Fetch actual comment content from database
+    Html(format!(r#"
+    <form hx-put="/api/comments/{}" hx-swap="outerHTML" class="mt-2">
+        <textarea name="content" rows="3" 
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#57C98A] text-sm"
+                  placeholder="Edit your comment..."></textarea>
+        <div class="flex justify-end mt-2 space-x-2">
+            <button type="button" hx-get="/htmx/empty" hx-target="closest form" hx-swap="outerHTML"
+                    class="px-3 py-1 text-gray-500 text-sm">Cancel</button>
+            <button type="submit" class="px-3 py-1 bg-[#57C98A] text-white text-sm rounded">Save</button>
+        </div>
+    </form>
+    "#, comment_id))
+}
+
+/// Empty fragment - used for clearing content
+pub async fn empty_fragment() -> Html<String> {
+    Html(String::new())
+}

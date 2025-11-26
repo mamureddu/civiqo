@@ -130,9 +130,23 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/communities/recent", get(htmx::recent_communities))
         .route("/htmx/communities/list", get(htmx::communities_list))
         .route("/htmx/communities/search", get(htmx::communities_search))
+        .route("/htmx/communities/:id/feed", get(htmx::community_feed))
         .route("/htmx/chat/:room_id/header", get(htmx::chat_header))
         .route("/htmx/user/communities", get(htmx::user_communities))
         .route("/htmx/user/activity", get(htmx::user_activity))
+        // Business HTMX fragments
+        .route("/htmx/businesses/list", get(htmx::businesses_list))
+        .route("/htmx/businesses/search", get(htmx::businesses_search))
+        .route("/htmx/businesses/:id/posts", get(htmx::business_posts))
+        .route("/htmx/businesses/:id/reviews", get(htmx::business_reviews))
+        // Governance HTMX fragments
+        .route("/htmx/governance/proposals", get(htmx::governance_proposals))
+        // POI HTMX fragments
+        .route("/htmx/poi/nearby", get(htmx::poi_nearby))
+        // Comment HTMX fragments
+        .route("/htmx/comments/:id/reply-form", get(htmx::comment_reply_form))
+        .route("/htmx/comments/:id/edit-form", get(htmx::comment_edit_form))
+        .route("/htmx/empty", get(htmx::empty_fragment))
         
         // REST API Endpoints
         // NOTE: POST /api/users removed - users are created via Auth0 OAuth2 flow

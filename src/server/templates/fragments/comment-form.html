@@ -37,7 +37,7 @@
                 {% if is_reply %}
                 <button type="button"
                         class="px-3 py-1.5 text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
-                        hx-get="/api/empty"
+                        hx-get="/htmx/empty"
                         hx-target="#reply-form-{{ parent_id }}"
                         hx-swap="innerHTML">
                     Annulla

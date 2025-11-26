@@ -44,7 +44,7 @@
             <button type="button"
                     aria-label="Rispondi al commento"
                     class="text-gray-500 hover:text-[#3B7FBA] transition-colors flex items-center space-x-1"
-                    hx-get="/api/comments/{{ comment.id }}/reply-form"
+                    hx-get="/htmx/comments/{{ comment.id }}/reply-form"
                     hx-target="#reply-form-{{ comment.id }}"
                     hx-swap="innerHTML">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,7 +59,7 @@
             <button type="button"
                     aria-label="Modifica commento"
                     class="text-gray-500 hover:text-[#57C98A] transition-colors flex items-center space-x-1"
-                    hx-get="/api/comments/{{ comment.id }}/edit-form"
+                    hx-get="/htmx/comments/{{ comment.id }}/edit-form"
                     hx-target="#comment-content-{{ comment.id }}"
                     hx-swap="outerHTML">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

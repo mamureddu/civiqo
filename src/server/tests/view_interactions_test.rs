@@ -38,10 +38,16 @@ async fn setup_db() -> Database {
 }
 
 /// Get or create a test community for testing
+/// 
+/// This function ensures a valid test community exists with a valid creator.
+/// Uses a fixed slug to ensure we always get the same community.
 async fn get_or_create_test_community(db: &Database) -> (Uuid, String) {
-    // First try to get existing demo community
+    let fixed_slug = "view-interaction-test-community";
+    
+    // First try to get existing test community
     let existing = sqlx::query!(
-        "SELECT id, slug FROM communities WHERE slug = 'demo-community' LIMIT 1"
+        "SELECT id, slug FROM communities WHERE slug = $1 LIMIT 1",
+        fixed_slug
     )
     .fetch_optional(&db.pool)
     .await
@@ -52,33 +58,66 @@ async fn get_or_create_test_community(db: &Database) -> (Uuid, String) {
         return (community.id, community.slug);
     }
     
-    // Create a test community if none exists
-    let id = Uuid::now_v7();
-    let slug = format!("test-community-{}", &id.to_string()[..8]);
-    
-    // Get a user to be the creator
+    // Get or create a user to be the creator
     let user = sqlx::query!("SELECT id FROM users LIMIT 1")
         .fetch_optional(&db.pool)
         .await
         .ok()
         .flatten();
     
-    let creator_id = user.map(|u| u.id).unwrap_or_else(Uuid::new_v4);
+    let creator_id = match user {
+        Some(u) => u.id,
+        None => {
+            // Create a test user if none exists
+            let test_user_id = Uuid::now_v7();
+            sqlx::query!(
+                "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
+                 VALUES ($1, $2, $3, NOW(), NOW())
+                 ON CONFLICT (email) DO NOTHING",
+                test_user_id,
+                "test-view-interaction@example.com",
+                format!("auth0|test-{}", test_user_id)
+            )
+            .execute(&db.pool)
+            .await
+            .ok();
+            
+            // Fetch the user (might be existing or newly created)
+            sqlx::query!("SELECT id FROM users WHERE email = 'test-view-interaction@example.com'")
+                .fetch_one(&db.pool)
+                .await
+                .map(|u| u.id)
+                .unwrap_or(test_user_id)
+        }
+    };
     
-    let _ = sqlx::query!(
+    // Create the community with a fixed ID based on slug hash for consistency
+    let id = Uuid::now_v7();
+    
+    sqlx::query!(
         "INSERT INTO communities (id, name, slug, description, is_public, created_by, created_at, updated_at)
          VALUES ($1, $2, $3, $4, true, $5, NOW(), NOW())
          ON CONFLICT (slug) DO NOTHING",
         id,
-        "Test Community",
-        slug,
+        "View Interaction Test Community",
+        fixed_slug,
         "A test community for view interaction tests",
         creator_id
     )
     .execute(&db.pool)
-    .await;
+    .await
+    .ok();
     
-    (id, slug)
+    // Fetch the community to get the actual ID (in case of conflict)
+    let community = sqlx::query!(
+        "SELECT id, slug FROM communities WHERE slug = $1",
+        fixed_slug
+    )
+    .fetch_one(&db.pool)
+    .await
+    .expect("Community should exist after insert");
+    
+    (community.id, community.slug)
 }
 
 // ============================================================================
@@ -184,11 +223,8 @@ async fn test_view_interaction_04b_communities_search() {
 /// 1. Creates a test community in the database via `get_or_create_test_community`
 /// 2. Immediately queries that community via HTTP request
 /// 
-/// When run in parallel with other tests that also create/modify communities,
-/// there can be race conditions where:
-/// - The community is created but not yet visible to the HTTP handler's DB connection
-/// - Another test deletes or modifies the test community
-/// - Database connection pool returns different connections with different transaction states
+/// The test is strict: since we create the community, it MUST exist and return 200.
+/// A 404 would indicate a bug in the creation or query logic.
 #[tokio::test]
 #[serial]
 async fn test_view_interaction_06_community_detail_page() {
@@ -198,19 +234,15 @@ async fn test_view_interaction_06_community_detail_page() {
     let server = create_server().await;
     let response = server.get(&format!("/communities/{}", community_id)).await;
     
-    // Should load or return 404 if community was deleted
+    // STRICT: We just created this community, so it MUST exist
     let status = response.status_code();
     let body = response.text();
     
-    if !status.is_success() && status.as_u16() != 404 {
+    if !status.is_success() {
         eprintln!("Community detail error ({}): {}", status, &body[..body.len().min(500)]);
     }
-    assert!(status.is_success() || status.as_u16() == 404, 
-            "Should load community or return 404, got {}", status);
-    
-    if status.is_success() {
-        assert!(body.contains("<html"), "Should be HTML page");
-    }
+    response.assert_status_success();
+    assert!(body.contains("<html"), "Should be HTML page");
 }
 
 // ============================================================================
@@ -332,27 +364,50 @@ async fn test_view_interaction_20_23_request_join_requires_auth() {
 // ============================================================================
 
 /// Test #27-28: GET /api/communities/:id/members pagination
+/// 
+/// STRICT: Since we create a public community, listing members should succeed.
+/// The endpoint should return 200 with an empty list if no members exist.
 #[tokio::test]
+#[serial]
 async fn test_view_interaction_27_28_members_list() {
     let db = setup_db().await;
-    let (community_id, _) = get_or_create_test_community(&db).await;
+    let (community_id, slug) = get_or_create_test_community(&db).await;
+    
+    // Verify community exists in DB before making HTTP request
+    let exists = sqlx::query!(
+        "SELECT id FROM communities WHERE id = $1",
+        community_id
+    )
+    .fetch_optional(&db.pool)
+    .await
+    .expect("DB query should work");
+    
+    assert!(exists.is_some(), "Community {} (slug: {}) should exist in DB", community_id, slug);
     
     let server = create_server().await;
     
-    // Page 1
+    // Page 1 - should succeed for public community
+    // Note: Using add_query_param to properly encode query parameters
     let response = server
-        .get(&format!("/api/communities/{}/members?page=1&limit=10", community_id))
+        .get(&format!("/api/communities/{}/members", community_id))
+        .add_query_param("page", "1")
+        .add_query_param("limit", "10")
         .await;
-    let status = response.status_code();
-    // Public community should allow viewing members
-    assert!(status.is_success() || status.as_u16() == 404 || status.as_u16() == 403);
     
-    // Page 2
-    let response = server
-        .get(&format!("/api/communities/{}/members?page=2&limit=10", community_id))
-        .await;
     let status = response.status_code();
-    assert!(status.is_success() || status.as_u16() == 404 || status.as_u16() == 403);
+    if !status.is_success() {
+        let body = response.text();
+        eprintln!("Members list failed for community {}: {} - {}", community_id, status, body);
+    }
+    assert!(status.is_success(), "Members list should succeed for existing public community {}", community_id);
+    
+    // Page 2 - should also succeed (may be empty)
+    let response = server
+        .get(&format!("/api/communities/{}/members", community_id))
+        .add_query_param("page", "2")
+        .add_query_param("limit", "10")
+        .await;
+    response.assert_status_success();
 }
 
 /// Test #24-26: Admin operations require auth
@@ -613,6 +668,134 @@ async fn test_view_nav_fragment() {
     let body = response.text();
     // Should contain navigation links
     assert!(body.contains("<") && body.contains("href"), "Should be HTML with links");
+}
+
+// ============================================================================
+// NEW HTMX ENDPOINT TESTS
+// ============================================================================
+
+/// Test community feed HTMX fragment
+#[tokio::test]
+#[serial]
+async fn test_htmx_community_feed() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/htmx/communities/{}/feed", community_id)).await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    // Should be a fragment, not a full page
+    assert!(!body.contains("<!DOCTYPE html>"), "Should be fragment, not full page");
+    // Should contain HTML content
+    assert!(body.contains("<"), "Should return HTML");
+}
+
+/// Test businesses list HTMX fragment
+#[tokio::test]
+async fn test_htmx_businesses_list() {
+    let server = create_server().await;
+    let response = server.get("/htmx/businesses/list").await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    assert!(!body.contains("<!DOCTYPE html>"), "Should be fragment");
+    assert!(body.contains("<"), "Should return HTML");
+}
+
+/// Test businesses search HTMX fragment
+#[tokio::test]
+async fn test_htmx_businesses_search() {
+    let server = create_server().await;
+    let response = server.get("/htmx/businesses/search")
+        .add_query_param("q", "test")
+        .await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    assert!(!body.contains("<!DOCTYPE html>"), "Should be fragment");
+}
+
+/// Test business posts HTMX fragment
+#[tokio::test]
+async fn test_htmx_business_posts() {
+    let server = create_server().await;
+    let response = server.get("/htmx/businesses/test-business-id/posts").await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    assert!(!body.contains("<!DOCTYPE html>"), "Should be fragment");
+}
+
+/// Test business reviews HTMX fragment
+#[tokio::test]
+async fn test_htmx_business_reviews() {
+    let server = create_server().await;
+    let response = server.get("/htmx/businesses/test-business-id/reviews").await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    assert!(!body.contains("<!DOCTYPE html>"), "Should be fragment");
+}
+
+/// Test governance proposals HTMX fragment
+#[tokio::test]
+async fn test_htmx_governance_proposals() {
+    let server = create_server().await;
+    let response = server.get("/htmx/governance/proposals").await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    assert!(!body.contains("<!DOCTYPE html>"), "Should be fragment");
+    assert!(body.contains("<"), "Should return HTML");
+}
+
+/// Test POI nearby HTMX fragment
+#[tokio::test]
+async fn test_htmx_poi_nearby() {
+    let server = create_server().await;
+    let response = server.get("/htmx/poi/nearby").await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    assert!(!body.contains("<!DOCTYPE html>"), "Should be fragment");
+    assert!(body.contains("<"), "Should return HTML");
+}
+
+/// Test comment reply form HTMX fragment
+#[tokio::test]
+async fn test_htmx_comment_reply_form() {
+    let server = create_server().await;
+    let response = server.get("/htmx/comments/test-comment-id/reply-form").await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    assert!(body.contains("form"), "Should contain a form");
+    assert!(body.contains("textarea"), "Should contain textarea");
+}
+
+/// Test comment edit form HTMX fragment
+#[tokio::test]
+async fn test_htmx_comment_edit_form() {
+    let server = create_server().await;
+    let response = server.get("/htmx/comments/test-comment-id/edit-form").await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    assert!(body.contains("form"), "Should contain a form");
+    assert!(body.contains("textarea"), "Should contain textarea");
+}
+
+/// Test empty HTMX fragment
+#[tokio::test]
+async fn test_htmx_empty_fragment() {
+    let server = create_server().await;
+    let response = server.get("/htmx/empty").await;
+    
+    response.assert_status_success();
+    let body = response.text();
+    assert!(body.is_empty(), "Empty fragment should return empty string");
 }
 
 // ============================================================================
