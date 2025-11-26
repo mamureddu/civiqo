@@ -1,7 +1,7 @@
 use axum::{
-    extract::{Path, State, Query},
+    extract::{Path, State, Query, Form},
     http::StatusCode,
-    response::Json,
+    response::{Json, Html, IntoResponse, Response, Redirect},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -166,6 +166,74 @@ pub async fn create_post(
                 success: false, data: None,
                 message: Some("Failed to create post".to_string()),
             })))
+        }
+    }
+}
+
+/// Create a new post via HTMX form submission (returns redirect)
+pub async fn create_post_htmx(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(community_id): Path<Uuid>,
+    Form(payload): Form<CreatePostRequest>,
+) -> Response {
+    let user_uuid = match Uuid::parse_str(&user.user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<div class=\"text-red-500\">Invalid user ID</div>").into_response(),
+    };
+
+    let title = payload.title.trim();
+    let content = payload.content.trim();
+    
+    if title.is_empty() || content.is_empty() {
+        return Html("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">Titolo e contenuto sono obbligatori</div>").into_response();
+    }
+
+    // Check membership
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active')"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(false);
+
+    // Also check if user is the community creator
+    let is_creator: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM communities WHERE id = $1 AND created_by = $2)"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(false);
+
+    if !is_member && !is_creator {
+        return Html("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">Devi essere membro della community per pubblicare</div>").into_response();
+    }
+
+    let content_type = payload.content_type.unwrap_or_else(|| "markdown".to_string());
+    let post_id = Uuid::now_v7();
+
+    let result = sqlx::query(
+        "INSERT INTO posts (id, community_id, author_id, title, content, content_type, media_url, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())"
+    )
+    .bind(post_id).bind(community_id).bind(user_uuid)
+    .bind(title).bind(content).bind(&content_type).bind(&payload.media_url)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            tracing::info!("User {} created post {} in community {}", user.user_id, post_id, community_id);
+            // Redirect to the new post
+            Redirect::to(&format!("/posts/{}", post_id)).into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to create post: {}", e);
+            Html("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">Errore durante la creazione del post</div>").into_response()
         }
     }
 }

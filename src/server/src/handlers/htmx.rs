@@ -540,3 +540,79 @@ pub async fn comment_edit_form(
 pub async fn empty_fragment() -> Html<String> {
     Html(String::new())
 }
+
+// =============================================================================
+// COMMUNITY MEMBERS FRAGMENT
+// =============================================================================
+
+/// Community members list fragment - returns HTML for HTMX
+pub async fn community_members(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let uuid = match uuid::Uuid::parse_str(&community_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<p class=\"text-red-500\">Invalid community ID</p>".to_string()),
+    };
+    
+    // Fetch members from database
+    let members = sqlx::query(
+        r#"SELECT u.id, u.email, p.name, p.avatar_url, cm.role, cm.joined_at
+           FROM community_members cm
+           JOIN users u ON cm.user_id = u.id
+           LEFT JOIN user_profiles p ON u.id = p.user_id
+           WHERE cm.community_id = $1 AND cm.status = 'active'
+           ORDER BY cm.joined_at ASC
+           LIMIT 50"#
+    )
+    .bind(uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if members.is_empty() {
+        return Html(r#"
+        <div class="text-center py-8 text-gray-500">
+            <p>Nessun membro ancora.</p>
+        </div>
+        "#.to_string());
+    }
+    
+    let mut html = String::from(r#"<div class="space-y-3">"#);
+    
+    for member in members {
+        let email: String = member.get("email");
+        let name: Option<String> = member.get("name");
+        let avatar_url: Option<String> = member.get("avatar_url");
+        let role: Option<String> = member.get("role");
+        let display_name = name.unwrap_or_else(|| email.clone());
+        let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
+        let role_badge = match role.as_deref() {
+            Some("admin") => r#"<span class="px-2 py-0.5 bg-[#3B7FBA]/10 text-[#3B7FBA] text-xs rounded-full">Admin</span>"#,
+            Some("moderator") => r#"<span class="px-2 py-0.5 bg-[#57C98A]/10 text-[#57C98A] text-xs rounded-full">Mod</span>"#,
+            _ => "",
+        };
+        
+        let avatar_html = if let Some(url) = avatar_url {
+            format!(r#"<img src="{}" alt="{}" class="w-10 h-10 rounded-full object-cover">"#, url, display_name)
+        } else {
+            format!(r#"<div class="w-10 h-10 rounded-full bg-[#57C98A]/10 flex items-center justify-center text-[#57C98A] font-medium">{}</div>"#, initial)
+        };
+        
+        html.push_str(&format!(r#"
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+            <div class="flex items-center space-x-3">
+                {}
+                <div>
+                    <p class="font-medium text-gray-900">{}</p>
+                    <p class="text-sm text-gray-500">{}</p>
+                </div>
+            </div>
+            {}
+        </div>
+        "#, avatar_html, display_name, email, role_badge));
+    }
+    
+    html.push_str("</div>");
+    Html(html)
+}

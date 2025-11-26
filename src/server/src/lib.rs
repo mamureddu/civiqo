@@ -118,6 +118,8 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/htmx/communities/list", get(htmx::communities_list))
         .route("/htmx/communities/search", get(htmx::communities_search))
         .route("/htmx/communities/:id/feed", get(htmx::community_feed))
+        .route("/htmx/communities/:id/members", get(htmx::community_members))
+        .route("/htmx/communities/:id/posts", post(posts::create_post_htmx))
         .route("/htmx/chat/:room_id/header", get(htmx::chat_header))
         .route("/htmx/user/communities", get(htmx::user_communities))
         .route("/htmx/user/activity", get(htmx::user_activity))

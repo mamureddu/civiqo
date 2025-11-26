@@ -137,7 +137,7 @@
             
             {# Members Tab #}
             <div x-show="activeTab === 'members'" x-cloak>
-                <div hx-get="/api/communities/{{ community_id }}/members"
+                <div hx-get="/htmx/communities/{{ community_id }}/members"
                      hx-trigger="intersect once"
                      hx-swap="innerHTML">
                     <!-- Loading placeholder -->
