@@ -15,7 +15,7 @@
         </div>
 
         <!-- Chat WASM Component -->
-        <div id="chat-root" class="h-full" data-room-id="{{ room_id }}" data-user-id="{{ user_id }}"
+        <div id="chat-root" class="h-full" data-room-id="{{ room_id }}" data-user-id="{{ user_id | default(value='') }}"
             data-ws-url="ws://localhost:9002/ws/chat/{{ room_id }}">
             <!-- WASM chat component will mount here -->
             <div class="flex items-center justify-center h-full text-civiqo-gray-600">
