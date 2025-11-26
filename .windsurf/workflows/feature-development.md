@@ -88,6 +88,10 @@
 - Run `cargo test --workspace` from `src/` directory (database is available)
 - **IMPLEMENT real integration tests** (not stubs)
 - **Use real database** for integration tests (no SQLX_OFFLINE unless needed)
+- **IMPLEMENT view interaction tests** for all HTMX endpoints (MANDATORY)
+  - See `docs/AGENT_1_EXECUTOR_PROMPT.md` for test patterns
+  - Test all `hx-get`, `hx-post`, `hx-put`, `hx-delete` interactions
+  - Verify HTML responses contain expected elements
 - Perform manual testing of key user flows
 - Check UI/UX consistency with existing patterns
 - Validate database queries and transactions
@@ -135,6 +139,10 @@
 - Assess test coverage for new features
 - Review integration test scenarios
 - Validate edge case handling
+- **Verify view interaction tests exist** for all HTMX endpoints (MANDATORY)
+  - See `docs/AGENT_2_VERIFIER_PROMPT.md` for verification checklist
+  - Count HTMX attributes vs interaction tests
+  - Request changes if coverage is incomplete
 
 ### Step 8: Production Readiness
 - Confirm zero compilation errors
@@ -214,6 +222,7 @@
 - [ ] Security best practices applied
 - [ ] Brand compliance maintained
 - [ ] All tests passing
+- [ ] **View interaction tests** for all HTMX endpoints
 - [ ] Manual testing completed
 - [ ] Documentation updated
 
@@ -222,6 +231,7 @@
 - [ ] Code quality approved
 - [ ] Brand compliance verified
 - [ ] Test coverage adequate
+- [ ] **View interaction tests verified** for all HTMX endpoints
 - [ ] Production ready confirmed
 - [ ] Detailed feedback provided
 - [ ] Final decision documented

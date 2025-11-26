@@ -164,6 +164,47 @@ mod tests {
 - Database integration testing
 - HTMX form submission testing
 
+#### 3. View Interaction Tests (MANDATORY)
+**File**: `src/server/tests/view_interactions_test.rs`
+
+Every fullstack feature MUST include tests for all user interactions in the view.
+Since views return HTMX fragments, test by:
+1. Making HTTP requests to the page/fragment endpoints
+2. Parsing the HTML response to find interactive elements
+3. Simulating user interactions via HTMX endpoints
+4. Verifying the response HTML contains expected content
+
+**Example structure:**
+```rust
+#[tokio::test]
+async fn test_create_community_form_interaction() {
+    // 1. GET the page containing the form
+    let response = client.get("/communities").send().await;
+    assert!(response.status().is_success());
+    
+    // 2. Verify form exists with correct hx-post
+    let html = response.text().await;
+    assert!(html.contains("hx-post=\"/api/communities\""));
+    
+    // 3. POST to the HTMX endpoint (simulating form submit)
+    let response = client.post("/api/communities")
+        .json(&CreateCommunityRequest { name: "Test", ... })
+        .send().await;
+    
+    // 4. Verify response fragment contains success message
+    let html = response.text().await;
+    assert!(html.contains("Community created") || response.status().is_success());
+}
+```
+
+**Required tests per view:**
+- All buttons/links with `hx-get`, `hx-post`, `hx-put`, `hx-delete`
+- Form submissions and validation feedback
+- Modal open/close interactions
+- Pagination controls
+- Search/filter functionality
+- Success/error message display
+
 ---
 
 ## Phase 2: List/View Communities (NEXT)
@@ -283,6 +324,8 @@ gh pr create --title "Communities CRUD Implementation" --body "## Features Imple
 - [ ] Error scenarios tested
 - [ ] Manual browser testing successful
 - [ ] HTMX functionality tested
+- [ ] **View interaction tests** for all user interactions (MANDATORY)
+- [ ] All `hx-*` attributes have corresponding test coverage
 
 ### Documentation
 - [ ] Code comments for complex logic

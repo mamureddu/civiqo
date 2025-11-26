@@ -149,6 +149,27 @@ let query = format!("INSERT INTO communities (name, description) VALUES ('{}', '
 - [ ] Error responses validated
 - [ ] Performance under load considered
 
+**View Interaction Tests (MANDATORY):**
+- [ ] All `hx-get` endpoints have test coverage
+- [ ] All `hx-post` form submissions tested
+- [ ] All `hx-put` update operations tested
+- [ ] All `hx-delete` operations tested
+- [ ] Pagination interactions tested
+- [ ] Search/filter functionality tested
+- [ ] Modal open/close interactions tested
+- [ ] Success/error message display verified
+- [ ] Tests verify HTML response contains expected elements
+
+**View test verification process:**
+```bash
+# Run view interaction tests specifically
+cargo test view_interaction --workspace
+
+# Verify test coverage for all HTMX endpoints
+grep -r "hx-" src/server/templates/ | wc -l  # Count HTMX attributes
+cargo test --workspace 2>&1 | grep -c "test_.*interaction"  # Count interaction tests
+```
+
 **Manual testing checklist:**
 - [ ] Login/logout flow works
 - [ ] Form validation displays correctly
@@ -168,6 +189,7 @@ let query = format!("INSERT INTO communities (name, description) VALUES ('{}', '
 - Complete brand guideline compliance
 - No security vulnerabilities
 - Comprehensive test coverage
+- **View interaction tests for all HTMX endpoints** (MANDATORY)
 - Manual testing successful
 - Code follows project patterns
 - Documentation adequate
@@ -177,6 +199,7 @@ let query = format!("INSERT INTO communities (name, description) VALUES ('{}', '
 - Minor code quality issues
 - Incomplete error handling
 - Missing test coverage
+- **Missing view interaction tests for any HTMX endpoint**
 - Documentation gaps
 - Performance concerns
 - Minor brand inconsistencies
