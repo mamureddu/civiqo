@@ -83,16 +83,57 @@
                     </div>
                 </div>
 
+                <!-- Search Bar -->
+                <div class="hidden md:block flex-1 max-w-md mx-8" x-data="{ open: false, query: '' }">
+                    <div class="relative">
+                        <input type="text"
+                               x-model="query"
+                               @input.debounce.300ms="if(query.length >= 2) { $refs.results.innerHTML = '<div class=\'p-4 text-center text-gray-500\'>Cercando...</div>'; htmx.ajax('GET', '/htmx/search?q=' + encodeURIComponent(query), {target: $refs.results}); open = true; } else { open = false; }"
+                               @focus="if(query.length >= 2) open = true"
+                               @click.away="open = false"
+                               placeholder="Cerca utenti, community, post..."
+                               class="w-full pl-10 pr-4 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:border-civiqo-blue text-sm">
+                        <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <!-- Search Results Dropdown -->
+                        <div x-show="open" x-cloak
+                             x-ref="results"
+                             class="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto z-50">
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Auth Section -->
                 <div class="flex items-center space-x-4">
                     {% if logged_in %}
+                    <!-- Notifications -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open; if(open) htmx.ajax('GET', '/htmx/notifications', {target: $refs.dropdown})"
+                                class="relative p-2 text-civiqo-gray-600 hover:text-civiqo-blue transition">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                            </svg>
+                            <!-- Notification badge - shown via HTMX -->
+                            <span id="notification-badge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-civiqo-coral text-white text-xs rounded-full flex items-center justify-center"></span>
+                        </button>
+                        <!-- Dropdown -->
+                        <div x-show="open" x-cloak @click.away="open = false"
+                             x-ref="dropdown"
+                             class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto z-50">
+                            <div class="p-4 text-center text-gray-500">Caricamento...</div>
+                        </div>
+                    </div>
+                    
                     <!-- Logged in user -->
                     <div class="flex items-center space-x-4">
-                        {% if picture %}
-                        <img src="{{ picture }}" alt="{{ username }}"
-                            class="w-8 h-8 rounded-full border border-civiqo-gray-200">
-                        {% endif %}
-                        <span class="text-civiqo-gray-900 font-medium">{{ username }}</span>
+                        <a href="/users/{{ user_id }}" class="flex items-center space-x-2 hover:opacity-80 transition">
+                            {% if picture %}
+                            <img src="{{ picture }}" alt="{{ username }}"
+                                class="w-8 h-8 rounded-full border border-civiqo-gray-200">
+                            {% endif %}
+                            <span class="text-civiqo-gray-900 font-medium">{{ username }}</span>
+                        </a>
                         <a href="/dashboard"
                             class="text-civiqo-blue hover:text-civiqo-blue-dark font-medium transition-colors">Dashboard</a>
                         <button onclick="logout()"

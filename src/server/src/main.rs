@@ -124,6 +124,9 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/governance", get(pages::governance))
         .route("/poi", get(pages::poi))
         .route("/test-db", get(pages::test_db))
+        // User profile pages
+        .route("/users/:id", get(pages::user_profile))
+        .route("/users/:id/edit", get(pages::edit_profile_page))
         
         // HTMX Fragments (return HTML fragments for dynamic updates)
         .route("/htmx/nav", get(htmx::nav_fragment))
@@ -149,6 +152,14 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/comments/:id/reply-form", get(htmx::comment_reply_form))
         .route("/htmx/comments/:id/edit-form", get(htmx::comment_edit_form))
         .route("/htmx/empty", get(htmx::empty_fragment))
+        // Search and user profile HTMX fragments
+        .route("/htmx/search", get(htmx::search_results))
+        .route("/htmx/users/:id/follow-button", get(htmx::follow_button))
+        .route("/htmx/users/:id/posts", get(htmx::user_posts))
+        .route("/htmx/users/:id/communities", get(htmx::user_profile_communities))
+        .route("/htmx/users/:id/followers", get(htmx::user_followers))
+        .route("/htmx/users/:id/following", get(htmx::user_following))
+        .route("/htmx/notifications", get(htmx::notifications_dropdown))
         
         // REST API Endpoints
         // NOTE: POST /api/users removed - users are created via Auth0 OAuth2 flow
@@ -195,6 +206,11 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/posts/:id/reactions", post(reactions::add_reaction))
         .route("/api/posts/:id/reactions", delete(reactions::remove_reaction))
         .route("/api/posts/:id/reactions", get(reactions::list_reactions))
+        
+        // User profile endpoints
+        .route("/api/users/:id", put(api::update_profile))
+        .route("/api/users/:id/follow", post(api::follow_user))
+        .route("/api/users/:id/unfollow", post(api::unfollow_user))
         
         // Static files
         .nest_service("/static", ServeDir::new(static_path))

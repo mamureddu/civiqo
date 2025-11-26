@@ -822,3 +822,161 @@ where
         Self(err.into())
     }
 }
+
+// =============================================================================
+// USER PROFILE PAGES
+// =============================================================================
+
+/// User profile page (PUBLIC)
+pub async fn user_profile(
+    OptionalAuthUser(current_user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(user_id): Path<String>,
+) -> Result<Response, AppError> {
+    use sqlx::Row;
+    
+    let mut ctx = Context::new();
+    
+    // Parse target user UUID
+    let target_uuid = uuid::Uuid::parse_str(&user_id)
+        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+    
+    // Add auth info to context
+    let is_own_profile = if let Some(ref u) = current_user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("picture", &u.picture);
+        ctx.insert("user_id", &u.user_id);
+        u.user_id == user_id
+    } else {
+        ctx.insert("logged_in", &false);
+        false
+    };
+    ctx.insert("is_own_profile", &is_own_profile);
+    
+    // Fetch user profile
+    let profile = sqlx::query(
+        r#"SELECT u.id, u.email, u.created_at,
+                  p.name, p.picture, p.bio, p.location, p.website, 
+                  p.cover_image, p.avatar_url, p.is_public,
+                  COALESCE(p.follower_count, 0) as follower_count,
+                  COALESCE(p.following_count, 0) as following_count
+           FROM users u
+           LEFT JOIN user_profiles p ON u.id = p.user_id
+           WHERE u.id = $1"#
+    )
+    .bind(target_uuid)
+    .fetch_optional(&state.db.pool)
+    .await?;
+    
+    let Some(row) = profile else {
+        return Ok((
+            StatusCode::NOT_FOUND,
+            Html("<h1>Utente non trovato</h1>"),
+        ).into_response());
+    };
+    
+    // Check privacy
+    let is_public: bool = row.get::<Option<bool>, _>("is_public").unwrap_or(true);
+    if !is_public && !is_own_profile {
+        return Ok((
+            StatusCode::FORBIDDEN,
+            Html("<h1>Profilo privato</h1><p>Questo profilo non è pubblico.</p>"),
+        ).into_response());
+    }
+    
+    let email: String = row.get("email");
+    let profile_name = row.get::<Option<String>, _>("name").unwrap_or_else(|| email.clone());
+    let avatar_url = row.get::<Option<String>, _>("avatar_url")
+        .or_else(|| row.get::<Option<String>, _>("picture"));
+    
+    ctx.insert("profile_user_id", &user_id);
+    ctx.insert("email", &email);
+    ctx.insert("profile_name", &profile_name);
+    ctx.insert("avatar_url", &avatar_url);
+    ctx.insert("cover_image", &row.get::<Option<String>, _>("cover_image"));
+    ctx.insert("bio", &row.get::<Option<String>, _>("bio"));
+    ctx.insert("location", &row.get::<Option<String>, _>("location"));
+    ctx.insert("website", &row.get::<Option<String>, _>("website"));
+    ctx.insert("follower_count", &row.get::<i64, _>("follower_count"));
+    ctx.insert("following_count", &row.get::<i64, _>("following_count"));
+    
+    let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+    ctx.insert("joined_at", &created_at.format("%B %Y").to_string());
+    
+    // Count communities and posts
+    let community_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM community_members WHERE user_id = $1 AND status = 'active'"
+    )
+    .bind(target_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+    
+    let post_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM posts WHERE author_id = $1"
+    )
+    .bind(target_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+    
+    ctx.insert("community_count", &community_count);
+    ctx.insert("post_count", &post_count);
+    
+    let html = state.tera.render("profile.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+
+/// Edit profile page (PROTECTED)
+pub async fn edit_profile_page(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(user_id): Path<String>,
+) -> Result<Response, AppError> {
+    use sqlx::Row;
+    
+    // Only allow editing own profile
+    if user.user_id != user_id {
+        return Ok((
+            StatusCode::FORBIDDEN,
+            Html("<h1>Accesso negato</h1><p>Puoi modificare solo il tuo profilo.</p>"),
+        ).into_response());
+    }
+    
+    let mut ctx = Context::new();
+    ctx.insert("logged_in", &true);
+    ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
+    ctx.insert("picture", &user.picture);
+    ctx.insert("user_id", &user.user_id);
+    
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+    
+    // Fetch current profile
+    let profile = sqlx::query(
+        r#"SELECT p.name, p.picture, p.bio, p.location, p.website, 
+                  p.cover_image, p.avatar_url, p.is_public
+           FROM user_profiles p
+           WHERE p.user_id = $1"#
+    )
+    .bind(user_uuid)
+    .fetch_optional(&state.db.pool)
+    .await?;
+    
+    if let Some(row) = profile {
+        ctx.insert("profile_name", &row.get::<Option<String>, _>("name").unwrap_or(user.email.clone()));
+        ctx.insert("avatar_url", &row.get::<Option<String>, _>("avatar_url").or_else(|| row.get::<Option<String>, _>("picture")));
+        ctx.insert("cover_image", &row.get::<Option<String>, _>("cover_image"));
+        ctx.insert("bio", &row.get::<Option<String>, _>("bio"));
+        ctx.insert("location", &row.get::<Option<String>, _>("location"));
+        ctx.insert("website", &row.get::<Option<String>, _>("website"));
+        ctx.insert("is_public", &row.get::<Option<bool>, _>("is_public").unwrap_or(true));
+    } else {
+        ctx.insert("profile_name", &user.email);
+        ctx.insert("is_public", &true);
+    }
+    
+    let html = state.tera.render("profile_edit.html", &ctx)?;
+    Ok(Html(html).into_response())
+}

@@ -616,3 +616,486 @@ pub async fn community_members(
     html.push_str("</div>");
     Html(html)
 }
+
+// =============================================================================
+// SEARCH FRAGMENTS
+// =============================================================================
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SearchQuery {
+    pub q: String,
+}
+
+/// Global search - returns HTML fragment
+pub async fn search_results(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<SearchQuery>,
+) -> Html<String> {
+    let query = params.q.trim();
+    if query.len() < 2 {
+        return Html("<div class=\"p-4 text-center text-gray-500\">Inserisci almeno 2 caratteri</div>".to_string());
+    }
+    
+    let search_pattern = format!("%{}%", query.to_lowercase());
+    
+    // Search users
+    let users = sqlx::query(
+        r#"SELECT u.id, u.email, p.name, p.avatar_url
+           FROM users u
+           LEFT JOIN user_profiles p ON u.id = p.user_id
+           WHERE LOWER(u.email) LIKE $1 OR LOWER(p.name) LIKE $1
+           LIMIT 5"#
+    )
+    .bind(&search_pattern)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    // Search communities
+    let communities = sqlx::query(
+        r#"SELECT c.id, c.name, c.description, COUNT(cm.user_id) as member_count
+           FROM communities c
+           LEFT JOIN community_members cm ON c.id = cm.community_id AND cm.status = 'active'
+           WHERE LOWER(c.name) LIKE $1 OR LOWER(c.description) LIKE $1
+           GROUP BY c.id, c.name, c.description
+           LIMIT 5"#
+    )
+    .bind(&search_pattern)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    // Search posts
+    let posts = sqlx::query(
+        r#"SELECT p.id, p.title, c.name as community_name, p.created_at
+           FROM posts p
+           JOIN communities c ON p.community_id = c.id
+           WHERE LOWER(p.title) LIKE $1
+           ORDER BY p.created_at DESC
+           LIMIT 5"#
+    )
+    .bind(&search_pattern)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if users.is_empty() && communities.is_empty() && posts.is_empty() {
+        return Html(format!(r#"
+            <div class="p-4 text-center text-gray-500">
+                <p>Nessun risultato per "{}"</p>
+            </div>
+        "#, query));
+    }
+    
+    let mut html = String::from("<div class=\"p-2 space-y-4\">");
+    
+    // Users section
+    if !users.is_empty() {
+        html.push_str("<div><p class=\"text-xs font-semibold text-gray-400 uppercase px-2 mb-1\">Utenti</p>");
+        for user in users {
+            let id: uuid::Uuid = user.get("id");
+            let email: String = user.get("email");
+            let name: Option<String> = user.get("name");
+            let avatar_url: Option<String> = user.get("avatar_url");
+            let display_name = name.unwrap_or_else(|| email.clone());
+            let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
+            
+            let avatar = if let Some(url) = avatar_url {
+                format!(r#"<img src="{}" class="w-8 h-8 rounded-full object-cover">"#, url)
+            } else {
+                format!(r#"<div class="w-8 h-8 rounded-full bg-[#57C98A]/10 text-[#57C98A] flex items-center justify-center text-sm font-medium">{}</div>"#, initial)
+            };
+            
+            html.push_str(&format!(r#"
+                <a href="/users/{}" class="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg">
+                    {}
+                    <span class="text-sm text-gray-900">{}</span>
+                </a>
+            "#, id, avatar, display_name));
+        }
+        html.push_str("</div>");
+    }
+    
+    // Communities section
+    if !communities.is_empty() {
+        html.push_str("<div><p class=\"text-xs font-semibold text-gray-400 uppercase px-2 mb-1\">Community</p>");
+        for community in communities {
+            let id: uuid::Uuid = community.get("id");
+            let name: String = community.get("name");
+            let member_count: i64 = community.get("member_count");
+            
+            html.push_str(&format!(r#"
+                <a href="/communities/{}" class="block p-2 hover:bg-gray-100 rounded-lg">
+                    <p class="text-sm font-medium text-gray-900">{}</p>
+                    <p class="text-xs text-gray-500">{} membri</p>
+                </a>
+            "#, id, name, member_count));
+        }
+        html.push_str("</div>");
+    }
+    
+    // Posts section
+    if !posts.is_empty() {
+        html.push_str("<div><p class=\"text-xs font-semibold text-gray-400 uppercase px-2 mb-1\">Post</p>");
+        for post in posts {
+            let id: uuid::Uuid = post.get("id");
+            let title: String = post.get("title");
+            let community_name: String = post.get("community_name");
+            
+            html.push_str(&format!(r#"
+                <a href="/posts/{}" class="block p-2 hover:bg-gray-100 rounded-lg">
+                    <p class="text-sm font-medium text-gray-900">{}</p>
+                    <p class="text-xs text-gray-500">in {}</p>
+                </a>
+            "#, id, title, community_name));
+        }
+        html.push_str("</div>");
+    }
+    
+    html.push_str("</div>");
+    Html(html)
+}
+
+// =============================================================================
+// FOLLOW BUTTON FRAGMENT
+// =============================================================================
+
+/// Follow button fragment - checks if current user follows target
+pub async fn follow_button(
+    crate::auth::OptionalAuthUser(current_user): crate::auth::OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(target_user_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let Some(user) = current_user else {
+        // Not logged in - show login prompt
+        return Html(r#"
+            <a href="/auth/login" class="px-4 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white rounded-lg transition text-sm font-medium">
+                Accedi per seguire
+            </a>
+        "#.to_string());
+    };
+    
+    // Don't show follow button for own profile
+    if user.user_id == target_user_id {
+        return Html(String::new());
+    }
+    
+    let follower_uuid = match uuid::Uuid::parse_str(&user.user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<div class=\"text-red-500\">Errore</div>".to_string()),
+    };
+    let following_uuid = match uuid::Uuid::parse_str(&target_user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<div class=\"text-red-500\">Errore</div>".to_string()),
+    };
+    
+    // Check if already following
+    let is_following: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM user_follows WHERE follower_id = $1 AND following_id = $2)"
+    )
+    .bind(follower_uuid)
+    .bind(following_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(false);
+    
+    if is_following {
+        Html(format!(r#"
+            <button hx-post="/api/users/{}/unfollow"
+                    hx-target="this"
+                    hx-swap="outerHTML"
+                    class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 hover:border-red-300 hover:text-red-600 transition text-sm font-medium group">
+                <span class="group-hover:hidden">Seguendo</span>
+                <span class="hidden group-hover:inline">Smetti di seguire</span>
+            </button>
+        "#, target_user_id))
+    } else {
+        Html(format!(r#"
+            <button hx-post="/api/users/{}/follow"
+                    hx-target="this"
+                    hx-swap="outerHTML"
+                    class="px-4 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white rounded-lg transition text-sm font-medium">
+                Segui
+            </button>
+        "#, target_user_id))
+    }
+}
+
+// =============================================================================
+// NOTIFICATIONS FRAGMENT
+// =============================================================================
+
+/// Notifications dropdown content
+pub async fn notifications_dropdown(
+    crate::auth::AuthUser(user): crate::auth::AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Html<String> {
+    let user_uuid = match uuid::Uuid::parse_str(&user.user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<div class=\"p-4 text-red-500\">Errore</div>".to_string()),
+    };
+    
+    // Fetch recent notifications
+    let notifications = sqlx::query(
+        r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at,
+                  n.target_type, n.target_id,
+                  p.name as actor_name, p.avatar_url as actor_avatar
+           FROM notifications n
+           LEFT JOIN users u ON n.actor_id = u.id
+           LEFT JOIN user_profiles p ON u.id = p.user_id
+           WHERE n.user_id = $1
+           ORDER BY n.created_at DESC
+           LIMIT 10"#
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if notifications.is_empty() {
+        return Html(r#"
+            <div class="p-4 text-center text-gray-500">
+                <p>Nessuna notifica</p>
+            </div>
+        "#.to_string());
+    }
+    
+    let mut html = String::from("<div class=\"divide-y divide-gray-100\">");
+    
+    for notif in notifications {
+        let message: Option<String> = notif.get("message");
+        let is_read: bool = notif.get("is_read");
+        let created_at: chrono::DateTime<chrono::Utc> = notif.get("created_at");
+        let actor_name: Option<String> = notif.get("actor_name");
+        let actor_avatar: Option<String> = notif.get("actor_avatar");
+        
+        let bg_class = if is_read { "" } else { "bg-blue-50" };
+        let display_name = actor_name.unwrap_or_else(|| "Qualcuno".to_string());
+        let display_message = message.unwrap_or_else(|| "ha interagito con te".to_string());
+        let time_ago = format_time_ago(created_at);
+        
+        let avatar = if let Some(url) = actor_avatar {
+            format!(r#"<img src="{}" class="w-10 h-10 rounded-full object-cover">"#, url)
+        } else {
+            let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
+            format!(r#"<div class="w-10 h-10 rounded-full bg-[#57C98A]/10 text-[#57C98A] flex items-center justify-center font-medium">{}</div>"#, initial)
+        };
+        
+        html.push_str(&format!(r#"
+            <div class="flex items-start space-x-3 p-3 {} hover:bg-gray-50">
+                {}
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-gray-900"><span class="font-medium">{}</span> {}</p>
+                    <p class="text-xs text-gray-500">{}</p>
+                </div>
+            </div>
+        "#, bg_class, avatar, display_name, display_message, time_ago));
+    }
+    
+    html.push_str("</div>");
+    Html(html)
+}
+
+fn format_time_ago(dt: chrono::DateTime<chrono::Utc>) -> String {
+    let now = chrono::Utc::now();
+    let diff = now.signed_duration_since(dt);
+    
+    if diff.num_minutes() < 1 {
+        "ora".to_string()
+    } else if diff.num_minutes() < 60 {
+        format!("{} min fa", diff.num_minutes())
+    } else if diff.num_hours() < 24 {
+        format!("{} ore fa", diff.num_hours())
+    } else if diff.num_days() < 7 {
+        format!("{} giorni fa", diff.num_days())
+    } else {
+        dt.format("%d %b").to_string()
+    }
+}
+
+// =============================================================================
+// USER PROFILE TAB FRAGMENTS
+// =============================================================================
+
+/// User posts fragment
+pub async fn user_posts(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(user_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let user_uuid = match uuid::Uuid::parse_str(&user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<p class=\"text-red-500\">Invalid user ID</p>".to_string()),
+    };
+    
+    let posts = sqlx::query(
+        r#"SELECT p.id, p.title, p.created_at, c.name as community_name
+           FROM posts p
+           JOIN communities c ON p.community_id = c.id
+           WHERE p.author_id = $1
+           ORDER BY p.created_at DESC
+           LIMIT 20"#
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if posts.is_empty() {
+        return Html("<div class=\"text-center py-8 text-gray-500\">Nessun post ancora</div>".to_string());
+    }
+    
+    let mut html = String::from("<div class=\"space-y-3\">");
+    for post in posts {
+        let id: uuid::Uuid = post.get("id");
+        let title: String = post.get("title");
+        let community_name: String = post.get("community_name");
+        let created_at: chrono::DateTime<chrono::Utc> = post.get("created_at");
+        
+        html.push_str(&format!(r#"
+            <a href="/posts/{}" class="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                <h4 class="font-medium text-gray-900">{}</h4>
+                <p class="text-sm text-gray-500">in {} • {}</p>
+            </a>
+        "#, id, title, community_name, created_at.format("%d %b %Y")));
+    }
+    html.push_str("</div>");
+    Html(html)
+}
+
+/// User communities fragment
+pub async fn user_profile_communities(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(user_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let user_uuid = match uuid::Uuid::parse_str(&user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<p class=\"text-red-500\">Invalid user ID</p>".to_string()),
+    };
+    
+    let communities = sqlx::query(
+        r#"SELECT c.id, c.name, c.description
+           FROM communities c
+           JOIN community_members cm ON c.id = cm.community_id
+           WHERE cm.user_id = $1 AND cm.status = 'active'
+           ORDER BY cm.joined_at DESC
+           LIMIT 20"#
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if communities.is_empty() {
+        return Html("<div class=\"text-center py-8 text-gray-500\">Nessuna community</div>".to_string());
+    }
+    
+    let mut html = String::from("<div class=\"space-y-3\">");
+    for community in communities {
+        let id: uuid::Uuid = community.get("id");
+        let name: String = community.get("name");
+        let description: Option<String> = community.get("description");
+        
+        html.push_str(&format!(r#"
+            <a href="/communities/{}" class="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                <h4 class="font-medium text-gray-900">{}</h4>
+                <p class="text-sm text-gray-500">{}</p>
+            </a>
+        "#, id, name, description.unwrap_or_default()));
+    }
+    html.push_str("</div>");
+    Html(html)
+}
+
+/// User followers fragment
+pub async fn user_followers(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(user_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let user_uuid = match uuid::Uuid::parse_str(&user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<p class=\"text-red-500\">Invalid user ID</p>".to_string()),
+    };
+    
+    let followers = sqlx::query(
+        r#"SELECT u.id, u.email, p.name, p.avatar_url
+           FROM user_follows f
+           JOIN users u ON f.follower_id = u.id
+           LEFT JOIN user_profiles p ON u.id = p.user_id
+           WHERE f.following_id = $1
+           ORDER BY f.created_at DESC
+           LIMIT 50"#
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if followers.is_empty() {
+        return Html("<div class=\"text-center py-8 text-gray-500\">Nessun follower</div>".to_string());
+    }
+    
+    render_user_list(followers)
+}
+
+/// User following fragment
+pub async fn user_following(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(user_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let user_uuid = match uuid::Uuid::parse_str(&user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<p class=\"text-red-500\">Invalid user ID</p>".to_string()),
+    };
+    
+    let following = sqlx::query(
+        r#"SELECT u.id, u.email, p.name, p.avatar_url
+           FROM user_follows f
+           JOIN users u ON f.following_id = u.id
+           LEFT JOIN user_profiles p ON u.id = p.user_id
+           WHERE f.follower_id = $1
+           ORDER BY f.created_at DESC
+           LIMIT 50"#
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if following.is_empty() {
+        return Html("<div class=\"text-center py-8 text-gray-500\">Non segue nessuno</div>".to_string());
+    }
+    
+    render_user_list(following)
+}
+
+fn render_user_list(users: Vec<sqlx::postgres::PgRow>) -> Html<String> {
+    let mut html = String::from("<div class=\"space-y-3\">");
+    
+    for user in users {
+        let id: uuid::Uuid = user.get("id");
+        let email: String = user.get("email");
+        let name: Option<String> = user.get("name");
+        let avatar_url: Option<String> = user.get("avatar_url");
+        let display_name = name.unwrap_or_else(|| email.clone());
+        let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
+        
+        let avatar = if let Some(url) = avatar_url {
+            format!(r#"<img src="{}" class="w-12 h-12 rounded-full object-cover">"#, url)
+        } else {
+            format!(r#"<div class="w-12 h-12 rounded-full bg-[#57C98A]/10 text-[#57C98A] flex items-center justify-center font-medium">{}</div>"#, initial)
+        };
+        
+        html.push_str(&format!(r#"
+            <a href="/users/{}" class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                {}
+                <div>
+                    <p class="font-medium text-gray-900">{}</p>
+                    <p class="text-sm text-gray-500">{}</p>
+                </div>
+            </a>
+        "#, id, avatar, display_name, email));
+    }
+    
+    html.push_str("</div>");
+    Html(html)
+}

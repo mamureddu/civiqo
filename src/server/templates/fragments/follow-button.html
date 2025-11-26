@@ -1,0 +1,19 @@
+{# Follow Button Fragment - HTMX dynamic follow/unfollow #}
+{# Variables: target_user_id, is_following #}
+
+{% if is_following %}
+<button hx-post="/api/users/{{ target_user_id }}/unfollow"
+        hx-target="this"
+        hx-swap="outerHTML"
+        class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 hover:border-red-300 hover:text-red-600 transition text-sm font-medium group">
+    <span class="group-hover:hidden">Seguendo</span>
+    <span class="hidden group-hover:inline">Smetti di seguire</span>
+</button>
+{% else %}
+<button hx-post="/api/users/{{ target_user_id }}/follow"
+        hx-target="this"
+        hx-swap="outerHTML"
+        class="px-4 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white rounded-lg transition text-sm font-medium">
+    Segui
+</button>
+{% endif %}

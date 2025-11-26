@@ -2240,3 +2240,188 @@ pub async fn demote_to_member(
         }
     }
 }
+
+// =============================================================================
+// USER PROFILE API
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateProfileRequest {
+    pub name: Option<String>,
+    pub bio: Option<String>,
+    pub location: Option<String>,
+    pub website: Option<String>,
+    pub avatar_url: Option<String>,
+    pub cover_image: Option<String>,
+    pub is_public: Option<bool>,
+}
+
+/// Update user profile (PROTECTED - own profile only)
+pub async fn update_profile(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(user_id): Path<String>,
+    Json(payload): Json<UpdateProfileRequest>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    // Only allow updating own profile
+    if user.user_id != user_id {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("You can only update your own profile".to_string()),
+        }));
+    }
+    
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    
+    // Upsert profile
+    let result = sqlx::query(
+        r#"INSERT INTO user_profiles (user_id, name, bio, location, website, avatar_url, cover_image, is_public, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET
+               name = COALESCE($2, user_profiles.name),
+               bio = COALESCE($3, user_profiles.bio),
+               location = COALESCE($4, user_profiles.location),
+               website = COALESCE($5, user_profiles.website),
+               avatar_url = COALESCE($6, user_profiles.avatar_url),
+               cover_image = COALESCE($7, user_profiles.cover_image),
+               is_public = COALESCE($8, user_profiles.is_public),
+               updated_at = NOW()"#
+    )
+    .bind(user_uuid)
+    .bind(&payload.name)
+    .bind(&payload.bio)
+    .bind(&payload.location)
+    .bind(&payload.website)
+    .bind(&payload.avatar_url)
+    .bind(&payload.cover_image)
+    .bind(payload.is_public)
+    .execute(&state.db.pool)
+    .await;
+    
+    match result {
+        Ok(_) => {
+            tracing::info!("User {} updated their profile", user.user_id);
+            Ok(Json(ApiResponse {
+                success: true,
+                data: None,
+                message: Some("Profile updated successfully".to_string()),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to update profile: {}", e);
+            Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Failed to update profile".to_string()),
+            }))
+        }
+    }
+}
+
+// =============================================================================
+// FOLLOW SYSTEM API
+// =============================================================================
+
+/// Follow a user (PROTECTED)
+pub async fn follow_user(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(target_user_id): Path<String>,
+) -> Result<axum::response::Html<String>, StatusCode> {
+    let follower_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let following_uuid = Uuid::parse_str(&target_user_id)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    
+    // Can't follow yourself
+    if follower_uuid == following_uuid {
+        return Ok(axum::response::Html("<div class=\"text-red-500\">Non puoi seguire te stesso</div>".to_string()));
+    }
+    
+    // Insert follow relationship
+    let result = sqlx::query(
+        "INSERT INTO user_follows (follower_id, following_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+    )
+    .bind(follower_uuid)
+    .bind(following_uuid)
+    .execute(&state.db.pool)
+    .await;
+    
+    if let Err(e) = result {
+        tracing::error!("Failed to follow user: {}", e);
+        return Ok(axum::response::Html("<div class=\"text-red-500\">Errore</div>".to_string()));
+    }
+    
+    // Update follower counts
+    let _ = sqlx::query("UPDATE user_profiles SET follower_count = follower_count + 1 WHERE user_id = $1")
+        .bind(following_uuid)
+        .execute(&state.db.pool)
+        .await;
+    let _ = sqlx::query("UPDATE user_profiles SET following_count = following_count + 1 WHERE user_id = $1")
+        .bind(follower_uuid)
+        .execute(&state.db.pool)
+        .await;
+    
+    tracing::info!("User {} followed user {}", user.user_id, target_user_id);
+    
+    // Return updated follow button (now showing "following")
+    Ok(axum::response::Html(format!(r#"
+        <button hx-post="/api/users/{}/unfollow"
+                hx-target="this"
+                hx-swap="outerHTML"
+                class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 hover:border-red-300 hover:text-red-600 transition text-sm font-medium group">
+            <span class="group-hover:hidden">Seguendo</span>
+            <span class="hidden group-hover:inline">Smetti di seguire</span>
+        </button>
+    "#, target_user_id)))
+}
+
+/// Unfollow a user (PROTECTED)
+pub async fn unfollow_user(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(target_user_id): Path<String>,
+) -> Result<axum::response::Html<String>, StatusCode> {
+    let follower_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let following_uuid = Uuid::parse_str(&target_user_id)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    
+    // Delete follow relationship
+    let result = sqlx::query(
+        "DELETE FROM user_follows WHERE follower_id = $1 AND following_id = $2"
+    )
+    .bind(follower_uuid)
+    .bind(following_uuid)
+    .execute(&state.db.pool)
+    .await;
+    
+    if let Err(e) = result {
+        tracing::error!("Failed to unfollow user: {}", e);
+        return Ok(axum::response::Html("<div class=\"text-red-500\">Errore</div>".to_string()));
+    }
+    
+    // Update follower counts
+    let _ = sqlx::query("UPDATE user_profiles SET follower_count = GREATEST(follower_count - 1, 0) WHERE user_id = $1")
+        .bind(following_uuid)
+        .execute(&state.db.pool)
+        .await;
+    let _ = sqlx::query("UPDATE user_profiles SET following_count = GREATEST(following_count - 1, 0) WHERE user_id = $1")
+        .bind(follower_uuid)
+        .execute(&state.db.pool)
+        .await;
+    
+    tracing::info!("User {} unfollowed user {}", user.user_id, target_user_id);
+    
+    // Return updated follow button (now showing "follow")
+    Ok(axum::response::Html(format!(r#"
+        <button hx-post="/api/users/{}/follow"
+                hx-target="this"
+                hx-swap="outerHTML"
+                class="px-4 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white rounded-lg transition text-sm font-medium">
+            Segui
+        </button>
+    "#, target_user_id)))
+}

@@ -1,0 +1,32 @@
+{# User Card Fragment - Reusable user display component #}
+{# Variables: user_id, name, email, avatar_url, bio (optional), show_follow (optional) #}
+
+<div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+    <a href="/users/{{ user_id }}" class="flex items-center space-x-3 flex-1">
+        <div class="w-12 h-12 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+            {% if avatar_url %}
+            <img src="{{ avatar_url }}" alt="{{ name }}" class="w-full h-full object-cover">
+            {% else %}
+            <div class="w-full h-full flex items-center justify-center bg-[#57C98A]/10 text-[#57C98A] font-medium">
+                {{ name | first | upper }}
+            </div>
+            {% endif %}
+        </div>
+        <div class="min-w-0">
+            <p class="font-medium text-gray-900 truncate">{{ name }}</p>
+            {% if bio %}
+            <p class="text-sm text-gray-500 truncate">{{ bio | truncate(length=50) }}</p>
+            {% else %}
+            <p class="text-sm text-gray-500 truncate">{{ email }}</p>
+            {% endif %}
+        </div>
+    </a>
+    {% if show_follow %}
+    <div hx-get="/htmx/users/{{ user_id }}/follow-button"
+         hx-trigger="load"
+         hx-swap="innerHTML"
+         class="flex-shrink-0 ml-3">
+        <button class="px-3 py-1 bg-gray-200 rounded-lg text-sm animate-pulse" disabled>...</button>
+    </div>
+    {% endif %}
+</div>
