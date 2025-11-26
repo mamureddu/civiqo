@@ -5,6 +5,7 @@
 mod community_crud_integration {
     use serde_json::json;
     use uuid::Uuid;
+    use sqlx::Row;
 
     // Helper function to create test user
     async fn create_test_user(pool: &sqlx::PgPool) -> Uuid {

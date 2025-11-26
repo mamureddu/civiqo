@@ -57,9 +57,11 @@ pub async fn communities(
     
     // Fetch all communities from database
     let communities = sqlx::query(
-        "SELECT c.id, c.name, c.description, c.created_at, u.username as creator_name 
+        "SELECT c.id, c.name, c.description, c.created_at, 
+                COALESCE(p.name, u.email) as creator_name 
          FROM communities c 
          LEFT JOIN users u ON c.created_by = u.id 
+         LEFT JOIN user_profiles p ON u.id = p.user_id
          ORDER BY c.created_at DESC"
     )
     .fetch_all(&state.db.pool)
@@ -196,11 +198,13 @@ pub async fn community_detail(
     let uuid = uuid::Uuid::parse_str(&community_id)
         .map_err(|_| AppError(anyhow::anyhow!("Invalid community ID")))?;
     
-    // Fetch community details
+    // Fetch community details (join with user_profiles for creator name)
     let community = sqlx::query(
-        "SELECT c.id, c.name, c.description, c.created_at, u.username as creator_name 
+        "SELECT c.id, c.name, c.description, c.created_at, 
+                COALESCE(p.name, u.email) as creator_name 
          FROM communities c 
          LEFT JOIN users u ON c.created_by = u.id 
+         LEFT JOIN user_profiles p ON u.id = p.user_id
          WHERE c.id = $1"
     )
     .bind(uuid)
@@ -214,11 +218,13 @@ pub async fn community_detail(
         ctx.insert("creator_name", &row.get::<Option<String>, _>("creator_name").unwrap_or_else(|| "Unknown".to_string()));
         ctx.insert("created_at", &row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d").to_string());
         
-        // Fetch posts for this community
+        // Fetch posts for this community (join with user_profiles for author name)
         let posts = sqlx::query(
-            "SELECT p.id, p.title, p.content, p.created_at, u.username as author_name 
+            "SELECT p.id, p.title, p.content, p.created_at, 
+                    COALESCE(pr.name, u.email) as author_name 
              FROM posts p 
              LEFT JOIN users u ON p.author_id = u.id 
+             LEFT JOIN user_profiles pr ON u.id = pr.user_id
              WHERE p.community_id = $1 
              ORDER BY p.created_at DESC 
              LIMIT 10"
@@ -357,11 +363,12 @@ pub async fn community_posts(
     // Fetch posts with counts using JOINs (more efficient than subqueries)
     let query = format!(
         "SELECT p.id, p.title, p.content, p.media_url, p.is_pinned, p.view_count, p.created_at,
-                u.username as author_name, u.email as author_email,
+                COALESCE(pr.name, u.email) as author_name, u.email as author_email,
                 COALESCE(cc.comment_count, 0) as comment_count,
                 COALESCE(rc.reaction_count, 0) as reaction_count
          FROM posts p
          LEFT JOIN users u ON p.author_id = u.id
+         LEFT JOIN user_profiles pr ON u.id = pr.user_id
          LEFT JOIN (
              SELECT post_id, COUNT(*) as comment_count 
              FROM comments 
@@ -444,9 +451,10 @@ pub async fn post_detail(
     
     // Fetch post with author
     let post = sqlx::query(
-        "SELECT p.*, u.username as author_name, u.email as author_email
+        "SELECT p.*, COALESCE(pr.name, u.email) as author_name, u.email as author_email
          FROM posts p
          LEFT JOIN users u ON p.author_id = u.id
+         LEFT JOIN user_profiles pr ON u.id = pr.user_id
          WHERE p.id = $1"
     )
     .bind(uuid)
@@ -559,9 +567,10 @@ pub async fn post_detail(
     
     // Fetch comments (top-level only, replies loaded separately)
     let comments = sqlx::query(
-        "SELECT c.*, u.username as author_name, u.email as author_email
+        "SELECT c.*, COALESCE(pr.name, u.email) as author_name, u.email as author_email
          FROM comments c
          LEFT JOIN users u ON c.author_id = u.id
+         LEFT JOIN user_profiles pr ON u.id = pr.user_id
          WHERE c.post_id = $1 AND c.parent_id IS NULL
          ORDER BY c.created_at ASC"
     )
