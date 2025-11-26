@@ -195,23 +195,26 @@ pub async fn community_detail(
     
     let mut ctx = Context::new();
     
-    // Add auth info to context
-    if let Some(ref u) = user {
+    // Parse user UUID if logged in
+    let user_uuid = if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
         ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
         ctx.insert("picture", &u.picture);
         ctx.insert("user_id", &u.user_id);
+        uuid::Uuid::parse_str(&u.user_id).ok()
     } else {
         ctx.insert("logged_in", &false);
-    }
+        None
+    };
     
-    // Parse UUID
+    // Parse community UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
         .map_err(|_| AppError(anyhow::anyhow!("Invalid community ID")))?;
     
-    // Fetch community details (join with user_profiles for creator name)
+    // Fetch community details with all needed fields
     let community = sqlx::query(
-        "SELECT c.id, c.name, c.description, c.created_at, 
+        "SELECT c.id, c.name, c.slug, c.description, c.is_public, c.requires_approval,
+                c.created_by, c.created_at, 
                 COALESCE(p.name, u.email) as creator_name 
          FROM communities c 
          LEFT JOIN users u ON c.created_by = u.id 
@@ -223,15 +226,41 @@ pub async fn community_detail(
     .await?;
     
     if let Some(row) = community {
-        ctx.insert("community_id", &row.get::<uuid::Uuid, _>("id").to_string());
+        let community_uuid = row.get::<uuid::Uuid, _>("id");
+        let created_by = row.get::<uuid::Uuid, _>("created_by");
+        let is_public = row.get::<Option<bool>, _>("is_public").unwrap_or(true);
+        let requires_approval = row.get::<Option<bool>, _>("requires_approval").unwrap_or(false);
+        
+        ctx.insert("community_id", &community_uuid.to_string());
         ctx.insert("community_name", &row.get::<String, _>("name"));
+        ctx.insert("community_slug", &row.get::<String, _>("slug"));
         ctx.insert("community_description", &row.get::<Option<String>, _>("description").unwrap_or_default());
         ctx.insert("creator_name", &row.get::<Option<String>, _>("creator_name").unwrap_or_else(|| "Unknown".to_string()));
-        ctx.insert("created_at", &row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d").to_string());
+        ctx.insert("created_at", &row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%d %B %Y").to_string());
+        ctx.insert("is_public", &is_public);
+        ctx.insert("requires_approval", &requires_approval);
+        
+        // Check membership status
+        let (is_member, is_owner) = if let Some(uid) = user_uuid {
+            let is_owner = uid == created_by;
+            let membership = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active'"
+            )
+            .bind(community_uuid)
+            .bind(uid)
+            .fetch_one(&state.db.pool)
+            .await
+            .unwrap_or(0);
+            (membership > 0 || is_owner, is_owner)
+        } else {
+            (false, false)
+        };
+        ctx.insert("is_member", &is_member);
+        ctx.insert("is_owner", &is_owner);
         
         // Fetch community stats
         let member_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM community_members WHERE community_id = $1"
+            "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND status = 'active'"
         )
         .bind(uuid)
         .fetch_one(&state.db.pool)
@@ -248,11 +277,10 @@ pub async fn community_detail(
         
         ctx.insert("member_count", &member_count);
         ctx.insert("post_count", &post_count);
-        // Events and active today are placeholders for now (no events table yet)
         ctx.insert("event_count", &0i64);
         ctx.insert("active_today", &0i64);
         
-        // Fetch posts for this community (join with user_profiles for author name)
+        // Fetch posts for this community
         let posts = sqlx::query(
             "SELECT p.id, p.title, p.content, p.created_at, 
                     COALESCE(pr.name, u.email) as author_name 
@@ -280,7 +308,6 @@ pub async fn community_detail(
         
         ctx.insert("posts", &posts_data);
     } else {
-        // Return 404 Not Found for missing communities
         return Ok((
             StatusCode::NOT_FOUND,
             Html("<h1>Community Not Found</h1><p>The requested community does not exist.</p>"),

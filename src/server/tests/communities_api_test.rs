@@ -25,26 +25,88 @@ mod communities_api_tests {
             .await
             .expect("Failed to connect to test database")
     }
+    
+    /// Create a test user and community for tests that need them
+    /// Returns (user_id, community_id, slug, unique_prefix) for cleanup
+    async fn create_test_community(db: &Database) -> (Uuid, Uuid, String, String) {
+        let unique_prefix = format!("__api_test_{}", Uuid::now_v7());
+        let user_id = Uuid::now_v7();
+        let community_id = Uuid::now_v7();
+        let slug = format!("{}_community", unique_prefix);
+        
+        // Create test user
+        sqlx::query!(
+            "INSERT INTO users (id, auth0_id, email) VALUES ($1, $2, $3)
+             ON CONFLICT (auth0_id) DO UPDATE SET email = EXCLUDED.email
+             RETURNING id",
+            user_id,
+            format!("auth0|{}", user_id),
+            format!("{}@test.local", user_id)
+        )
+        .fetch_one(&db.pool)
+        .await
+        .expect("Failed to create test user");
+        
+        // Create test community
+        sqlx::query!(
+            "INSERT INTO communities (id, name, slug, description, is_public, created_by)
+             VALUES ($1, $2, $3, $4, true, $5)
+             ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+             RETURNING id",
+            community_id,
+            format!("{} Test Community", unique_prefix),
+            slug,
+            "A test community for API tests",
+            user_id
+        )
+        .fetch_one(&db.pool)
+        .await
+        .expect("Failed to create test community");
+        
+        (user_id, community_id, slug, unique_prefix)
+    }
+    
+    /// Cleanup specific test data
+    async fn cleanup_test_community(db: &Database, community_id: Uuid, user_id: Uuid) {
+        sqlx::query!("DELETE FROM community_members WHERE community_id = $1", community_id)
+            .execute(&db.pool)
+            .await
+            .ok();
+        sqlx::query!("DELETE FROM communities WHERE id = $1", community_id)
+            .execute(&db.pool)
+            .await
+            .ok();
+        sqlx::query!("DELETE FROM users WHERE id = $1", user_id)
+            .execute(&db.pool)
+            .await
+            .ok();
+    }
 
     /// Test GET /api/communities returns paginated list
     #[tokio::test]
     async fn test_get_communities_list() {
         let db = setup_test_db().await;
         
+        // Create test community
+        let (user_id, community_id, _slug, _prefix) = create_test_community(&db).await;
+        
         // Query communities directly from database to verify endpoint behavior
         let communities = sqlx::query!(
-            "SELECT id, name, slug, is_public FROM communities WHERE is_public = true LIMIT 5"
+            "SELECT id, name, slug, is_public FROM communities WHERE is_public = true ORDER BY created_at DESC LIMIT 10"
         )
         .fetch_all(&db.pool)
         .await
         .expect("Failed to fetch communities");
         
-        // Verify we have at least the demo community
+        // Verify we have at least one public community
         assert!(!communities.is_empty(), "Should have at least one public community");
         
-        // Verify the demo community exists
-        let has_demo = communities.iter().any(|c| c.name == "Demo Community");
-        assert!(has_demo, "Demo Community should exist in database");
+        // Verify our test community exists
+        let has_test = communities.iter().any(|c| c.id == community_id);
+        assert!(has_test, "Test community should exist in results");
+        
+        // Cleanup
+        cleanup_test_community(&db, community_id, user_id).await;
     }
 
     /// Test GET /api/communities with search parameter
@@ -52,19 +114,24 @@ mod communities_api_tests {
     async fn test_get_communities_with_search() {
         let db = setup_test_db().await;
         
-        // Test search functionality with ILIKE
-        let search_term = "demo";
+        // Create test community
+        let (user_id, community_id, _slug, prefix) = create_test_community(&db).await;
+        
+        // Test search functionality with ILIKE using our test prefix
         let communities = sqlx::query!(
             "SELECT id, name FROM communities WHERE name ILIKE $1 OR description ILIKE $1",
-            format!("%{}%", search_term)
+            format!("%{}%", prefix)
         )
         .fetch_all(&db.pool)
         .await
         .expect("Failed to search communities");
         
-        // Should find the Demo Community
+        // Should find our test community
         assert!(!communities.is_empty(), "Search should find matching communities");
-        assert!(communities.iter().any(|c| c.name.to_lowercase().contains("demo")));
+        assert!(communities.iter().any(|c| c.name.contains(&prefix)));
+        
+        // Cleanup
+        cleanup_test_community(&db, community_id, user_id).await;
     }
 
     /// Test GET /api/communities with sort parameter
@@ -137,36 +204,30 @@ mod communities_api_tests {
     async fn test_get_community_detail_by_uuid() {
         let db = setup_test_db().await;
         
-        // Get the demo community
-        let community = sqlx::query!(
-            "SELECT id, name, slug, is_public FROM communities WHERE name = 'Demo Community' LIMIT 1"
+        // Create test community
+        let (user_id, community_id, _slug, prefix) = create_test_community(&db).await;
+        
+        // Test fetching by UUID with member count
+        let detail = sqlx::query!(
+            r#"SELECT c.id, c.name, c.description, c.slug, c.is_public, c.requires_approval,
+                      c.created_at, c.updated_at,
+                      COUNT(DISTINCT m.user_id) as "member_count!"
+               FROM communities c
+               LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
+               WHERE c.id = $1
+               GROUP BY c.id, c.name, c.description, c.slug, c.is_public, c.requires_approval,
+                        c.created_at, c.updated_at"#,
+            community_id
         )
-        .fetch_optional(&db.pool)
+        .fetch_one(&db.pool)
         .await
-        .expect("Failed to fetch demo community");
+        .expect("Failed to fetch community detail");
         
-        assert!(community.is_some(), "Demo Community should exist");
+        assert!(detail.name.contains(&prefix), "Should be our test community");
+        assert!(detail.member_count >= 0, "Should have member count");
         
-        if let Some(comm) = community {
-            // Test fetching by UUID with member count
-            let detail = sqlx::query!(
-                r#"SELECT c.id, c.name, c.description, c.slug, c.is_public, c.requires_approval,
-                          c.created_at, c.updated_at,
-                          COUNT(DISTINCT m.user_id) as "member_count!"
-                   FROM communities c
-                   LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
-                   WHERE c.id = $1
-                   GROUP BY c.id, c.name, c.description, c.slug, c.is_public, c.requires_approval,
-                            c.created_at, c.updated_at"#,
-                comm.id
-            )
-            .fetch_one(&db.pool)
-            .await
-            .expect("Failed to fetch community detail");
-            
-            assert_eq!(detail.name, "Demo Community");
-            assert!(detail.member_count >= 0, "Should have member count");
-        }
+        // Cleanup
+        cleanup_test_community(&db, community_id, user_id).await;
     }
 
     /// Test GET /api/communities/:id with valid slug
@@ -174,12 +235,16 @@ mod communities_api_tests {
     async fn test_get_community_detail_by_slug() {
         let db = setup_test_db().await;
         
+        // Create test community
+        let (user_id, community_id, slug, prefix) = create_test_community(&db).await;
+        
         // Test fetching by slug
         let detail = sqlx::query!(
             r#"SELECT c.id, c.name, c.slug
                FROM communities c
-               WHERE c.slug = 'demo-community'
-               LIMIT 1"#
+               WHERE c.slug = $1
+               LIMIT 1"#,
+            slug
         )
         .fetch_optional(&db.pool)
         .await
@@ -188,9 +253,12 @@ mod communities_api_tests {
         assert!(detail.is_some(), "Should find community by slug");
         
         if let Some(comm) = detail {
-            assert_eq!(comm.slug, "demo-community");
-            assert_eq!(comm.name, "Demo Community");
+            assert_eq!(comm.slug, slug);
+            assert!(comm.name.contains(&prefix));
         }
+        
+        // Cleanup
+        cleanup_test_community(&db, community_id, user_id).await;
     }
 
     /// Test GET /api/communities/:id with invalid ID
@@ -268,27 +336,22 @@ mod communities_api_tests {
     async fn test_get_private_community_authenticated_member() {
         let db = setup_test_db().await;
         
-        // This test verifies the query logic for authenticated members
-        // In a real scenario, this would test with an actual authenticated user
-        
-        // Get demo community and check member status
-        let community = sqlx::query!(
-            "SELECT id FROM communities WHERE name = 'Demo Community' LIMIT 1"
-        )
-        .fetch_one(&db.pool)
-        .await
-        .expect("Failed to fetch demo community");
+        // Create test community
+        let (user_id, community_id, _slug, _prefix) = create_test_community(&db).await;
         
         // Check if there are any members
         let member_count = sqlx::query_scalar!(
             "SELECT COUNT(*) as count FROM community_members WHERE community_id = $1 AND status = 'active'",
-            community.id
+            community_id
         )
         .fetch_one(&db.pool)
         .await
         .expect("Failed to count members");
         
         assert!(member_count.is_some(), "Should be able to count members");
+        
+        // Cleanup
+        cleanup_test_community(&db, community_id, user_id).await;
     }
 
     /// Test SQL injection protection in search parameter

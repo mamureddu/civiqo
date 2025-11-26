@@ -1,7 +1,7 @@
 # 🗺️ **Project Roadmap - Community Manager (MVC Complete)**
 
-**Version**: 4.0 - MVC Architecture  
-**Last Updated**: November 25, 2025  
+**Version**: 4.1 - MVC Architecture  
+**Last Updated**: November 26, 2025  
 **Architecture**: Single Instance (Federation-Ready for Phase 9)  
 **Total Estimated Time**: 10-14 weeks (+ 2-3 weeks for Phase 9 Federation)
 
@@ -115,54 +115,31 @@ CREATE TABLE reactions (
 - [x] Indexes for performance
 - [x] CASCADE deletes
 
-### 2.2 View (V) ⏳ TODO
+### 2.2 View (V) ✅ DONE
 
-#### Pages da creare
-- [ ] `templates/pages/community-posts.html` - Lista posts di una community
-- [ ] `templates/pages/post-detail.html` - Dettaglio post con commenti
-- [ ] `templates/pages/create-post.html` - Form creazione post
+#### Pages ✅
+- [x] `templates/community_posts.html` - Lista posts di una community
+- [x] `templates/post_detail.html` - Dettaglio post con commenti
+- [x] `templates/create_post.html` - Form creazione post
+- [x] `templates/community_detail.html` - Integrato con posts (tabs, new post button)
 
-#### Fragments da creare
-- [ ] `templates/fragments/post-card.html` - Card singolo post
-- [ ] `templates/fragments/post-form.html` - Form creazione/modifica post
-- [ ] `templates/fragments/comment-item.html` - Singolo commento
-- [ ] `templates/fragments/comment-form.html` - Form commento
-- [ ] `templates/fragments/comment-thread.html` - Thread commenti nested
-- [ ] `templates/fragments/reaction-buttons.html` - Pulsanti reazioni
-- [ ] `templates/fragments/reaction-counts.html` - Contatori reazioni
+#### Fragments ✅
+- [x] `templates/fragments/post-card.html` - Card singolo post
+- [x] `templates/fragments/post-form.html` - Form creazione/modifica post
+- [x] `templates/fragments/comment-item.html` - Singolo commento (con nesting)
+- [x] `templates/fragments/comment-form.html` - Form commento
+- [x] `templates/fragments/reaction-buttons.html` - Pulsanti reazioni
 
-#### UI Components
-```html
-<!-- post-card.html -->
-<div class="post-card bg-white rounded-lg shadow p-4 mb-4">
-    <div class="post-header flex items-center mb-2">
-        <img src="{{ author.avatar }}" class="w-10 h-10 rounded-full">
-        <div class="ml-3">
-            <span class="font-semibold">{{ author.name }}</span>
-            <span class="text-gray-500 text-sm">{{ created_at }}</span>
-        </div>
-    </div>
-    <h3 class="text-xl font-bold mb-2">{{ title }}</h3>
-    <div class="post-content prose">{{ content | safe }}</div>
-    <div class="post-footer flex items-center mt-4 pt-4 border-t">
-        <!-- Reactions -->
-        <div hx-get="/api/posts/{{ id }}/reactions" hx-trigger="load">
-            Loading reactions...
-        </div>
-        <!-- Comments count -->
-        <span class="ml-4 text-gray-500">
-            {{ comment_count }} commenti
-        </span>
-    </div>
-</div>
-```
+#### HTMX Endpoints ✅
+- [x] `/htmx/comments/:id/reply-form` - Form per rispondere
+- [x] `/htmx/comments/:id/edit-form` - Form per modificare
+- [x] `/htmx/communities/:id/feed` - Feed posts community
 
-#### Brand Compliance
-- [ ] Primary color: `#57C98A` (buttons, links)
-- [ ] Secondary color: `#3B7FBA` (headers)
-- [ ] Accent color: `#EF6F5E` (alerts, reactions)
-- [ ] Typography: Brand fonts
-- [ ] Spacing: Brand guidelines
+#### Brand Compliance ✅
+- [x] Primary color: `#57C98A` (buttons, links)
+- [x] Secondary color: `#3B7FBA` (headers)
+- [x] Accent color: `#EF6F5E` (alerts, reactions)
+- [x] Gradient headers: `from-[#57C98A] to-[#3B7FBA]`
 
 ### 2.3 Controller (C) ✅ DONE
 
@@ -185,24 +162,26 @@ CREATE TABLE reactions (
   - `remove_reaction` - DELETE /api/posts/:id/reactions
   - `list_reactions` - GET /api/posts/:id/reactions
 
-#### Page Handlers da aggiungere
-- [ ] `handlers/pages.rs` - Aggiungere:
-  - `community_posts_page` - GET /communities/:id/posts
-  - `post_detail_page` - GET /posts/:id
+#### Page Handlers ✅
+- [x] `handlers/pages.rs`:
+  - `community_detail` - GET /communities/:id (with posts integration)
+  - `post_detail` - GET /posts/:id
   - `create_post_page` - GET /communities/:id/posts/new
 
 ### 2.4 Tests ✅ DONE
-- [x] 12 integration tests
-- [x] Posts CRUD tests
+- [x] 12 integration tests (posts CRUD)
+- [x] 37 view interaction tests
 - [x] Comments threading tests
 - [x] Reactions tests
 - [x] Cascade delete tests
+- [x] 189 total tests passing
 
-### Phase 2 Completion Checklist
+### Phase 2 Completion Checklist ✅
 - [x] **Model**: Database schema complete
-- [ ] **View**: Templates and fragments
+- [x] **View**: Templates and fragments complete
 - [x] **Controller**: API handlers complete
 - [x] **Tests**: Integration tests passing
+- [x] **Integration**: Posts integrated in community_detail page
 
 ---
 
@@ -728,7 +707,7 @@ CREATE TABLE audit_logs (
 | Phase | M | V | C | Tests | Duration | Status |
 |-------|---|---|---|-------|----------|--------|
 | **1** | ✅ | ✅ | ✅ | ✅ | 2-3w | ✅ DONE |
-| **2** | ✅ | ⏳ | ✅ | ✅ | 2-3w | 🔄 IN PROGRESS |
+| **2** | ✅ | ✅ | ✅ | ✅ | 2-3w | ✅ DONE |
 | **3** | ⏳ | ⏳ | ⏳ | ⏳ | 2-3w | ⏳ TODO |
 | **4** | ⏳ | ⏳ | ⏳ | ⏳ | 2-3w | ⏳ TODO |
 | **5** | ⏳ | ⏳ | ⏳ | ⏳ | 2-3w | ⏳ TODO |
@@ -741,18 +720,19 @@ CREATE TABLE audit_logs (
 
 ## 🎯 **Next Steps**
 
-### Immediate: Complete Phase 2 Views
-1. Create `post-card.html` fragment
-2. Create `comment-thread.html` fragment
-3. Create `reaction-buttons.html` fragment
-4. Create `community-posts.html` page
-5. Create `post-detail.html` page
-6. Add page handlers to `pages.rs`
-7. Wire routes in `main.rs`
+### Immediate: Start Phase 3 - User Profiles & Search
+1. Create migration for user_profiles extension
+2. Implement profile pages (view, edit)
+3. Implement follow/unfollow functionality
+4. Add global search endpoint
+5. Create notifications system
+
+### Known Issues to Fix
+- [ ] `chat-service` schema mismatch (room_id: Uuid vs bigint) - Phase 6
 
 ---
 
-**Status**: 🔄 Phase 2 - Views in progress
+**Status**: ✅ Phase 2 Complete - Ready for Phase 3
 
 🚀 **Target**: Complete MVC for each phase before moving to next
 

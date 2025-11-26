@@ -3,10 +3,10 @@
 {% block title %}{{ community_name }} - Community Manager{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="{ activeTab: 'feed' }">
     <!-- Community Header -->
     <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        <div class="h-48 bg-gradient-to-r from-blue-500 to-purple-600"></div>
+        <div class="h-48 bg-gradient-to-r from-[#57C98A] to-[#3B7FBA]"></div>
         <div class="px-6 py-4">
             <div class="flex items-start justify-between">
                 <div class="flex items-center space-x-4">
@@ -15,32 +15,69 @@
                     </div>
                     <div class="mt-2">
                         <h1 class="text-3xl font-bold text-gray-900">{{ community_name }}</h1>
-                        <p class="text-gray-600 mt-1">{{ community_description | default(value="A vibrant community") }}</p>
+                        <p class="text-gray-600 mt-1">{{ community_description | default(value="Una community attiva") }}</p>
                     </div>
                 </div>
-                <button class="mt-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                    Join Community
-                </button>
+                
+                {# Join/Leave Button - HTMX powered #}
+                <div id="join-button-container" class="mt-2">
+                    {% if is_member %}
+                        <div class="flex items-center space-x-2">
+                            <span class="px-3 py-1 bg-[#57C98A]/10 text-[#57C98A] rounded-full text-sm font-medium">
+                                ✓ Membro
+                            </span>
+                            {% if not is_owner %}
+                            <button hx-post="/api/communities/{{ community_id }}/leave"
+                                    hx-target="#join-button-container"
+                                    hx-swap="innerHTML"
+                                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                                Lascia
+                            </button>
+                            {% endif %}
+                        </div>
+                    {% elif logged_in %}
+                        {% if requires_approval %}
+                        <button hx-post="/api/communities/{{ community_id }}/request-join"
+                                hx-target="#join-button-container"
+                                hx-swap="innerHTML"
+                                class="px-6 py-2 bg-[#3B7FBA] text-white rounded-lg hover:bg-[#3B7FBA]/90 transition">
+                            Richiedi Accesso
+                        </button>
+                        {% else %}
+                        <button hx-post="/api/communities/{{ community_id }}/join"
+                                hx-target="#join-button-container"
+                                hx-swap="innerHTML"
+                                class="px-6 py-2 bg-[#57C98A] text-white rounded-lg hover:bg-[#57C98A]/90 transition">
+                            Unisciti
+                        </button>
+                        {% endif %}
+                    {% else %}
+                        <a href="/auth/login?redirect=/communities/{{ community_slug }}"
+                           class="px-6 py-2 bg-[#57C98A] text-white rounded-lg hover:bg-[#57C98A]/90 transition inline-block">
+                            Accedi per unirti
+                        </a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-white rounded-lg shadow-sm p-4">
-            <p class="text-sm text-gray-600">Members</p>
+            <p class="text-sm text-gray-600">Membri</p>
             <p class="text-2xl font-bold text-gray-900">{{ member_count | default(value=0) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm p-4">
-            <p class="text-sm text-gray-600">Posts</p>
+            <p class="text-sm text-gray-600">Post</p>
             <p class="text-2xl font-bold text-gray-900">{{ post_count | default(value=0) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm p-4">
-            <p class="text-sm text-gray-600">Events</p>
+            <p class="text-sm text-gray-600">Eventi</p>
             <p class="text-2xl font-bold text-gray-900">{{ event_count | default(value=0) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm p-4">
-            <p class="text-sm text-gray-600">Active Today</p>
+            <p class="text-sm text-gray-600">Attivi Oggi</p>
             <p class="text-2xl font-bold text-gray-900">{{ active_today | default(value=0) }}</p>
         </div>
     </div>
@@ -49,29 +86,93 @@
     <div class="bg-white rounded-lg shadow-sm">
         <div class="border-b border-gray-200">
             <nav class="flex space-x-8 px-6" aria-label="Tabs">
-                <button class="border-b-2 border-blue-500 py-4 px-1 text-sm font-medium text-blue-600">
+                <button @click="activeTab = 'feed'"
+                        :class="activeTab === 'feed' ? 'border-[#57C98A] text-[#57C98A]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="border-b-2 py-4 px-1 text-sm font-medium transition">
                     Feed
                 </button>
-                <button class="border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                    Events
+                <button @click="activeTab = 'members'"
+                        :class="activeTab === 'members' ? 'border-[#57C98A] text-[#57C98A]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="border-b-2 py-4 px-1 text-sm font-medium transition">
+                    Membri
                 </button>
-                <button class="border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                    Members
-                </button>
-                <button class="border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                    About
+                <button @click="activeTab = 'about'"
+                        :class="activeTab === 'about' ? 'border-[#57C98A] text-[#57C98A]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="border-b-2 py-4 px-1 text-sm font-medium transition">
+                    Info
                 </button>
             </nav>
         </div>
 
-        <!-- Feed Content -->
+        <!-- Tab Content -->
         <div class="p-6">
-            <div class="space-y-6" hx-get="/htmx/communities/{{ community_id }}/feed" hx-trigger="load" hx-swap="innerHTML">
-                <!-- Loading placeholder -->
-                <div class="animate-pulse space-y-4">
-                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                    <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                    <div class="h-32 bg-gray-200 rounded"></div>
+            {# Feed Tab #}
+            <div x-show="activeTab === 'feed'" x-cloak>
+                {# New Post Button (only for members) #}
+                {% if is_member %}
+                <div class="mb-6">
+                    <a href="/communities/{{ community_id }}/posts/new"
+                       class="inline-flex items-center px-4 py-2 bg-[#57C98A] text-white rounded-lg hover:bg-[#57C98A]/90 transition">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Nuovo Post
+                    </a>
+                </div>
+                {% endif %}
+                
+                {# Posts Feed #}
+                <div class="space-y-6" 
+                     hx-get="/htmx/communities/{{ community_id }}/feed" 
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <!-- Loading placeholder -->
+                    <div class="animate-pulse space-y-4">
+                        <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+                        <div class="h-32 bg-gray-200 rounded"></div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Members Tab #}
+            <div x-show="activeTab === 'members'" x-cloak>
+                <div hx-get="/api/communities/{{ community_id }}/members"
+                     hx-trigger="intersect once"
+                     hx-swap="innerHTML">
+                    <!-- Loading placeholder -->
+                    <div class="animate-pulse space-y-4">
+                        <div class="h-12 bg-gray-200 rounded"></div>
+                        <div class="h-12 bg-gray-200 rounded"></div>
+                        <div class="h-12 bg-gray-200 rounded"></div>
+                    </div>
+                </div>
+            </div>
+            
+            {# About Tab #}
+            <div x-show="activeTab === 'about'" x-cloak>
+                <div class="prose max-w-none">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Informazioni</h3>
+                    <p class="text-gray-600">{{ community_description | default(value="Nessuna descrizione disponibile.") }}</p>
+                    
+                    <div class="mt-6 grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-500">Creata il:</span>
+                            <span class="text-gray-900 ml-2">{{ created_at | default(value="N/A") }}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500">Tipo:</span>
+                            <span class="text-gray-900 ml-2">
+                                {% if is_public %}Pubblica{% else %}Privata{% endif %}
+                            </span>
+                        </div>
+                        {% if requires_approval %}
+                        <div>
+                            <span class="text-gray-500">Accesso:</span>
+                            <span class="text-gray-900 ml-2">Richiede approvazione</span>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
