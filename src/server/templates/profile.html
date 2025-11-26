@@ -34,7 +34,7 @@
             {# Actions #}
             <div class="mt-4 md:mt-0 flex items-center space-x-3">
                 {% if is_own_profile %}
-                <a href="/users/{{ user_id }}/edit" 
+                <a href="/users/{{ profile_user_id }}/edit" 
                    class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition flex items-center space-x-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
@@ -42,7 +42,7 @@
                     <span>Modifica Profilo</span>
                 </a>
                 {% elif logged_in %}
-                <div hx-get="/htmx/users/{{ user_id }}/follow-button"
+                <div hx-get="/htmx/users/{{ profile_user_id }}/follow-button"
                      hx-trigger="load"
                      hx-swap="innerHTML">
                     <button class="px-4 py-2 bg-gray-200 rounded-lg animate-pulse" disabled>...</button>
@@ -139,7 +139,7 @@
             <div class="p-6">
                 {# Posts Tab #}
                 <div x-show="activeTab === 'posts'" x-cloak>
-                    <div hx-get="/htmx/users/{{ user_id }}/posts"
+                    <div hx-get="/htmx/users/{{ profile_user_id }}/posts"
                          hx-trigger="intersect once"
                          hx-swap="innerHTML">
                         <div class="animate-pulse space-y-4">
@@ -151,7 +151,7 @@
                 
                 {# Communities Tab #}
                 <div x-show="activeTab === 'communities'" x-cloak>
-                    <div hx-get="/htmx/users/{{ user_id }}/communities"
+                    <div hx-get="/htmx/users/{{ profile_user_id }}/communities"
                          hx-trigger="intersect once"
                          hx-swap="innerHTML">
                         <div class="animate-pulse space-y-4">
@@ -163,7 +163,7 @@
                 
                 {# Followers Tab #}
                 <div x-show="activeTab === 'followers'" x-cloak>
-                    <div hx-get="/htmx/users/{{ user_id }}/followers"
+                    <div hx-get="/htmx/users/{{ profile_user_id }}/followers"
                          hx-trigger="intersect once"
                          hx-swap="innerHTML">
                         <div class="animate-pulse space-y-3">
@@ -175,7 +175,7 @@
                 
                 {# Following Tab #}
                 <div x-show="activeTab === 'following'" x-cloak>
-                    <div hx-get="/htmx/users/{{ user_id }}/following"
+                    <div hx-get="/htmx/users/{{ profile_user_id }}/following"
                          hx-trigger="intersect once"
                          hx-swap="innerHTML">
                         <div class="animate-pulse space-y-3">

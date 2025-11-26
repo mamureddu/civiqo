@@ -557,10 +557,11 @@ pub async fn community_members(
     
     // Fetch members from database
     let members = sqlx::query(
-        r#"SELECT u.id, u.email, p.name, p.avatar_url, cm.role, cm.joined_at
+        r#"SELECT u.id, u.email, p.name, p.avatar_url, r.name as role, cm.joined_at
            FROM community_members cm
            JOIN users u ON cm.user_id = u.id
            LEFT JOIN user_profiles p ON u.id = p.user_id
+           LEFT JOIN roles r ON cm.role_id = r.id
            WHERE cm.community_id = $1 AND cm.status = 'active'
            ORDER BY cm.joined_at ASC
            LIMIT 50"#

@@ -127,13 +127,17 @@
                     
                     <!-- Logged in user -->
                     <div class="flex items-center space-x-4">
+                        {% if user_id %}
                         <a href="/users/{{ user_id }}" class="flex items-center space-x-2 hover:opacity-80 transition">
+                        {% else %}
+                        <div class="flex items-center space-x-2">
+                        {% endif %}
                             {% if picture %}
                             <img src="{{ picture }}" alt="{{ username }}"
                                 class="w-8 h-8 rounded-full border border-civiqo-gray-200">
                             {% endif %}
                             <span class="text-civiqo-gray-900 font-medium">{{ username }}</span>
-                        </a>
+                        {% if user_id %}</a>{% else %}</div>{% endif %}
                         <a href="/dashboard"
                             class="text-civiqo-blue hover:text-civiqo-blue-dark font-medium transition-colors">Dashboard</a>
                         <button onclick="logout()"
