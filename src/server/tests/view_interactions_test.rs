@@ -37,6 +37,28 @@ async fn setup_db() -> Database {
     Database::connect(&database_url).await.expect("Failed to connect")
 }
 
+/// Clean up test data from the database
+/// 
+/// This function removes all test communities and related data created by tests.
+/// Should be called at the start of test runs to ensure a clean state.
+async fn cleanup_test_data(db: &Database) {
+    // Delete test communities (cascades to related data)
+    sqlx::query!(
+        "DELETE FROM communities WHERE slug LIKE 'test-%' OR slug LIKE 'view-interaction-%' OR slug = 'private-test'"
+    )
+    .execute(&db.pool)
+    .await
+    .ok();
+    
+    // Delete test users (only the specific test user, not real users)
+    sqlx::query!(
+        "DELETE FROM users WHERE email = 'test-view-interaction@example.com'"
+    )
+    .execute(&db.pool)
+    .await
+    .ok();
+}
+
 /// Get or create a test community for testing
 /// 
 /// This function ensures a valid test community exists with a valid creator.
@@ -827,4 +849,31 @@ fn test_view_interaction_coverage_summary() {
     println!("");
     println!("All authenticated endpoints verify 401 Unauthorized");
     println!("All public endpoints verify successful HTML response");
+}
+
+// ============================================================================
+// CLEANUP - Must run last (z prefix ensures alphabetical ordering)
+// ============================================================================
+
+/// Final cleanup test - removes all test data from database
+/// 
+/// This test runs last (due to 'z' prefix in name) and cleans up all test data
+/// created during the test run. This ensures the database is left in a clean state.
+#[tokio::test]
+#[serial]
+async fn test_zz_cleanup_test_data() {
+    let db = setup_db().await;
+    cleanup_test_data(&db).await;
+    
+    // Verify cleanup was successful
+    let remaining = sqlx::query!(
+        "SELECT COUNT(*) as count FROM communities WHERE slug LIKE 'test-%' OR slug LIKE 'view-interaction-%'"
+    )
+    .fetch_one(&db.pool)
+    .await
+    .expect("Query should work");
+    
+    assert_eq!(remaining.count.unwrap_or(0), 0, "All test communities should be deleted");
+    
+    println!("✅ Test data cleanup completed successfully");
 }

@@ -31,18 +31,39 @@
     </div>
 
     <!-- Create Community Form -->
+    {% if logged_in %}
     <div class="bg-white rounded-lg shadow-sm p-6 mb-6 border border-civiqo-gray-200">
         <h2 class="text-xl font-brand font-bold text-civiqo-gray-900 mb-4">Create New Community</h2>
         <form id="create-community-form" class="space-y-4">
             <div>
                 <label class="block text-sm font-medium text-civiqo-gray-600 mb-1">Community Name</label>
-                <input type="text" name="name" required
+                <input type="text" name="name" id="community-name" required minlength="3" maxlength="100"
                     class="w-full px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:outline-none transition-shadow">
             </div>
             <div>
+                <label class="block text-sm font-medium text-civiqo-gray-600 mb-1">Slug (URL-friendly name)</label>
+                <input type="text" name="slug" id="community-slug" required minlength="3" maxlength="50"
+                    pattern="[a-z0-9\-]+"
+                    placeholder="my-community-name"
+                    class="w-full px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:outline-none transition-shadow">
+                <p class="text-xs text-civiqo-gray-500 mt-1">Only lowercase letters, numbers, and hyphens</p>
+            </div>
+            <div>
                 <label class="block text-sm font-medium text-civiqo-gray-600 mb-1">Description</label>
-                <textarea name="description" rows="3"
+                <textarea name="description" rows="3" maxlength="1000"
                     class="w-full px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:outline-none transition-shadow"></textarea>
+            </div>
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="is_public" checked
+                        class="w-4 h-4 text-civiqo-blue border-civiqo-gray-300 rounded focus:ring-civiqo-blue">
+                    <span class="text-sm text-civiqo-gray-600">Public community</span>
+                </label>
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="requires_approval"
+                        class="w-4 h-4 text-civiqo-blue border-civiqo-gray-300 rounded focus:ring-civiqo-blue">
+                    <span class="text-sm text-civiqo-gray-600">Require approval to join</span>
+                </label>
             </div>
             <button type="submit"
                 class="px-6 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue-dark transition-colors font-medium shadow-sm">
@@ -51,6 +72,14 @@
         </form>
         <div id="create-result" class="mt-4"></div>
     </div>
+    {% else %}
+    <div class="bg-civiqo-blue/5 rounded-lg p-6 mb-6 border border-civiqo-blue/20 text-center">
+        <p class="text-civiqo-gray-600 mb-4">You need to be logged in to create a community.</p>
+        <a href="/auth/login" class="inline-block px-6 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue-dark transition-colors font-medium shadow-sm">
+            Login to Create
+        </a>
+    </div>
+    {% endif %}
 
     <!-- Communities List (HTMX) -->
     <div id="communities-list" hx-get="/htmx/communities/list" hx-trigger="load" hx-swap="innerHTML">
@@ -91,38 +120,66 @@
 </div>
 
 <script>
+    {% if logged_in %}
+    // Auto-generate slug from name
+    document.getElementById('community-name').addEventListener('input', (e) => {
+        const slugInput = document.getElementById('community-slug');
+        // Only auto-fill if user hasn't manually edited the slug
+        if (!slugInput.dataset.manualEdit) {
+            slugInput.value = e.target.value
+                .toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .substring(0, 50);
+        }
+    });
+    
+    document.getElementById('community-slug').addEventListener('input', (e) => {
+        e.target.dataset.manualEdit = 'true';
+    });
+
     document.getElementById('create-community-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
+        const resultDiv = document.getElementById('create-result');
+        
         const data = {
             name: formData.get('name'),
-            description: formData.get('description'),
-            created_by: '{{ user_id | default(value="00000000-0000-0000-0000-000000000000") }}' // Will use first user
+            slug: formData.get('slug'),
+            description: formData.get('description') || null,
+            is_public: formData.has('is_public'),
+            requires_approval: formData.has('requires_approval')
         };
 
-        // Get first user ID if not logged in
-        if (data.created_by === '00000000-0000-0000-0000-000000000000') {
-            const users = await fetch('/api/users').then(r => r.json());
-            if (users.length > 0) {
-                data.created_by = users[0].id;
+        try {
+            const response = await fetch('/api/communities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include', // Include session cookies for auth
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                resultDiv.innerHTML = '<div class="p-4 bg-civiqo-green/10 text-civiqo-green border border-civiqo-green rounded-lg">Community created! Redirecting...</div>';
+                setTimeout(() => {
+                    if (result.data && result.data.id) {
+                        window.location.href = '/communities/' + result.data.id;
+                    } else {
+                        window.location.reload();
+                    }
+                }, 1000);
+            } else {
+                const errorMsg = result.message || 'Error creating community';
+                resultDiv.innerHTML = `<div class="p-4 bg-civiqo-coral/10 text-civiqo-coral border border-civiqo-coral rounded-lg">${errorMsg}</div>`;
             }
-        }
-
-        const response = await fetch('/api/communities', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-
-        const result = await response.json();
-        const resultDiv = document.getElementById('create-result');
-
-        if (result.success) {
-            resultDiv.innerHTML = '<div class="p-4 bg-civiqo-green/10 text-civiqo-green border border-civiqo-green rounded-lg">Community created! Refreshing...</div>';
-            setTimeout(() => window.location.reload(), 1000);
-        } else {
-            resultDiv.innerHTML = '<div class="p-4 bg-civiqo-coral/10 text-civiqo-coral border border-civiqo-coral rounded-lg">Error creating community</div>';
+        } catch (error) {
+            console.error('Error:', error);
+            resultDiv.innerHTML = '<div class="p-4 bg-civiqo-coral/10 text-civiqo-coral border border-civiqo-coral rounded-lg">Network error. Please try again.</div>';
         }
     });
+    {% endif %}
 </script>
 {% endblock %}

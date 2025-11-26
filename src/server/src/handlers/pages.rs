@@ -229,6 +229,29 @@ pub async fn community_detail(
         ctx.insert("creator_name", &row.get::<Option<String>, _>("creator_name").unwrap_or_else(|| "Unknown".to_string()));
         ctx.insert("created_at", &row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d").to_string());
         
+        // Fetch community stats
+        let member_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM community_members WHERE community_id = $1"
+        )
+        .bind(uuid)
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(0);
+        
+        let post_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM posts WHERE community_id = $1"
+        )
+        .bind(uuid)
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(0);
+        
+        ctx.insert("member_count", &member_count);
+        ctx.insert("post_count", &post_count);
+        // Events and active today are placeholders for now (no events table yet)
+        ctx.insert("event_count", &0i64);
+        ctx.insert("active_today", &0i64);
+        
         // Fetch posts for this community (join with user_profiles for author name)
         let posts = sqlx::query(
             "SELECT p.id, p.title, p.content, p.created_at, 

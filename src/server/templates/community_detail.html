@@ -29,19 +29,19 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-white rounded-lg shadow-sm p-4">
             <p class="text-sm text-gray-600">Members</p>
-            <p class="text-2xl font-bold text-gray-900">1,234</p>
+            <p class="text-2xl font-bold text-gray-900">{{ member_count | default(value=0) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm p-4">
             <p class="text-sm text-gray-600">Posts</p>
-            <p class="text-2xl font-bold text-gray-900">567</p>
+            <p class="text-2xl font-bold text-gray-900">{{ post_count | default(value=0) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm p-4">
             <p class="text-sm text-gray-600">Events</p>
-            <p class="text-2xl font-bold text-gray-900">12</p>
+            <p class="text-2xl font-bold text-gray-900">{{ event_count | default(value=0) }}</p>
         </div>
         <div class="bg-white rounded-lg shadow-sm p-4">
             <p class="text-sm text-gray-600">Active Today</p>
-            <p class="text-2xl font-bold text-gray-900">89</p>
+            <p class="text-2xl font-bold text-gray-900">{{ active_today | default(value=0) }}</p>
         </div>
     </div>
 
