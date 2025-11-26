@@ -7,6 +7,7 @@ use tera::{Context, Tera};
 use std::sync::Arc;
 use shared::database::Database;
 use crate::auth::{AuthUser, OptionalAuthUser};
+use sqlx::Row;
 
 /// Application state for page handlers
 pub struct AppState {
@@ -81,6 +82,52 @@ pub async fn communities(
     ctx.insert("communities", &communities_data);
     
     let html = state.tera.render("communities.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+
+/// Chat rooms list page
+pub async fn chat_list(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    let mut ctx = Context::new();
+    
+    // Add auth info to context
+    if let Some(ref u) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("picture", &u.picture);
+        ctx.insert("user_id", &u.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    // Fetch chat rooms from communities (each community has a chat room)
+    let rooms = sqlx::query(
+        r#"SELECT c.id, c.name, c.description, COUNT(DISTINCT cm.user_id) as member_count
+           FROM communities c
+           LEFT JOIN community_members cm ON c.id = cm.community_id AND cm.status = 'active'
+           WHERE c.is_public = true
+           GROUP BY c.id, c.name, c.description
+           ORDER BY c.created_at DESC
+           LIMIT 20"#
+    )
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    let rooms_data: Vec<serde_json::Value> = rooms.iter().map(|r| {
+        serde_json::json!({
+            "id": r.get::<uuid::Uuid, _>("id").to_string(),
+            "name": r.get::<String, _>("name"),
+            "description": r.get::<Option<String>, _>("description"),
+            "member_count": r.get::<i64, _>("member_count"),
+        })
+    }).collect();
+    
+    ctx.insert("rooms", &rooms_data);
+    
+    let html = state.tera.render("chat_list.html", &ctx)?;
     Ok(Html(html).into_response())
 }
 

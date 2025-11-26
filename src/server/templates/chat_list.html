@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Chat Rooms - Civiqo{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="mb-8">
+        <h1 class="text-3xl font-brand font-bold text-civiqo-gray-900">Chat Rooms</h1>
+        <p class="text-civiqo-gray-600 mt-2">Seleziona una community per entrare nella chat</p>
+    </div>
+    
+    {% if rooms | length > 0 %}
+    <div class="grid gap-4">
+        {% for room in rooms %}
+        <a href="/chat/{{ room.id }}" 
+           class="block bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6 hover:shadow-md hover:border-civiqo-blue/30 transition group">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-civiqo-blue to-civiqo-green flex items-center justify-center text-white font-bold text-lg">
+                        {{ room.name | truncate(length=1) | upper }}
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-civiqo-gray-900 group-hover:text-civiqo-blue transition">
+                            {{ room.name }}
+                        </h3>
+                        {% if room.description %}
+                        <p class="text-sm text-civiqo-gray-600 line-clamp-1">{{ room.description }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <span class="text-sm text-civiqo-gray-500">{{ room.member_count }} membri</span>
+                    </div>
+                    <svg class="w-5 h-5 text-civiqo-gray-400 group-hover:text-civiqo-blue transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 bg-white rounded-xl shadow-sm">
+        <svg class="w-16 h-16 mx-auto text-civiqo-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+        </svg>
+        <h3 class="text-lg font-medium text-civiqo-gray-900 mb-2">Nessuna chat room disponibile</h3>
+        <p class="text-civiqo-gray-600">Le chat rooms sono associate alle community. Crea o unisciti a una community per chattare!</p>
+        <a href="/communities" class="inline-block mt-4 px-6 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue-dark transition">
+            Esplora Community
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

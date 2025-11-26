@@ -106,7 +106,7 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/posts/:id", get(pages::post_detail))
         .route("/businesses", get(pages::businesses))
         .route("/businesses/:id", get(pages::business_detail))
-        .route("/chat", get(pages::chat_room))
+        .route("/chat", get(pages::chat_list))
         .route("/chat/:room_id", get(pages::chat_room))
         .route("/governance", get(pages::governance))
         .route("/poi", get(pages::poi))
