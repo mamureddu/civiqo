@@ -24,12 +24,15 @@ use crate::auth::{AuthUser, OptionalAuthUser};
 // Request/Response Types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
-pub struct CreateUserRequest {
-    pub username: String,
-    pub email: String,
-    pub password: String,
-}
+// ==========================================================
+// DEPRECATED: CreateUserRequest - Users are created via Auth0
+// ==========================================================
+// #[derive(Debug, Deserialize)]
+// pub struct CreateUserRequest {
+//     pub username: String,
+//     pub email: String,
+//     pub password: String,
+// }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCommunityRequest {
@@ -50,7 +53,7 @@ pub struct ApiResponse<T> {
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
     pub id: String,
-    pub username: String,
+    pub name: Option<String>,  // From user_profiles, not users table
     pub email: String,
     pub created_at: String,
 }
@@ -124,48 +127,11 @@ fn default_limit() -> u32 { 20 }
 // User Endpoints
 // ============================================================================
 
-/// Create a new user
-pub async fn create_user(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<CreateUserRequest>,
-) -> Result<Json<ApiResponse<UserResponse>>, StatusCode> {
-    // Hash password (in production, use bcrypt or argon2)
-    let password_hash = format!("hashed_{}", payload.password);
-    
-    let user_id = Uuid::new_v4();
-    
-    let result = sqlx::query(
-        "INSERT INTO users (id, username, email, password_hash) 
-         VALUES ($1, $2, $3, $4)"
-    )
-    .bind(user_id)
-    .bind(&payload.username)
-    .bind(&payload.email)
-    .bind(&password_hash)
-    .execute(&state.db.pool)
-    .await;
-    
-    match result {
-        Ok(_) => {
-            let user = UserResponse {
-                id: user_id.to_string(),
-                username: payload.username,
-                email: payload.email,
-                created_at: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
-            };
-            
-            Ok(Json(ApiResponse {
-                success: true,
-                data: Some(user),
-                message: Some("User created successfully".to_string()),
-            }))
-        }
-        Err(e) => {
-            tracing::error!("Failed to create user: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
+// ==========================================================
+// DEPRECATED: create_user - Users are created via Auth0 OAuth2 flow
+// See: src/server/src/auth.rs -> sync_user_to_database()
+// ==========================================================
+// pub async fn create_user(...) { ... }
 
 /// Get all users
 pub async fn get_users(
@@ -173,7 +139,12 @@ pub async fn get_users(
 ) -> Result<Json<Vec<UserResponse>>, StatusCode> {
     use sqlx::Row;
     
-    let users = sqlx::query("SELECT id, username, email, created_at FROM users ORDER BY created_at DESC")
+    let users = sqlx::query(
+        "SELECT u.id, u.email, u.created_at, p.name 
+         FROM users u 
+         LEFT JOIN user_profiles p ON u.id = p.user_id 
+         ORDER BY u.created_at DESC"
+    )
         .fetch_all(&state.db.pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -181,7 +152,7 @@ pub async fn get_users(
     let users_data: Vec<UserResponse> = users.iter().map(|row| {
         UserResponse {
             id: row.get::<Uuid, _>("id").to_string(),
-            username: row.get::<String, _>("username"),
+            name: row.get::<Option<String>, _>("name"),
             email: row.get::<String, _>("email"),
             created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
         }

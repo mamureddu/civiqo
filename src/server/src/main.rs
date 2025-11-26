@@ -135,8 +135,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/user/activity", get(htmx::user_activity))
         
         // REST API Endpoints
-
-        .route("/api/users", axum::routing::post(api::create_user))
+        // NOTE: POST /api/users removed - users are created via Auth0 OAuth2 flow
         .route("/api/users", get(api::get_users))
         .route("/api/communities", axum::routing::post(api::create_community))
         .route("/api/communities", get(api::get_communities))

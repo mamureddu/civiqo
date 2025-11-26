@@ -42,7 +42,7 @@ pub async fn get_current_user(
             u.updated_at as "updated_at!",
             p.id as "profile_id?",
             p.name as "profile_name?",
-            p.avatar_url as "profile_avatar_url?",
+            p.picture as "profile_picture?",
             p.bio as "profile_bio?",
             p.location as "profile_location?",
             p.website as "profile_website?",
@@ -95,12 +95,12 @@ pub async fn sync_user_from_auth0(
     if request.name.is_some() || request.picture.is_some() {
         sqlx::query!(
             r#"
-            INSERT INTO user_profiles (user_id, name, avatar_url, created_at, updated_at)
+            INSERT INTO user_profiles (user_id, name, picture, created_at, updated_at)
             VALUES ($1, $2, $3, NOW(), NOW())
             ON CONFLICT (user_id)
             DO UPDATE SET
                 name = COALESCE(EXCLUDED.name, user_profiles.name),
-                avatar_url = COALESCE(EXCLUDED.avatar_url, user_profiles.avatar_url),
+                picture = COALESCE(EXCLUDED.picture, user_profiles.picture),
                 updated_at = NOW()
             "#,
             user.id,
@@ -122,7 +122,7 @@ pub async fn sync_user_from_auth0(
             u.created_at as "created_at!",
             u.updated_at as "updated_at!",
             p.id as "profile_id?", p.name as "profile_name?",
-            p.avatar_url as "profile_avatar_url?", p.bio as "profile_bio?",
+            p.picture as "profile_picture?", p.bio as "profile_bio?",
             p.location as "profile_location?", p.website as "profile_website?",
             p.created_at as "profile_created_at?", p.updated_at as "profile_updated_at?"
         FROM users u
@@ -183,7 +183,7 @@ pub async fn update_user_profile(
             u.created_at as "created_at!",
             u.updated_at as "updated_at!",
             p.id as "profile_id?", p.name as "profile_name?",
-            p.avatar_url as "profile_avatar_url?", p.bio as "profile_bio?",
+            p.picture as "profile_picture?", p.bio as "profile_bio?",
             p.location as "profile_location?", p.website as "profile_website?",
             p.created_at as "profile_created_at?", p.updated_at as "profile_updated_at?"
         FROM users u

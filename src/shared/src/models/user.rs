@@ -50,7 +50,7 @@ pub struct UserWithProfile {
     // Profile fields (optional)
     pub profile_id: Option<Uuid>,
     pub profile_name: Option<String>,
-    pub profile_avatar_url: Option<String>,
+    pub profile_picture: Option<String>,
     pub profile_bio: Option<String>,
     pub profile_location: Option<String>,
     pub profile_website: Option<String>,

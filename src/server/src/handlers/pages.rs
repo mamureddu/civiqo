@@ -681,8 +681,13 @@ pub async fn test_db(State(state): State<Arc<AppState>>) -> Result<Response, App
     ctx.insert("community_count", &community_count);
     ctx.insert("post_count", &post_count);
     
-    // Get recent users
-    let users = sqlx::query("SELECT id, username, email, created_at FROM users ORDER BY created_at DESC LIMIT 5")
+    // Get recent users (join with user_profiles for name)
+    let users = sqlx::query(
+        "SELECT u.id, u.email, u.created_at, p.name 
+         FROM users u 
+         LEFT JOIN user_profiles p ON u.id = p.user_id 
+         ORDER BY u.created_at DESC LIMIT 5"
+    )
         .fetch_all(&state.db.pool)
         .await
         .unwrap_or_default();
@@ -690,7 +695,7 @@ pub async fn test_db(State(state): State<Arc<AppState>>) -> Result<Response, App
     let users_data: Vec<serde_json::Value> = users.iter().map(|row| {
         serde_json::json!({
             "id": row.get::<uuid::Uuid, _>("id").to_string(),
-            "username": row.get::<String, _>("username"),
+            "name": row.get::<Option<String>, _>("name").unwrap_or_default(),
             "email": row.get::<String, _>("email"),
             "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
         })

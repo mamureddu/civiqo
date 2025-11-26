@@ -248,16 +248,15 @@ async fn sync_user_to_database(
     .fetch_one(&db.pool)
     .await?;
 
-    // 2. Insert or update user profile
+    // 2. Insert or update user profile (user_id is PK, no separate id column)
     sqlx::query(
-        "INSERT INTO user_profiles (id, user_id, name, avatar_url, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, NOW(), NOW())
+        "INSERT INTO user_profiles (user_id, name, picture, created_at, updated_at)
+         VALUES ($1, $2, $3, NOW(), NOW())
          ON CONFLICT (user_id) DO UPDATE SET
             name = EXCLUDED.name,
-            avatar_url = EXCLUDED.avatar_url,
+            picture = EXCLUDED.picture,
             updated_at = NOW()"
     )
-    .bind(Uuid::new_v4())
     .bind(user_id)
     .bind(&user_info.name)
     .bind(&user_info.picture)
