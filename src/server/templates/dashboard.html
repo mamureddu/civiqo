@@ -80,7 +80,16 @@
 
     <!-- Your Communities -->
     <div class="bg-white rounded-lg shadow-sm p-6 mb-6 border border-civiqo-gray-200">
-        <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900 mb-4">Your Communities</h2>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900">Le Tue Community</h2>
+            <a href="/communities/new" 
+               class="inline-flex items-center px-4 py-2 bg-civiqo-blue text-white text-sm font-medium rounded-lg hover:bg-civiqo-blue-dark transition-colors shadow-sm">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Crea Community
+            </a>
+        </div>
         <div class="space-y-4" hx-get="/htmx/user/communities" hx-trigger="load" hx-swap="innerHTML">
             <!-- Loading placeholder -->
             <div class="animate-pulse flex space-x-4">

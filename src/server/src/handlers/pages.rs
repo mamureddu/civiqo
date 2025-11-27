@@ -386,8 +386,57 @@ pub async fn business_detail(
 }
 
 /// Governance page
-pub async fn governance(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
-    let html = state.tera.render("governance.html", &Context::new())?;
+pub async fn governance(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    let mut ctx = Context::new();
+    
+    // Add auth info to context
+    if let Some(ref user) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
+        ctx.insert("picture", &user.picture);
+        ctx.insert("user_id", &user.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    // Fetch governance stats from database
+    let active_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM proposals WHERE status = 'active'"
+    )
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+    
+    let passed_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM proposals WHERE status = 'passed'"
+    )
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+    
+    let participants_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT user_id) FROM votes"
+    )
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+    
+    let ending_soon_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM proposals WHERE status = 'active' AND voting_ends_at <= NOW() + INTERVAL '24 hours'"
+    )
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+    
+    ctx.insert("active_proposals", &active_count);
+    ctx.insert("passed_proposals", &passed_count);
+    ctx.insert("participants", &participants_count);
+    ctx.insert("ending_soon", &ending_soon_count);
+    
+    let html = state.tera.render("governance.html", &ctx)?;
     Ok(Html(html).into_response())
 }
 
