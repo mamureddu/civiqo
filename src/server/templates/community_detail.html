@@ -101,6 +101,18 @@
                         class="border-b-2 py-4 px-1 text-sm font-medium transition">
                     Info
                 </button>
+                <button @click="activeTab = 'governance'"
+                        :class="activeTab === 'governance' ? 'border-[#57C98A] text-[#57C98A]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="border-b-2 py-4 px-1 text-sm font-medium transition flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                    </svg>
+                    Votazioni
+                    <span id="proposals-badge" class="ml-2 px-2 py-0.5 text-xs bg-civiqo-coral text-white rounded-full hidden"
+                          hx-get="/htmx/communities/{{ community_id }}/proposals/count"
+                          hx-trigger="load"
+                          hx-swap="innerHTML"></span>
+                </button>
             </nav>
         </div>
 
@@ -175,7 +187,108 @@
                     </div>
                 </div>
             </div>
+            
+            {# Governance/Votazioni Tab #}
+            <div x-show="activeTab === 'governance'" x-cloak>
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900">Proposte e Votazioni</h3>
+                    {% if is_member %}
+                    <button @click="$refs.proposalModal.showModal()"
+                            class="inline-flex items-center px-4 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue/90 transition text-sm">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Nuova Proposta
+                    </button>
+                    {% endif %}
+                </div>
+                
+                <div id="community-proposals"
+                     hx-get="/htmx/communities/{{ community_id }}/proposals"
+                     hx-trigger="intersect once"
+                     hx-swap="innerHTML">
+                    <!-- Loading placeholder -->
+                    <div class="animate-pulse space-y-4">
+                        <div class="h-24 bg-gray-200 rounded"></div>
+                        <div class="h-24 bg-gray-200 rounded"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+    
+    {# Create Proposal Modal #}
+    {% if is_member %}
+    <dialog x-ref="proposalModal" class="rounded-xl shadow-xl max-w-lg w-full p-0 backdrop:bg-black/50">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-civiqo-gray-900">Nuova Proposta</h3>
+                <button onclick="this.closest('dialog').close()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <form hx-post="/htmx/communities/{{ community_id }}/proposals" 
+                  hx-target="#community-proposals"
+                  hx-swap="innerHTML"
+                  hx-on::after-request="if(event.detail.successful) { this.closest('dialog').close(); this.reset(); }">
+                
+                <input type="hidden" name="community_id" value="{{ community_id }}">
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-civiqo-gray-700 mb-1">Titolo</label>
+                        <input type="text" name="title" required maxlength="255"
+                               class="w-full px-3 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:border-civiqo-blue"
+                               placeholder="Di cosa vuoi discutere?">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-civiqo-gray-700 mb-1">Descrizione</label>
+                        <textarea name="description" rows="4"
+                                  class="w-full px-3 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:border-civiqo-blue"
+                                  placeholder="Descrivi la tua proposta in dettaglio..."></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-civiqo-gray-700 mb-1">Tipo</label>
+                        <select name="proposal_type"
+                                class="w-full px-3 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:border-civiqo-blue">
+                            <option value="text">Discussione</option>
+                            <option value="vote">Votazione Sì/No</option>
+                            <option value="poll">Sondaggio</option>
+                        </select>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-civiqo-gray-700 mb-1">Inizio Votazione</label>
+                            <input type="datetime-local" name="voting_starts_at"
+                                   class="w-full px-3 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:border-civiqo-blue">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-civiqo-gray-700 mb-1">Fine Votazione</label>
+                            <input type="datetime-local" name="voting_ends_at"
+                                   class="w-full px-3 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:border-civiqo-blue">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="this.closest('dialog').close()"
+                            class="px-4 py-2 text-civiqo-gray-700 hover:bg-civiqo-gray-50 rounded-lg transition">
+                        Annulla
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue/90 transition">
+                        Crea Proposta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+    {% endif %}
 </div>
 {% endblock %}

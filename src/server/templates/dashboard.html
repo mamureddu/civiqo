@@ -58,6 +58,26 @@
         </div>
     </div>
 
+    <!-- Active Proposals Widget -->
+    <div class="bg-white rounded-lg shadow-sm p-6 mb-6 border border-civiqo-gray-200">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-civiqo-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+                Votazioni Attive
+            </h2>
+            <a href="/governance" class="text-sm text-civiqo-blue hover:underline">Vedi tutte →</a>
+        </div>
+        <div class="space-y-3" hx-get="/htmx/dashboard/active-proposals" hx-trigger="load" hx-swap="innerHTML">
+            <!-- Loading placeholder -->
+            <div class="animate-pulse space-y-3">
+                <div class="h-16 bg-civiqo-gray-200 rounded"></div>
+                <div class="h-16 bg-civiqo-gray-200 rounded"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Your Communities -->
     <div class="bg-white rounded-lg shadow-sm p-6 mb-6 border border-civiqo-gray-200">
         <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900 mb-4">Your Communities</h2>

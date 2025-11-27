@@ -139,6 +139,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/chat/:room_id/header", get(htmx::chat_header))
         .route("/htmx/user/communities", get(htmx::user_communities))
         .route("/htmx/user/activity", get(htmx::user_activity))
+        .route("/htmx/dashboard/active-proposals", get(htmx::dashboard_active_proposals))
         // Business HTMX fragments
         .route("/htmx/businesses/list", get(htmx::businesses_list))
         .route("/htmx/businesses/search", get(htmx::businesses_search))
@@ -160,6 +161,10 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/users/:id/followers", get(htmx::user_followers))
         .route("/htmx/users/:id/following", get(htmx::user_following))
         .route("/htmx/notifications", get(htmx::notifications_dropdown))
+        // Community proposals HTMX fragments
+        .route("/htmx/communities/:id/proposals", get(htmx::community_proposals))
+        .route("/htmx/communities/:id/proposals", post(htmx::create_proposal_htmx))
+        .route("/htmx/communities/:id/proposals/count", get(htmx::community_proposals_count))
         
         // REST API Endpoints
         // NOTE: POST /api/users removed - users are created via Auth0 OAuth2 flow

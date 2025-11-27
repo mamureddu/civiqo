@@ -253,6 +253,87 @@ pub async fn user_communities(
     Ok(Html(html))
 }
 
+/// Dashboard active proposals fragment (PROTECTED - requires authentication)
+pub async fn dashboard_active_proposals(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Html<String>, AppError> {
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Fetch active proposals from user's communities
+    let proposals = sqlx::query(
+        r#"SELECT p.id, p.title, p.status, p.voting_ends_at, c.name as community_name, c.id as community_id,
+                  (SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id) as vote_count
+           FROM proposals p
+           JOIN communities c ON p.community_id = c.id
+           JOIN community_members cm ON c.id = cm.community_id AND cm.user_id = $1 AND cm.status = 'active'
+           WHERE p.status = 'active'
+           ORDER BY p.voting_ends_at ASC NULLS LAST
+           LIMIT 5"#
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if proposals.is_empty() {
+        return Ok(Html(r#"
+        <div class="text-center py-6 text-civiqo-gray-600">
+            <svg class="mx-auto h-8 w-8 text-civiqo-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+            </svg>
+            <p class="text-sm">Nessuna votazione attiva nelle tue community.</p>
+        </div>
+        "#.to_string()));
+    }
+    
+    let mut html = String::new();
+    for row in proposals {
+        let id: uuid::Uuid = row.get("id");
+        let title: String = row.get("title");
+        let community_name: String = row.get("community_name");
+        let community_id: uuid::Uuid = row.get("community_id");
+        let vote_count: i64 = row.get("vote_count");
+        let voting_ends: Option<chrono::DateTime<chrono::Utc>> = row.get("voting_ends_at");
+        
+        let time_left = if let Some(ends) = voting_ends {
+            let now = chrono::Utc::now();
+            if ends > now {
+                let diff = ends - now;
+                if diff.num_days() > 0 {
+                    format!("⏱️ {} giorni", diff.num_days())
+                } else if diff.num_hours() > 0 {
+                    format!("⏱️ {} ore", diff.num_hours())
+                } else {
+                    "⏱️ A breve".to_string()
+                }
+            } else {
+                "⏱️ Scaduta".to_string()
+            }
+        } else {
+            "⏱️ Nessuna scadenza".to_string()
+        };
+        
+        html.push_str(&format!(r#"
+        <a href="/communities/{}?tab=governance" class="block p-3 border border-civiqo-gray-200 rounded-lg hover:bg-civiqo-gray-50 hover:border-civiqo-blue transition">
+            <div class="flex items-center justify-between">
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-civiqo-gray-900 truncate">{}</p>
+                    <p class="text-xs text-civiqo-gray-600">{}</p>
+                </div>
+                <div class="ml-4 flex items-center space-x-3 text-xs text-civiqo-gray-600">
+                    <span>🗳️ {}</span>
+                    <span class="text-civiqo-coral">{}</span>
+                </div>
+            </div>
+        </a>
+        "#, community_id, title, community_name, vote_count, time_left));
+    }
+    
+    Ok(Html(html))
+}
+
 /// User activity fragment (PROTECTED - requires authentication)
 pub async fn user_activity(
     AuthUser(user): AuthUser,
@@ -547,6 +628,240 @@ pub async fn governance_proposals(State(state): State<Arc<AppState>>) -> Html<St
             </div>
             "#.to_string())
         }
+    }
+}
+
+// =============================================================================
+// COMMUNITY PROPOSALS FRAGMENTS
+// =============================================================================
+
+/// Community proposals list fragment
+pub async fn community_proposals(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<uuid::Uuid>,
+) -> Html<String> {
+    let proposals = sqlx::query(
+        r#"SELECT p.id, p.title, p.description, p.status, p.proposal_type,
+                  p.voting_starts_at, p.voting_ends_at,
+                  COALESCE(up.name, u.email) as author_name,
+                  (SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id) as vote_count
+           FROM proposals p
+           JOIN users u ON p.created_by = u.id
+           LEFT JOIN user_profiles up ON u.id = up.user_id
+           WHERE p.community_id = $1
+           ORDER BY 
+               CASE p.status 
+                   WHEN 'active' THEN 1 
+                   WHEN 'draft' THEN 2 
+                   ELSE 3 
+               END,
+               p.created_at DESC
+           LIMIT 20"#
+    )
+    .bind(community_id)
+    .fetch_all(&state.db.pool)
+    .await;
+    
+    match proposals {
+        Ok(rows) if !rows.is_empty() => {
+            let mut html = String::new();
+            html.push_str("<div class=\"space-y-4\">");
+            
+            for row in rows {
+                let id: uuid::Uuid = row.get("id");
+                let title: String = row.get("title");
+                let description: Option<String> = row.get("description");
+                let status: String = row.get("status");
+                let proposal_type: String = row.get("proposal_type");
+                let author_name: String = row.get("author_name");
+                let vote_count: i64 = row.get("vote_count");
+                let voting_ends: Option<chrono::DateTime<chrono::Utc>> = row.get("voting_ends_at");
+                
+                let status_badge = match status.as_str() {
+                    "active" => r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-green/10 text-civiqo-green rounded-full">🗳️ Votazione Aperta</span>"#,
+                    "draft" => r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-gray-200 text-civiqo-gray-600 rounded-full">📝 Bozza</span>"#,
+                    "closed" => r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-blue/10 text-civiqo-blue rounded-full">✓ Conclusa</span>"#,
+                    _ => r#"<span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">-</span>"#,
+                };
+                
+                let type_icon = match proposal_type.as_str() {
+                    "vote" => "🗳️",
+                    "poll" => "📊",
+                    _ => "💬",
+                };
+                
+                let time_info = if let Some(ends) = voting_ends {
+                    let now = chrono::Utc::now();
+                    if ends > now {
+                        let diff = ends - now;
+                        if diff.num_days() > 0 {
+                            format!("Termina tra {} giorni", diff.num_days())
+                        } else if diff.num_hours() > 0 {
+                            format!("Termina tra {} ore", diff.num_hours())
+                        } else {
+                            "Termina a breve".to_string()
+                        }
+                    } else {
+                        "Votazione terminata".to_string()
+                    }
+                } else {
+                    "Nessuna scadenza".to_string()
+                };
+                
+                html.push_str(&format!(r#"
+                <div class="bg-white border border-civiqo-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <span class="text-lg">{}</span>
+                                {}
+                            </div>
+                            <h4 class="font-semibold text-civiqo-gray-900 mb-1">{}</h4>
+                            <p class="text-sm text-civiqo-gray-600 line-clamp-2">{}</p>
+                            <div class="flex items-center space-x-4 mt-3 text-xs text-civiqo-gray-600">
+                                <span>👤 {}</span>
+                                <span>🗳️ {} voti</span>
+                                <span>⏱️ {}</span>
+                            </div>
+                        </div>
+                        {}
+                    </div>
+                </div>
+                "#,
+                    type_icon,
+                    status_badge,
+                    title,
+                    description.unwrap_or_default(),
+                    author_name,
+                    vote_count,
+                    time_info,
+                    if status == "active" {
+                        format!(r#"
+                        <button hx-post="/api/proposals/{}/vote" 
+                                hx-target="closest div"
+                                hx-swap="outerHTML"
+                                class="ml-4 px-4 py-2 bg-civiqo-green text-white rounded-lg hover:bg-civiqo-green/90 transition text-sm font-medium">
+                            Vota
+                        </button>
+                        "#, id)
+                    } else {
+                        String::new()
+                    }
+                ));
+            }
+            
+            html.push_str("</div>");
+            Html(html)
+        }
+        _ => Html(r#"
+            <div class="text-center py-8">
+                <svg class="mx-auto h-12 w-12 text-civiqo-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-civiqo-gray-900">Nessuna proposta</h3>
+                <p class="mt-2 text-civiqo-gray-600">Sii il primo a creare una proposta per questa community!</p>
+            </div>
+            "#.to_string())
+    }
+}
+
+/// Create proposal via HTMX form
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateProposalForm {
+    pub community_id: uuid::Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub proposal_type: Option<String>,
+    pub voting_starts_at: Option<String>,
+    pub voting_ends_at: Option<String>,
+}
+
+pub async fn create_proposal_htmx(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<uuid::Uuid>,
+    axum::Form(form): axum::Form<CreateProposalForm>,
+) -> Result<Html<String>, AppError> {
+    // Validate title
+    if form.title.trim().is_empty() {
+        return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg mb-4">Il titolo è obbligatorio</div>"#.to_string()));
+    }
+    
+    // Parse user_id
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+    
+    // Verify user is member of community
+    let is_member = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active'"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+    
+    if is_member == 0 {
+        return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg mb-4">Devi essere membro della community per creare proposte</div>"#.to_string()));
+    }
+    
+    let proposal_type = form.proposal_type.unwrap_or_else(|| "text".to_string());
+    
+    // Parse dates (datetime-local format: 2024-01-15T10:30)
+    let voting_starts: Option<chrono::DateTime<chrono::Utc>> = form.voting_starts_at
+        .as_ref()
+        .filter(|s| !s.is_empty())
+        .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").ok())
+        .map(|dt| dt.and_utc());
+    
+    let voting_ends: Option<chrono::DateTime<chrono::Utc>> = form.voting_ends_at
+        .as_ref()
+        .filter(|s| !s.is_empty())
+        .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").ok())
+        .map(|dt| dt.and_utc());
+    
+    // Insert proposal
+    let proposal_id = uuid::Uuid::now_v7();
+    sqlx::query(
+        r#"INSERT INTO proposals (id, community_id, created_by, title, description, 
+                                   proposal_type, status, voting_starts_at, voting_ends_at, 
+                                   quorum_required, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8, 0, NOW(), NOW())"#
+    )
+    .bind(proposal_id)
+    .bind(community_id)
+    .bind(user_uuid)
+    .bind(&form.title)
+    .bind(&form.description)
+    .bind(&proposal_type)
+    .bind(voting_starts)
+    .bind(voting_ends)
+    .execute(&state.db.pool)
+    .await
+    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    
+    // Return updated proposals list
+    Ok(community_proposals(State(state), axum::extract::Path(community_id)).await)
+}
+
+/// Community proposals count badge
+pub async fn community_proposals_count(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<uuid::Uuid>,
+) -> Html<String> {
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM proposals WHERE community_id = $1 AND status = 'active'"
+    )
+    .bind(community_id)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+    
+    if count > 0 {
+        Html(format!(r#"<script>document.getElementById('proposals-badge').classList.remove('hidden');</script>{}"#, count))
+    } else {
+        Html(String::new())
     }
 }
 
