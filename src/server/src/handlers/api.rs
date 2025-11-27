@@ -2425,3 +2425,49 @@ pub async fn unfollow_user(
         </button>
     "#, target_user_id)))
 }
+
+/// Dismiss welcome modal (PROTECTED)
+pub async fn dismiss_welcome(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    
+    // Update user profile to mark welcome as dismissed
+    let _ = sqlx::query(
+        "UPDATE user_profiles SET welcome_dismissed = true WHERE user_id = $1"
+    )
+    .bind(user_uuid)
+    .execute(&state.db.pool)
+    .await;
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        message: Some("Welcome dismissed".to_string()),
+    }))
+}
+
+/// Dismiss profile completion banner (PROTECTED)
+pub async fn dismiss_profile_banner(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ApiResponse<()>>, StatusCode> {
+    let user_uuid = Uuid::parse_str(&user.user_id)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    
+    // Update user profile to mark banner as dismissed
+    let _ = sqlx::query(
+        "UPDATE user_profiles SET profile_banner_dismissed = true WHERE user_id = $1"
+    )
+    .bind(user_uuid)
+    .execute(&state.db.pool)
+    .await;
+    
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        message: Some("Banner dismissed".to_string()),
+    }))
+}

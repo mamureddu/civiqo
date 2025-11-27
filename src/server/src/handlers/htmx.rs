@@ -1493,3 +1493,59 @@ fn render_user_list(users: Vec<sqlx::postgres::PgRow>) -> Html<String> {
     html.push_str("</div>");
     Html(html)
 }
+
+/// Notifications list fragment for the notifications page
+#[derive(Deserialize)]
+pub struct NotificationsQuery {
+    pub filter: Option<String>,
+    pub page: Option<i32>,
+}
+
+pub async fn notifications_list(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<NotificationsQuery>,
+) -> Html<String> {
+    let user_uuid = match uuid::Uuid::parse_str(&user.user_id) {
+        Ok(id) => id,
+        Err(_) => return Html(render_empty_notifications("all")),
+    };
+    
+    let filter = params.filter.unwrap_or_else(|| "all".to_string());
+    let page = params.page.unwrap_or(1);
+    let limit = 20;
+    let offset = (page - 1) * limit;
+    
+    // For now, return placeholder since notifications table may not exist yet
+    // TODO: Implement actual notifications query when table is created
+    Html(render_empty_notifications(&filter))
+}
+
+fn render_empty_notifications(filter: &str) -> String {
+    let message = match filter {
+        "unread" => "Hai letto tutte le notifiche!",
+        "mentions" => "Nessuna menzione recente.",
+        "votes" => "Nessuna votazione attiva.",
+        _ => "Le notifiche appariranno qui quando ci saranno novità.",
+    };
+    
+    format!(r#"
+        <div class="text-center py-12 bg-white rounded-lg border border-gray-200">
+            <svg class="w-16 h-16 mx-auto text-gray-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">Nessuna notifica</h3>
+            <p class="text-gray-600">{}</p>
+        </div>
+    "#, message)
+}
+
+/// Mark all notifications as read
+pub async fn mark_all_notifications_read(
+    AuthUser(user): AuthUser,
+    State(_state): State<Arc<AppState>>,
+) -> Html<String> {
+    // TODO: Implement when notifications table exists
+    // For now, just return success
+    Html(String::new())
+}

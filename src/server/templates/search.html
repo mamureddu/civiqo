@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Ricerca: {{ query }} | Civiqo{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- Search Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-brand font-bold text-civiqo-gray-900 mb-2">
+            Risultati per "{{ query }}"
+        </h1>
+        <p class="text-civiqo-gray-600">
+            {% if total_results > 0 %}
+            {{ total_results }} risultati trovati
+            {% else %}
+            Nessun risultato trovato
+            {% endif %}
+        </p>
+    </div>
+
+    <!-- Search Form -->
+    <div class="mb-8">
+        <form action="/search" method="GET" class="relative">
+            <input type="text"
+                   name="q"
+                   value="{{ query }}"
+                   placeholder="Cerca utenti, community, post..."
+                   class="w-full pl-12 pr-4 py-3 border border-civiqo-gray-200 rounded-xl focus:ring-2 focus:ring-civiqo-blue focus:border-civiqo-blue text-lg"
+                   autofocus>
+            <svg class="w-6 h-6 text-civiqo-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+        </form>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex gap-2 mb-6" x-data="{ filter: '{{ filter | default(value='all') }}' }">
+        <a href="/search?q={{ query }}&filter=all"
+           :class="filter === 'all' ? 'bg-civiqo-blue text-white' : 'bg-white text-civiqo-gray-600 hover:bg-civiqo-gray-50'"
+           class="px-4 py-2 rounded-lg font-medium transition-colors border border-civiqo-gray-200">
+            Tutti
+        </a>
+        <a href="/search?q={{ query }}&filter=users"
+           :class="filter === 'users' ? 'bg-civiqo-blue text-white' : 'bg-white text-civiqo-gray-600 hover:bg-civiqo-gray-50'"
+           class="px-4 py-2 rounded-lg font-medium transition-colors border border-civiqo-gray-200">
+            Utenti
+        </a>
+        <a href="/search?q={{ query }}&filter=communities"
+           :class="filter === 'communities' ? 'bg-civiqo-blue text-white' : 'bg-white text-civiqo-gray-600 hover:bg-civiqo-gray-50'"
+           class="px-4 py-2 rounded-lg font-medium transition-colors border border-civiqo-gray-200">
+            Community
+        </a>
+        <a href="/search?q={{ query }}&filter=posts"
+           :class="filter === 'posts' ? 'bg-civiqo-blue text-white' : 'bg-white text-civiqo-gray-600 hover:bg-civiqo-gray-50'"
+           class="px-4 py-2 rounded-lg font-medium transition-colors border border-civiqo-gray-200">
+            Post
+        </a>
+    </div>
+
+    <!-- Results -->
+    <div class="space-y-6">
+        {% if users and users | length > 0 %}
+        <!-- Users Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-civiqo-gray-200 flex items-center justify-between">
+                <h2 class="font-semibold text-civiqo-gray-900">Utenti</h2>
+                <span class="text-sm text-civiqo-gray-500">{{ users | length }} risultati</span>
+            </div>
+            <div class="divide-y divide-civiqo-gray-100">
+                {% for user in users %}
+                <a href="/users/{{ user.id }}" class="flex items-center gap-4 p-4 hover:bg-civiqo-gray-50 transition-colors">
+                    {% if user.avatar_url %}
+                    <img src="{{ user.avatar_url }}" alt="{{ user.name }}" class="w-12 h-12 rounded-full object-cover">
+                    {% else %}
+                    <div class="w-12 h-12 rounded-full bg-civiqo-eco-green/10 text-civiqo-eco-green flex items-center justify-center font-semibold text-lg">
+                        {{ user.name | first | upper | default(value='?') }}
+                    </div>
+                    {% endif %}
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-civiqo-gray-900">{{ user.name | default(value=user.email) }}</p>
+                        <p class="text-sm text-civiqo-gray-500 truncate">{{ user.email }}</p>
+                    </div>
+                    <svg class="w-5 h-5 text-civiqo-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if communities and communities | length > 0 %}
+        <!-- Communities Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-civiqo-gray-200 flex items-center justify-between">
+                <h2 class="font-semibold text-civiqo-gray-900">Community</h2>
+                <span class="text-sm text-civiqo-gray-500">{{ communities | length }} risultati</span>
+            </div>
+            <div class="divide-y divide-civiqo-gray-100">
+                {% for community in communities %}
+                <a href="/communities/{{ community.id }}" class="flex items-center gap-4 p-4 hover:bg-civiqo-gray-50 transition-colors">
+                    <div class="w-12 h-12 rounded-xl bg-civiqo-blue/10 text-civiqo-blue flex items-center justify-center font-semibold text-lg">
+                        {{ community.name | first | upper }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium text-civiqo-gray-900">{{ community.name }}</p>
+                        <p class="text-sm text-civiqo-gray-500 truncate">{{ community.description | default(value='Nessuna descrizione') }}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-sm text-civiqo-gray-500">{{ community.member_count }} membri</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if posts and posts | length > 0 %}
+        <!-- Posts Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-civiqo-gray-200 flex items-center justify-between">
+                <h2 class="font-semibold text-civiqo-gray-900">Post</h2>
+                <span class="text-sm text-civiqo-gray-500">{{ posts | length }} risultati</span>
+            </div>
+            <div class="divide-y divide-civiqo-gray-100">
+                {% for post in posts %}
+                <a href="/posts/{{ post.id }}" class="block p-4 hover:bg-civiqo-gray-50 transition-colors">
+                    <p class="font-medium text-civiqo-gray-900 mb-1">{{ post.title }}</p>
+                    <div class="flex items-center gap-2 text-sm text-civiqo-gray-500">
+                        <span>in {{ post.community_name }}</span>
+                        <span>•</span>
+                        <span>{{ post.created_at }}</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if (not users or users | length == 0) and (not communities or communities | length == 0) and (not posts or posts | length == 0) %}
+        <!-- Empty State -->
+        <div class="text-center py-16 bg-white rounded-xl border border-civiqo-gray-200">
+            <svg class="w-16 h-16 mx-auto text-civiqo-gray-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <h3 class="text-lg font-semibold text-civiqo-gray-900 mb-2">Nessun risultato</h3>
+            <p class="text-civiqo-gray-600 mb-6">
+                Non abbiamo trovato risultati per "{{ query }}"
+            </p>
+            <div class="text-sm text-civiqo-gray-500">
+                <p class="mb-2">Suggerimenti:</p>
+                <ul class="list-disc list-inside">
+                    <li>Controlla l'ortografia</li>
+                    <li>Prova con parole chiave diverse</li>
+                    <li>Usa termini più generici</li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

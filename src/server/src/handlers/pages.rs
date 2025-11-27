@@ -1027,3 +1027,199 @@ pub async fn edit_profile_page(
     let html = state.tera.render("profile_edit.html", &ctx)?;
     Ok(Html(html).into_response())
 }
+
+/// 404 Not Found page
+pub async fn not_found(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Response {
+    let mut ctx = Context::new();
+    
+    if let Some(ref u) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("picture", &u.picture);
+        ctx.insert("user_id", &u.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    match state.tera.render("404.html", &ctx) {
+        Ok(html) => (StatusCode::NOT_FOUND, Html(html)).into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, Html("<h1>404 - Pagina non trovata</h1>")).into_response(),
+    }
+}
+
+/// 500 Internal Server Error page
+pub async fn internal_error(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Response {
+    let mut ctx = Context::new();
+    
+    if let Some(ref u) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("picture", &u.picture);
+        ctx.insert("user_id", &u.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    // Generate error ID for tracking
+    let error_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
+    ctx.insert("error_id", &error_id);
+    
+    match state.tera.render("500.html", &ctx) {
+        Ok(html) => (StatusCode::INTERNAL_SERVER_ERROR, Html(html)).into_response(),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Html("<h1>500 - Errore interno</h1>")).into_response(),
+    }
+}
+
+/// Notifications page
+pub async fn notifications(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    let mut ctx = Context::new();
+    
+    ctx.insert("logged_in", &true);
+    ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
+    ctx.insert("picture", &user.picture);
+    ctx.insert("user_id", &user.user_id);
+    
+    let html = state.tera.render("notifications.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+
+#[derive(serde::Deserialize)]
+pub struct SearchPageQuery {
+    pub q: Option<String>,
+    pub filter: Option<String>,
+}
+
+/// Search results page
+pub async fn search_page(
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(params): axum::extract::Query<SearchPageQuery>,
+) -> Result<Response, AppError> {
+    let mut ctx = Context::new();
+    
+    if let Some(ref u) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("picture", &u.picture);
+        ctx.insert("user_id", &u.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    let query = params.q.unwrap_or_default();
+    let filter = params.filter.unwrap_or_else(|| "all".to_string());
+    
+    ctx.insert("query", &query);
+    ctx.insert("filter", &filter);
+    
+    if query.len() >= 2 {
+        let search_pattern = format!("%{}%", query.to_lowercase());
+        
+        // Search users (if filter allows)
+        let users: Vec<serde_json::Value> = if filter == "all" || filter == "users" {
+            sqlx::query(
+                r#"SELECT u.id, u.email, p.name, p.avatar_url
+                   FROM users u
+                   LEFT JOIN user_profiles p ON u.id = p.user_id
+                   WHERE LOWER(u.email) LIKE $1 OR LOWER(p.name) LIKE $1
+                   LIMIT 20"#
+            )
+            .bind(&search_pattern)
+            .fetch_all(&state.db.pool)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|row| {
+                serde_json::json!({
+                    "id": row.get::<uuid::Uuid, _>("id").to_string(),
+                    "email": row.get::<String, _>("email"),
+                    "name": row.get::<Option<String>, _>("name"),
+                    "avatar_url": row.get::<Option<String>, _>("avatar_url"),
+                })
+            })
+            .collect()
+        } else {
+            vec![]
+        };
+        
+        // Search communities (if filter allows)
+        let communities: Vec<serde_json::Value> = if filter == "all" || filter == "communities" {
+            sqlx::query(
+                r#"SELECT c.id, c.name, c.description, COUNT(cm.user_id) as member_count
+                   FROM communities c
+                   LEFT JOIN community_members cm ON c.id = cm.community_id AND cm.status = 'active'
+                   WHERE LOWER(c.name) LIKE $1 OR LOWER(c.description) LIKE $1
+                   GROUP BY c.id, c.name, c.description
+                   LIMIT 20"#
+            )
+            .bind(&search_pattern)
+            .fetch_all(&state.db.pool)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|row| {
+                serde_json::json!({
+                    "id": row.get::<uuid::Uuid, _>("id").to_string(),
+                    "name": row.get::<String, _>("name"),
+                    "description": row.get::<Option<String>, _>("description"),
+                    "member_count": row.get::<i64, _>("member_count"),
+                })
+            })
+            .collect()
+        } else {
+            vec![]
+        };
+        
+        // Search posts (if filter allows)
+        let posts: Vec<serde_json::Value> = if filter == "all" || filter == "posts" {
+            sqlx::query(
+                r#"SELECT p.id, p.title, c.name as community_name, p.created_at
+                   FROM posts p
+                   JOIN communities c ON p.community_id = c.id
+                   WHERE LOWER(p.title) LIKE $1
+                   ORDER BY p.created_at DESC
+                   LIMIT 20"#
+            )
+            .bind(&search_pattern)
+            .fetch_all(&state.db.pool)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .map(|row| {
+                serde_json::json!({
+                    "id": row.get::<uuid::Uuid, _>("id").to_string(),
+                    "title": row.get::<String, _>("title"),
+                    "community_name": row.get::<String, _>("community_name"),
+                    "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%d/%m/%Y").to_string(),
+                })
+            })
+            .collect()
+        } else {
+            vec![]
+        };
+        
+        let total_results = users.len() + communities.len() + posts.len();
+        
+        ctx.insert("users", &users);
+        ctx.insert("communities", &communities);
+        ctx.insert("posts", &posts);
+        ctx.insert("total_results", &total_results);
+    } else {
+        ctx.insert("users", &Vec::<serde_json::Value>::new());
+        ctx.insert("communities", &Vec::<serde_json::Value>::new());
+        ctx.insert("posts", &Vec::<serde_json::Value>::new());
+        ctx.insert("total_results", &0);
+    }
+    
+    let html = state.tera.render("search.html", &ctx)?;
+    Ok(Html(html).into_response())
+}

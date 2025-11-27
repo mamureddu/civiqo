@@ -114,6 +114,10 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         // User profile pages
         .route("/users/:id", get(pages::user_profile))
         .route("/users/:id/edit", get(pages::edit_profile_page))
+        // Notifications page
+        .route("/notifications", get(pages::notifications))
+        // Search page
+        .route("/search", get(pages::search_page))
         
         // HTMX Fragments (return HTML fragments for dynamic updates)
         .route("/htmx/nav", get(htmx::nav_fragment))
@@ -148,6 +152,8 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/htmx/users/:id/followers", get(htmx::user_followers))
         .route("/htmx/users/:id/following", get(htmx::user_following))
         .route("/htmx/notifications", get(htmx::notifications_dropdown))
+        .route("/htmx/notifications/list", get(htmx::notifications_list))
+        .route("/htmx/notifications/mark-all-read", post(htmx::mark_all_notifications_read))
         // Community proposals HTMX fragments
         .route("/htmx/communities/:id/proposals", get(htmx::community_proposals))
         .route("/htmx/communities/:id/proposals", post(htmx::create_proposal_htmx))
@@ -202,6 +208,8 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/api/users/:id", put(api::update_profile))
         .route("/api/users/:id/follow", post(api::follow_user))
         .route("/api/users/:id/unfollow", post(api::unfollow_user))
+        .route("/api/users/dismiss-welcome", post(api::dismiss_welcome))
+        .route("/api/users/dismiss-profile-banner", post(api::dismiss_profile_banner))
         
         // Proposals/Governance endpoints
         .route("/api/proposals", get(proposals::list_proposals))
@@ -212,6 +220,8 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/api/proposals/:id/activate", post(proposals::activate_proposal))
         .route("/api/proposals/:id/close", post(proposals::close_proposal))
         
+        // Fallback for 404
+        .fallback(pages::not_found)
         .with_state(page_state.clone())
         .layer(session_layer);
 

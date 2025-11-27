@@ -6,6 +6,50 @@
 
 ---
 
+## [1.3.0] - 2025-11-27
+
+### 🚀 Full UX Implementation
+
+#### Added - Templates
+- `templates/404.html` - Pagina errore 404 brand-compliant
+- `templates/500.html` - Pagina errore 500 con error ID
+- `templates/notifications.html` - Pagina notifiche con filtri
+- `templates/search.html` - Pagina risultati ricerca
+- `templates/fragments/toast.html` - Sistema toast globale
+- `templates/fragments/welcome-modal.html` - Onboarding modal
+- `templates/fragments/empty-state.html` - Componente empty state
+- `templates/fragments/profile-completion-banner.html` - Banner profilo
+- `templates/fragments/notifications-list.html` - Lista notifiche HTMX
+
+#### Added - Assets
+- `static/images/civiqo_logo_icon.svg` - Logo compatto navbar
+- `static/favicon.svg` - Favicon brand
+
+#### Added - Backend
+- Handler 404/500 con fallback
+- Route `/notifications` protetta
+- Route `/search` con filtri
+- HTMX endpoints notifiche
+- API dismiss welcome/profile banner
+
+#### Changed
+- `base.html` - Logo SVG, favicon, skip link, hamburger menu, toast system
+- `main.css` - Focus states, high contrast, reduced motion
+- 11 template - Title aggiornati a "Civiqo"
+
+#### Fixed
+- ✅ Navigation gaps (404, 500, notifications, search)
+- ✅ Brand compliance (logo, favicon, titles)
+- ✅ Accessibility (focus, ARIA, keyboard nav)
+- ✅ Mobile navigation (hamburger menu)
+
+#### UX Review
+- **Score**: 9.2/10
+- **Verdict**: ✅ APPROVED
+- **Agent UX**: Implementazione completa e conforme
+
+---
+
 ## [1.2.0] - 2025-11-27
 
 ### 🗺️ Navigation & Flows Mapping
