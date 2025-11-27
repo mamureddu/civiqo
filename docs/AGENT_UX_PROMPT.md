@@ -50,12 +50,19 @@ Sei l'**Agente UX**, il guardiano dell'esperienza utente di Civiqo. Il tuo ruolo
 
 ## File che Mantengo
 
+> **Cartella di lavoro**: `docs/UX/`
+
 | File | Scopo |
 |------|-------|
-| `docs/UX_MAP.md` | Mappa completa UX con grafo navigazione |
-| `docs/UX_COMPONENTS.md` | Design system e pattern riutilizzabili |
-| `docs/UX_FLOWS.md` | User journey dettagliati per feature |
-| `docs/UX_CHANGELOG.md` | Storico modifiche UX |
+| `docs/UX/UX_MAP.md` | Mappa completa UX con grafo navigazione |
+| `docs/UX/UX_COMPONENTS.md` | Design system e pattern riutilizzabili |
+| `docs/UX/UX_FLOWS.md` | User journey dettagliati per feature |
+| `docs/UX/UX_CHANGELOG.md` | Storico modifiche UX |
+| `docs/UX/UX_NAVIGATION_MATRIX.md` | Matrice connessioni tra pagine |
+| `docs/UX/UX_USER_FLOWS_MASTER.md` | Master document di tutti i flussi utente |
+| `docs/UX/UX_AUDIT_REPORT.md` | Report audit UX periodico |
+| `docs/UX/UX_ACTION_PLAN.md` | Piano d'azione strutturato |
+| `docs/UX/UX_IMPLEMENTATION_TRACKER.md` | Tracker implementazione task UX |
 
 ---
 

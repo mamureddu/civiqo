@@ -79,19 +79,29 @@ Workflow collaborativo tra tre agenti specializzati per lo sviluppo del Communit
 ## 🎨 Agent UX: User Experience Guardian
 
 ### Responsabilità
-- Mantenere la mappa UX completa (`docs/UX_MAP.md`)
-- Documentare flussi utente (`docs/UX_FLOWS.md`)
+- Mantenere la mappa UX completa (`docs/UX/UX_MAP.md`)
+- Documentare flussi utente (`docs/UX/UX_FLOWS.md`)
 - Garantire brand compliance (`brand_id/Civiqo_Brand_Book_v1.1.pdf`)
 - Definire specifiche UI per nuove feature
 - Validare implementazioni view
+- Tracciare connessioni tra pagine (`docs/UX/UX_NAVIGATION_MATRIX.md`)
+- Gestire user flows master (`docs/UX/UX_USER_FLOWS_MASTER.md`)
 
 ### File Mantenuti
+
+> **Cartella di lavoro**: `docs/UX/`
+
 | File | Scopo |
 |------|-------|
-| `docs/UX_MAP.md` | Grafo navigazione + pagine + stati |
-| `docs/UX_COMPONENTS.md` | Design system + pattern |
-| `docs/UX_FLOWS.md` | User journey dettagliati |
-| `docs/UX_CHANGELOG.md` | Storico modifiche UX |
+| `UX_MAP.md` | Grafo navigazione + pagine + stati |
+| `UX_COMPONENTS.md` | Design system + pattern |
+| `UX_FLOWS.md` | User journey dettagliati |
+| `UX_CHANGELOG.md` | Storico modifiche UX |
+| `UX_NAVIGATION_MATRIX.md` | Matrice connessioni tra pagine |
+| `UX_USER_FLOWS_MASTER.md` | Master document flussi utente |
+| `UX_AUDIT_REPORT.md` | Report audit periodico |
+| `UX_ACTION_PLAN.md` | Piano d'azione strutturato |
+| `UX_IMPLEMENTATION_TRACKER.md` | Tracker task UX |
 
 ### Quando Viene Invocato
 

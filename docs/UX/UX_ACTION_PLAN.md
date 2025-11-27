@@ -10,6 +10,8 @@
 
 ## 📚 Documenti di Riferimento
 
+> **Cartella**: `docs/UX/`
+
 | Documento | Scopo | Quando Consultare |
 |-----------|-------|-------------------|
 | `UX_AUDIT_REPORT.md` | Analisi stato attuale | Prima di ogni sprint |
@@ -17,7 +19,8 @@
 | `UX_USER_FLOWS_MASTER.md` | Tutti i flussi utente | Quando si implementa un flow |
 | `UX_MAP.md` | Overview pagine e stati | Reference generale |
 | `UX_COMPONENTS.md` | Design system | Quando si crea UI |
-| `BRAND.md` | Linee guida brand | Sempre |
+| `UX_IMPLEMENTATION_TRACKER.md` | Tracker task UX | Durante implementazione |
+| `../BRAND.md` | Linee guida brand | Sempre |
 
 ---
 

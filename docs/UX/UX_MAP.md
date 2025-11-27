@@ -6,7 +6,9 @@
 **Versione**: 1.1.0 (Post-Audit)  
 **Maintainer**: Agente UX
 
-> ⚠️ **STATO**: Audit completato - Vedi `UX_AUDIT_REPORT.md` e `UX_ACTION_PLAN.md`
+> ⚠️ **STATO**: Audit completato - Vedi `UX_AUDIT_REPORT.md` e `UX_ACTION_PLAN.md` in questa cartella
+
+> 📁 **Cartella di lavoro**: `docs/UX/`
 
 ---
 
