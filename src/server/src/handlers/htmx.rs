@@ -1516,9 +1516,179 @@ pub async fn notifications_list(
     let limit = 20;
     let offset = (page - 1) * limit;
     
-    // For now, return placeholder since notifications table may not exist yet
-    // TODO: Implement actual notifications query when table is created
-    Html(render_empty_notifications(&filter))
+    // Build query based on filter
+    let notifications = match filter.as_str() {
+        "unread" => {
+            sqlx::query(
+                r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
+                          COALESCE(p.name, u.email) as actor_name, p.avatar_url as actor_avatar
+                   FROM notifications n
+                   LEFT JOIN users u ON n.actor_id = u.id
+                   LEFT JOIN user_profiles p ON u.id = p.user_id
+                   WHERE n.user_id = $1 AND n.is_read = false
+                   ORDER BY n.created_at DESC
+                   LIMIT $2 OFFSET $3"#
+            )
+            .bind(user_uuid)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&state.db.pool)
+            .await
+        }
+        "mentions" => {
+            sqlx::query(
+                r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
+                          COALESCE(p.name, u.email) as actor_name, p.avatar_url as actor_avatar
+                   FROM notifications n
+                   LEFT JOIN users u ON n.actor_id = u.id
+                   LEFT JOIN user_profiles p ON u.id = p.user_id
+                   WHERE n.user_id = $1 AND n.type = 'mention'
+                   ORDER BY n.created_at DESC
+                   LIMIT $2 OFFSET $3"#
+            )
+            .bind(user_uuid)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&state.db.pool)
+            .await
+        }
+        "votes" => {
+            sqlx::query(
+                r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
+                          COALESCE(p.name, u.email) as actor_name, p.avatar_url as actor_avatar
+                   FROM notifications n
+                   LEFT JOIN users u ON n.actor_id = u.id
+                   LEFT JOIN user_profiles p ON u.id = p.user_id
+                   WHERE n.user_id = $1 AND n.type IN ('vote', 'proposal')
+                   ORDER BY n.created_at DESC
+                   LIMIT $2 OFFSET $3"#
+            )
+            .bind(user_uuid)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&state.db.pool)
+            .await
+        }
+        _ => {
+            sqlx::query(
+                r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
+                          COALESCE(p.name, u.email) as actor_name, p.avatar_url as actor_avatar
+                   FROM notifications n
+                   LEFT JOIN users u ON n.actor_id = u.id
+                   LEFT JOIN user_profiles p ON u.id = p.user_id
+                   WHERE n.user_id = $1
+                   ORDER BY n.created_at DESC
+                   LIMIT $2 OFFSET $3"#
+            )
+            .bind(user_uuid)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&state.db.pool)
+            .await
+        }
+    };
+    
+    match notifications {
+        Ok(rows) if !rows.is_empty() => {
+            Html(render_notifications_list(rows, page, &filter))
+        }
+        _ => Html(render_empty_notifications(&filter))
+    }
+}
+
+fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, page: i32, filter: &str) -> String {
+    let mut html = String::new();
+    
+    for notification in notifications {
+        let id: uuid::Uuid = notification.get("id");
+        let notif_type: String = notification.get("type");
+        let message: Option<String> = notification.get("message");
+        let is_read: bool = notification.get("is_read");
+        let created_at: chrono::DateTime<chrono::Utc> = notification.get("created_at");
+        let target_type: Option<String> = notification.get("target_type");
+        let target_id: Option<String> = notification.get("target_id");
+        let actor_name: Option<String> = notification.get("actor_name");
+        let actor_avatar: Option<String> = notification.get("actor_avatar");
+        
+        // Calculate time ago
+        let now = chrono::Utc::now();
+        let diff = now.signed_duration_since(created_at);
+        let time_ago = if diff.num_days() > 0 {
+            format!("{} giorni fa", diff.num_days())
+        } else if diff.num_hours() > 0 {
+            format!("{} ore fa", diff.num_hours())
+        } else if diff.num_minutes() > 0 {
+            format!("{} minuti fa", diff.num_minutes())
+        } else {
+            "Adesso".to_string()
+        };
+        
+        // Build link based on target
+        let link = match (target_type.as_deref(), target_id.as_ref()) {
+            (Some("post"), Some(id)) => format!("/posts/{}", id),
+            (Some("community"), Some(id)) => format!("/communities/{}", id),
+            (Some("user"), Some(id)) => format!("/users/{}", id),
+            (Some("proposal"), Some(id)) => format!("/governance?proposal={}", id),
+            _ => "#".to_string(),
+        };
+        
+        // Icon and color based on type
+        let (icon_class, icon_svg) = match notif_type.as_str() {
+            "follow" => ("bg-civiqo-eco-green/10 text-civiqo-eco-green", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>"#),
+            "comment" => ("bg-civiqo-blue/10 text-civiqo-blue", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>"#),
+            "mention" => ("bg-civiqo-lilac/10 text-civiqo-lilac", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>"#),
+            "vote" | "proposal" => ("bg-civiqo-coral/10 text-civiqo-coral", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>"#),
+            "reaction" => ("bg-civiqo-yellow/10 text-civiqo-yellow", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>"#),
+            _ => ("bg-civiqo-gray-200 text-civiqo-gray-600", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>"#),
+        };
+        
+        let unread_class = if !is_read { "border-l-4 border-l-civiqo-blue" } else { "" };
+        let font_class = if !is_read { "font-medium" } else { "" };
+        
+        let display_message = message.unwrap_or_else(|| {
+            match notif_type.as_str() {
+                "follow" => format!("{} ha iniziato a seguirti", actor_name.as_deref().unwrap_or("Qualcuno")),
+                "comment" => format!("{} ha commentato il tuo post", actor_name.as_deref().unwrap_or("Qualcuno")),
+                "mention" => format!("{} ti ha menzionato", actor_name.as_deref().unwrap_or("Qualcuno")),
+                "reaction" => format!("{} ha reagito al tuo post", actor_name.as_deref().unwrap_or("Qualcuno")),
+                "vote" => "Nuova votazione disponibile".to_string(),
+                "proposal" => "Nuova proposta nella tua community".to_string(),
+                _ => "Nuova notifica".to_string(),
+            }
+        });
+        
+        html.push_str(&format!(r#"
+            <div class="bg-white rounded-lg p-4 border border-civiqo-gray-200 hover:border-civiqo-blue/30 transition-colors {unread_class}">
+                <a href="{link}" 
+                   hx-post="/htmx/notifications/{id}/read"
+                   hx-swap="none"
+                   class="flex gap-4 items-start">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center {icon_class}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {icon_svg}
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-civiqo-gray-900 {font_class}">{display_message}</p>
+                        <p class="text-sm text-civiqo-gray-600 mt-1">{time_ago}</p>
+                    </div>
+                    {unread_dot}
+                </a>
+            </div>
+        "#,
+            unread_class = unread_class,
+            link = link,
+            id = id,
+            icon_class = icon_class,
+            icon_svg = icon_svg,
+            font_class = font_class,
+            display_message = display_message,
+            time_ago = time_ago,
+            unread_dot = if !is_read { r#"<div class="flex-shrink-0"><div class="w-2 h-2 bg-civiqo-blue rounded-full"></div></div>"# } else { "" }
+        ));
+    }
+    
+    html
 }
 
 fn render_empty_notifications(filter: &str) -> String {
@@ -1543,9 +1713,46 @@ fn render_empty_notifications(filter: &str) -> String {
 /// Mark all notifications as read
 pub async fn mark_all_notifications_read(
     AuthUser(user): AuthUser,
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
 ) -> Html<String> {
-    // TODO: Implement when notifications table exists
-    // For now, just return success
+    let user_uuid = match uuid::Uuid::parse_str(&user.user_id) {
+        Ok(id) => id,
+        Err(_) => return Html(String::new()),
+    };
+    
+    let _ = sqlx::query(
+        "UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false"
+    )
+    .bind(user_uuid)
+    .execute(&state.db.pool)
+    .await;
+    
+    Html(String::new())
+}
+
+/// Mark single notification as read
+pub async fn mark_notification_read(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(notification_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let user_uuid = match uuid::Uuid::parse_str(&user.user_id) {
+        Ok(id) => id,
+        Err(_) => return Html(String::new()),
+    };
+    
+    let notification_uuid = match uuid::Uuid::parse_str(&notification_id) {
+        Ok(id) => id,
+        Err(_) => return Html(String::new()),
+    };
+    
+    let _ = sqlx::query(
+        "UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2"
+    )
+    .bind(notification_uuid)
+    .bind(user_uuid)
+    .execute(&state.db.pool)
+    .await;
+    
     Html(String::new())
 }

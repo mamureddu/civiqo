@@ -154,6 +154,7 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/htmx/notifications", get(htmx::notifications_dropdown))
         .route("/htmx/notifications/list", get(htmx::notifications_list))
         .route("/htmx/notifications/mark-all-read", post(htmx::mark_all_notifications_read))
+        .route("/htmx/notifications/:id/read", post(htmx::mark_notification_read))
         // Community proposals HTMX fragments
         .route("/htmx/communities/:id/proposals", get(htmx::community_proposals))
         .route("/htmx/communities/:id/proposals", post(htmx::create_proposal_htmx))
