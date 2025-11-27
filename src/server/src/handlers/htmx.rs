@@ -452,24 +452,102 @@ pub async fn business_reviews(
 // =============================================================================
 
 /// Governance proposals fragment
-pub async fn governance_proposals(State(_state): State<Arc<AppState>>) -> Html<String> {
-    // TODO: Fetch from database when governance tables exist
-    Html(r#"
-    <div class="bg-white rounded-lg shadow-sm p-6">
-        <div class="flex items-start justify-between mb-4">
-            <div>
-                <h3 class="text-lg font-semibold text-gray-900">Sample Proposal</h3>
-                <p class="text-gray-600 text-sm mt-1">This is a sample governance proposal</p>
+pub async fn governance_proposals(State(state): State<Arc<AppState>>) -> Html<String> {
+    use sqlx::Row;
+    
+    // Fetch proposals from database
+    let proposals = sqlx::query(
+        r#"SELECT p.id, p.title, p.description, p.status, p.voting_ends_at,
+                  c.name as community_name,
+                  (SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id) as vote_count
+           FROM proposals p
+           JOIN communities c ON p.community_id = c.id
+           ORDER BY p.created_at DESC
+           LIMIT 10"#
+    )
+    .fetch_all(&state.db.pool)
+    .await;
+    
+    match proposals {
+        Ok(rows) if !rows.is_empty() => {
+            let mut html = String::new();
+            for row in rows {
+                let id: uuid::Uuid = row.get("id");
+                let title: String = row.get("title");
+                let description: Option<String> = row.get("description");
+                let status: String = row.get("status");
+                let community_name: String = row.get("community_name");
+                let vote_count: i64 = row.get("vote_count");
+                let voting_ends: Option<chrono::DateTime<chrono::Utc>> = row.get("voting_ends_at");
+                
+                let status_class = match status.as_str() {
+                    "active" => "bg-green-100 text-green-800",
+                    "draft" => "bg-yellow-100 text-yellow-800",
+                    "closed" => "bg-gray-100 text-gray-800",
+                    _ => "bg-blue-100 text-blue-800",
+                };
+                
+                let ends_text = voting_ends
+                    .map(|dt| {
+                        let now = chrono::Utc::now();
+                        let diff = dt.signed_duration_since(now);
+                        if diff.num_days() > 0 {
+                            format!("Ends in {} days", diff.num_days())
+                        } else if diff.num_hours() > 0 {
+                            format!("Ends in {} hours", diff.num_hours())
+                        } else {
+                            "Ending soon".to_string()
+                        }
+                    })
+                    .unwrap_or_else(|| "No end date".to_string());
+                
+                html.push_str(&format!(r#"
+                <div class="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-civiqo-gray-900">{}</h3>
+                            <p class="text-civiqo-gray-600 text-sm mt-1">{}</p>
+                        </div>
+                        <span class="px-3 py-1 {} text-sm rounded-full capitalize">{}</span>
+                    </div>
+                    <p class="text-civiqo-gray-700 mb-4">{}</p>
+                    <div class="flex items-center justify-between text-sm text-civiqo-gray-500">
+                        <div class="flex items-center space-x-4">
+                            <span>{}</span>
+                            <span>•</span>
+                            <span>{} votes</span>
+                        </div>
+                        <a href="/governance/{}" 
+                           class="text-civiqo-blue hover:underline"
+                           hx-boost="true">View Details →</a>
+                    </div>
+                </div>
+                "#,
+                    title,
+                    community_name,
+                    status_class,
+                    status,
+                    description.unwrap_or_default(),
+                    ends_text,
+                    vote_count,
+                    id
+                ));
+            }
+            Html(html)
+        }
+        _ => {
+            Html(r#"
+            <div class="bg-white rounded-lg shadow-sm p-8 text-center">
+                <svg class="mx-auto h-12 w-12 text-civiqo-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-civiqo-gray-900">No proposals yet</h3>
+                <p class="mt-2 text-civiqo-gray-600">Be the first to create a proposal for your community!</p>
             </div>
-            <span class="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">Active</span>
-        </div>
-        <div class="flex items-center text-sm text-gray-500">
-            <span>Ends in 5 days</span>
-            <span class="mx-2">•</span>
-            <span>42 votes</span>
-        </div>
-    </div>
-    "#.to_string())
+            "#.to_string())
+        }
+    }
 }
 
 // =============================================================================

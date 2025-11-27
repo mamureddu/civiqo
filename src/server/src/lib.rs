@@ -32,7 +32,7 @@ pub struct ApiState {
 /// Create the full application router for testing
 /// This mirrors the router in main.rs
 pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Send + Sync>> {
-    use handlers::{pages, htmx, api, posts, comments, reactions, stubs::health_check};
+    use handlers::{pages, htmx, api, posts, comments, reactions, proposals, stubs::health_check};
     use auth::{login, callback, logout};
     
     // Load environment
@@ -197,6 +197,15 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/api/users/:id", put(api::update_profile))
         .route("/api/users/:id/follow", post(api::follow_user))
         .route("/api/users/:id/unfollow", post(api::unfollow_user))
+        
+        // Proposals/Governance endpoints
+        .route("/api/proposals", get(proposals::list_proposals))
+        .route("/api/proposals", post(proposals::create_proposal))
+        .route("/api/proposals/:id", get(proposals::get_proposal))
+        .route("/api/proposals/:id/vote", post(proposals::cast_vote))
+        .route("/api/proposals/:id/results", get(proposals::get_results))
+        .route("/api/proposals/:id/activate", post(proposals::activate_proposal))
+        .route("/api/proposals/:id/close", post(proposals::close_proposal))
         
         .with_state(page_state.clone())
         .layer(session_layer);

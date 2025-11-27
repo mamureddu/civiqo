@@ -16,3 +16,4 @@ pub mod api;
 pub mod posts;
 pub mod comments;
 pub mod reactions;
+pub mod proposals;
