@@ -1,0 +1,88 @@
+{% if notifications and notifications | length > 0 %}
+    {% for notification in notifications %}
+    <div class="bg-white rounded-lg p-4 border border-civiqo-gray-200 hover:border-civiqo-blue/30 transition-colors {% if not notification.read %}border-l-4 border-l-civiqo-blue{% endif %}">
+        <a href="{{ notification.link }}" 
+           hx-post="/htmx/notifications/{{ notification.id }}/read"
+           hx-swap="none"
+           class="flex gap-4 items-start">
+            <!-- Icon based on type -->
+            <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center
+                {% if notification.type == 'vote' %}bg-civiqo-coral/10 text-civiqo-coral
+                {% elif notification.type == 'comment' %}bg-civiqo-blue/10 text-civiqo-blue
+                {% elif notification.type == 'mention' %}bg-civiqo-lilac/10 text-civiqo-lilac
+                {% elif notification.type == 'join' %}bg-civiqo-eco-green/10 text-civiqo-eco-green
+                {% else %}bg-civiqo-gray-200 text-civiqo-gray-600{% endif %}">
+                {% if notification.type == 'vote' %}
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                </svg>
+                {% elif notification.type == 'comment' %}
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+                {% elif notification.type == 'mention' %}
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>
+                </svg>
+                {% elif notification.type == 'join' %}
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                </svg>
+                {% else %}
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+                {% endif %}
+            </div>
+            
+            <!-- Content -->
+            <div class="flex-1 min-w-0">
+                <p class="text-civiqo-gray-900 {% if not notification.read %}font-medium{% endif %}">
+                    {{ notification.message }}
+                </p>
+                <p class="text-sm text-civiqo-gray-600 mt-1">
+                    {{ notification.time_ago }}
+                </p>
+            </div>
+            
+            <!-- Unread indicator -->
+            {% if not notification.read %}
+            <div class="flex-shrink-0">
+                <div class="w-2 h-2 bg-civiqo-blue rounded-full"></div>
+            </div>
+            {% endif %}
+        </a>
+    </div>
+    {% endfor %}
+    
+    <!-- Load more -->
+    {% if has_more %}
+    <div class="text-center py-4">
+        <button hx-get="/htmx/notifications/list?page={{ next_page }}&filter={{ filter }}"
+                hx-target="#notifications-list"
+                hx-swap="beforeend"
+                class="text-civiqo-blue hover:text-civiqo-blue-dark font-medium">
+            Carica altre notifiche
+        </button>
+    </div>
+    {% endif %}
+{% else %}
+    <!-- Empty state -->
+    <div class="text-center py-12 bg-white rounded-lg border border-civiqo-gray-200">
+        <svg class="w-16 h-16 mx-auto text-civiqo-gray-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+        </svg>
+        <h3 class="text-lg font-semibold text-civiqo-gray-900 mb-2">Nessuna notifica</h3>
+        <p class="text-civiqo-gray-600">
+            {% if filter == 'unread' %}
+            Hai letto tutte le notifiche!
+            {% elif filter == 'mentions' %}
+            Nessuna menzione recente.
+            {% elif filter == 'votes' %}
+            Nessuna votazione attiva.
+            {% else %}
+            Le notifiche appariranno qui quando ci saranno novità.
+            {% endif %}
+        </p>
+    </div>
+{% endif %}

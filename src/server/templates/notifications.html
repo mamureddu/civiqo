@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Notifiche | Civiqo{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-3xl font-brand font-bold text-civiqo-gray-900">Notifiche</h1>
+            <p class="text-civiqo-gray-600 mt-1">Rimani aggiornato sulle attività delle tue community</p>
+        </div>
+        <button hx-post="/htmx/notifications/mark-all-read"
+                hx-swap="none"
+                hx-on::after-request="htmx.ajax('GET', '/htmx/notifications/list', {target: '#notifications-list'})"
+                class="text-sm text-civiqo-blue hover:text-civiqo-blue-dark font-medium transition-colors">
+            Segna tutte come lette
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex gap-2 mb-6" x-data="{ filter: 'all' }">
+        <button @click="filter = 'all'; htmx.ajax('GET', '/htmx/notifications/list?filter=all', {target: '#notifications-list'})"
+                :class="filter === 'all' ? 'bg-civiqo-blue text-white' : 'bg-white text-civiqo-gray-600 hover:bg-civiqo-gray-50'"
+                class="px-4 py-2 rounded-lg font-medium transition-colors border border-civiqo-gray-200">
+            Tutte
+        </button>
+        <button @click="filter = 'unread'; htmx.ajax('GET', '/htmx/notifications/list?filter=unread', {target: '#notifications-list'})"
+                :class="filter === 'unread' ? 'bg-civiqo-blue text-white' : 'bg-white text-civiqo-gray-600 hover:bg-civiqo-gray-50'"
+                class="px-4 py-2 rounded-lg font-medium transition-colors border border-civiqo-gray-200">
+            Non lette
+        </button>
+        <button @click="filter = 'mentions'; htmx.ajax('GET', '/htmx/notifications/list?filter=mentions', {target: '#notifications-list'})"
+                :class="filter === 'mentions' ? 'bg-civiqo-blue text-white' : 'bg-white text-civiqo-gray-600 hover:bg-civiqo-gray-50'"
+                class="px-4 py-2 rounded-lg font-medium transition-colors border border-civiqo-gray-200">
+            Menzioni
+        </button>
+        <button @click="filter = 'votes'; htmx.ajax('GET', '/htmx/notifications/list?filter=votes', {target: '#notifications-list'})"
+                :class="filter === 'votes' ? 'bg-civiqo-blue text-white' : 'bg-white text-civiqo-gray-600 hover:bg-civiqo-gray-50'"
+                class="px-4 py-2 rounded-lg font-medium transition-colors border border-civiqo-gray-200">
+            Votazioni
+        </button>
+    </div>
+
+    <!-- Notifications List -->
+    <div id="notifications-list" 
+         hx-get="/htmx/notifications/list" 
+         hx-trigger="load"
+         class="space-y-3">
+        <!-- Loading skeleton -->
+        <div class="animate-pulse space-y-3">
+            <div class="bg-white rounded-lg p-4 border border-civiqo-gray-200">
+                <div class="flex gap-4">
+                    <div class="w-10 h-10 bg-civiqo-gray-200 rounded-full"></div>
+                    <div class="flex-1 space-y-2">
+                        <div class="h-4 bg-civiqo-gray-200 rounded w-3/4"></div>
+                        <div class="h-3 bg-civiqo-gray-200 rounded w-1/2"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg p-4 border border-civiqo-gray-200">
+                <div class="flex gap-4">
+                    <div class="w-10 h-10 bg-civiqo-gray-200 rounded-full"></div>
+                    <div class="flex-1 space-y-2">
+                        <div class="h-4 bg-civiqo-gray-200 rounded w-2/3"></div>
+                        <div class="h-3 bg-civiqo-gray-200 rounded w-1/3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

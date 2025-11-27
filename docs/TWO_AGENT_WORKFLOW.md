@@ -1,8 +1,16 @@
-# Two-Agent Development Workflow
+# Three-Agent Development Workflow
 
 ## Overview
 
-Workflow collaborativo tra due agenti specializzati per lo sviluppo del Community Manager project.
+Workflow collaborativo tra tre agenti specializzati per lo sviluppo del Community Manager project.
+
+### Agenti
+
+| Agente | Ruolo | Responsabilità |
+|--------|-------|----------------|
+| **Agent 1** | Fullstack Executor | Implementazione codice |
+| **Agent 2** | Tech Lead / Verifier | Planning, review, approvazione |
+| **Agent UX** | UX Guardian | Mappatura UX, brand compliance, flussi utente |
 
 ### Architecture Context
 - **Backend**: Rust (Axum) + SQLx
@@ -64,6 +72,68 @@ Workflow collaborativo tra due agenti specializzati per lo sviluppo del Communit
 │                           ↓                                     │
 │              OUTPUT: Review decision                            │
 └─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🎨 Agent UX: User Experience Guardian
+
+### Responsabilità
+- Mantenere la mappa UX completa (`docs/UX_MAP.md`)
+- Documentare flussi utente (`docs/UX_FLOWS.md`)
+- Garantire brand compliance (`brand_id/Civiqo_Brand_Book_v1.1.pdf`)
+- Definire specifiche UI per nuove feature
+- Validare implementazioni view
+
+### File Mantenuti
+| File | Scopo |
+|------|-------|
+| `docs/UX_MAP.md` | Grafo navigazione + pagine + stati |
+| `docs/UX_COMPONENTS.md` | Design system + pattern |
+| `docs/UX_FLOWS.md` | User journey dettagliati |
+| `docs/UX_CHANGELOG.md` | Storico modifiche UX |
+
+### Quando Viene Invocato
+
+**Da User (Product Owner)**:
+- Nuova feature da progettare
+- Revisione UX generale
+- Dubbi su flussi o interazioni
+
+**Da Agent 2 (Tech Lead)**:
+- Prima di approvare fase con componenti UI
+- Per validare nuovi pattern
+- Per verificare coerenza UX
+
+### Output Standard
+
+**Pre-Sviluppo**: UX Specification
+```markdown
+## [Feature] - UX Specification
+### User Story
+### Entry Points
+### Stati UI (default, loading, empty, error, success)
+### Interazioni
+### Navigazione
+### Brand Compliance
+### Accessibilità
+```
+
+**Post-Sviluppo**: UX Review
+```markdown
+## [Feature] - UX Review
+### Checklist
+### Issues Trovati
+### Raccomandazioni
+### Verdict: ✅ APPROVED / ⚠️ WITH NOTES / ❌ NEEDS REVISION
+```
+
+### Invocazione
+```
+@Agente UX
+Contesto: [Pre/Durante/Post sviluppo]
+Feature: [Nome]
+Richiesta: [Cosa serve]
 ```
 
 ---
