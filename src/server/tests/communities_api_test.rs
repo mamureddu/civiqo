@@ -139,6 +139,9 @@ mod communities_api_tests {
     async fn test_get_communities_with_sort() {
         let db = setup_test_db().await;
         
+        // Create test community to ensure we have data
+        let (user_id, community_id, _slug, _prefix) = create_test_community(&db).await;
+        
         // Test sorting by name
         let communities_by_name = sqlx::query!(
             "SELECT id, name FROM communities WHERE is_public = true ORDER BY name ASC LIMIT 10"
@@ -158,12 +161,18 @@ mod communities_api_tests {
         // Verify we got results
         assert!(!communities_by_name.is_empty(), "Should have communities sorted by name");
         assert!(!communities_by_date.is_empty(), "Should have communities sorted by date");
+        
+        // Cleanup
+        cleanup_test_community(&db, community_id, user_id).await;
     }
 
     /// Test GET /api/communities with pagination
     #[tokio::test]
     async fn test_get_communities_pagination() {
         let db = setup_test_db().await;
+        
+        // Create test community to ensure we have data
+        let (user_id, community_id, _slug, _prefix) = create_test_community(&db).await;
         
         // Test pagination with LIMIT and OFFSET
         let page_1 = sqlx::query!(
@@ -172,13 +181,6 @@ mod communities_api_tests {
         .fetch_all(&db.pool)
         .await
         .expect("Failed to fetch page 1");
-        
-        let page_2 = sqlx::query!(
-            "SELECT id, name FROM communities WHERE is_public = true ORDER BY created_at DESC LIMIT 2 OFFSET 2"
-        )
-        .fetch_all(&db.pool)
-        .await
-        .expect("Failed to fetch page 2");
         
         // Count total communities
         let total = sqlx::query_scalar!(
@@ -190,13 +192,10 @@ mod communities_api_tests {
         
         // Verify pagination works
         assert!(total.is_some(), "Should have a total count");
+        assert!(!page_1.is_empty(), "Page 1 should have results");
         
-        // If we have more than 2 communities, page 1 and page 2 should be different
-        if let Some(count) = total {
-            if count > 2 {
-                assert_ne!(page_1.len(), 0, "Page 1 should have results");
-            }
-        }
+        // Cleanup
+        cleanup_test_community(&db, community_id, user_id).await;
     }
 
     /// Test GET /api/communities/:id with valid UUID
