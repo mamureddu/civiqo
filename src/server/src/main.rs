@@ -125,6 +125,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/chat", get(pages::chat_list))
         .route("/chat/{room_id}", get(pages::chat_room))
         .route("/governance", get(pages::governance))
+        .route("/governance/{id}", get(pages::proposal_detail))
         .route("/poi", get(pages::poi))
         .route("/test-db", get(pages::test_db))
         // User profile pages

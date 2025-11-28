@@ -912,6 +912,34 @@ pub async fn governance_proposals(
                     })
                     .unwrap_or_else(|| "Nessuna scadenza".to_string());
                 
+                // Build action buttons based on status
+                let action_buttons = if status == "draft" {
+                    format!(r#"
+                        <div class="flex items-center space-x-2">
+                            <button hx-post="/api/proposals/{}/activate"
+                                    hx-target="closest div.bg-white"
+                                    hx-swap="outerHTML"
+                                    class="px-3 py-1 bg-civiqo-eco-green text-white text-sm rounded-lg hover:bg-civiqo-eco-green/90 transition">
+                                Attiva Votazione
+                            </button>
+                        </div>
+                    "#, id)
+                } else if status == "active" {
+                    format!(r#"
+                        <div class="flex items-center space-x-2">
+                            <a href="/governance/{}" 
+                               class="px-3 py-1 bg-civiqo-blue text-white text-sm rounded-lg hover:bg-civiqo-blue-dark transition">
+                                Vota
+                            </a>
+                        </div>
+                    "#, id)
+                } else {
+                    format!(r#"
+                        <a href="/governance/{}" 
+                           class="text-civiqo-blue hover:underline font-medium">Dettagli →</a>
+                    "#, id)
+                };
+
                 html.push_str(&format!(r#"
                 <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition border border-civiqo-gray-200">
                     <div class="flex items-start justify-between mb-4">
@@ -928,9 +956,7 @@ pub async fn governance_proposals(
                             <span>•</span>
                             <span>{votes} voti</span>
                         </div>
-                        <a href="/governance/{id}" 
-                           class="text-civiqo-blue hover:underline font-medium"
-                           hx-boost="true">Dettagli →</a>
+                        {action_buttons}
                     </div>
                 </div>
                 "#,
@@ -941,7 +967,7 @@ pub async fn governance_proposals(
                     description = description.unwrap_or_default(),
                     ends = ends_text,
                     votes = vote_count,
-                    id = id
+                    action_buttons = action_buttons
                 ));
             }
             Html(html)

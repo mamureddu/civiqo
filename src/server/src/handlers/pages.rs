@@ -466,6 +466,373 @@ pub async fn governance(
     Ok(Html(html).into_response())
 }
 
+/// Proposal detail page
+pub async fn proposal_detail(
+    LocaleExtractor(locale): LocaleExtractor,
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(proposal_id): Path<uuid::Uuid>,
+) -> Result<Response, AppError> {
+    use sqlx::Row;
+    
+    let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
+    
+    // Fetch proposal details
+    let proposal = sqlx::query(
+        r#"SELECT p.id, p.title, p.description, p.proposal_type, p.status,
+                  p.voting_starts_at, p.voting_ends_at, p.created_at, p.quorum_required,
+                  p.created_by, p.community_id,
+                  c.name as community_name, c.slug as community_slug,
+                  COALESCE(up.name, u.email) as author_name,
+                  (SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id) as vote_count
+           FROM proposals p
+           JOIN communities c ON p.community_id = c.id
+           JOIN users u ON p.created_by = u.id
+           LEFT JOIN user_profiles up ON u.id = up.user_id
+           WHERE p.id = $1"#
+    )
+    .bind(proposal_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    
+    let proposal = match proposal {
+        Some(p) => p,
+        None => return Ok(axum::response::Redirect::to("/governance").into_response()),
+    };
+    
+    // Add auth info to context
+    let mut is_author = false;
+    let mut user_vote: Option<String> = None;
+    let mut is_member = false;
+    
+    if let Some(ref u) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("picture", &u.picture);
+        ctx.insert("user_id", &u.user_id);
+        
+        let created_by: uuid::Uuid = proposal.get("created_by");
+        if let Ok(user_uuid) = uuid::Uuid::parse_str(&u.user_id) {
+            is_author = created_by == user_uuid;
+            
+            // Check if user is community member
+            let community_id: uuid::Uuid = proposal.get("community_id");
+            is_member = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active'"
+            )
+            .bind(community_id)
+            .bind(user_uuid)
+            .fetch_one(&state.db.pool)
+            .await
+            .unwrap_or(0) > 0;
+            
+            // Check if user already voted
+            let vote = sqlx::query_scalar::<_, String>(
+                "SELECT vote_value FROM votes WHERE proposal_id = $1 AND user_id = $2"
+            )
+            .bind(proposal_id)
+            .bind(user_uuid)
+            .fetch_optional(&state.db.pool)
+            .await
+            .ok()
+            .flatten();
+            
+            user_vote = vote;
+        }
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    // Extract proposal data
+    let id: uuid::Uuid = proposal.get("id");
+    let title: String = proposal.get("title");
+    let description: Option<String> = proposal.get("description");
+    let proposal_type: String = proposal.get("proposal_type");
+    let status: String = proposal.get("status");
+    let community_name: String = proposal.get("community_name");
+    let community_id: uuid::Uuid = proposal.get("community_id");
+    let author_name: String = proposal.get("author_name");
+    let vote_count: i64 = proposal.get("vote_count");
+    let quorum_required: Option<i64> = proposal.get("quorum_required");
+    let voting_ends: Option<chrono::DateTime<chrono::Utc>> = proposal.get("voting_ends_at");
+    let created_at: chrono::DateTime<chrono::Utc> = proposal.get("created_at");
+    
+    // Get vote results
+    let votes = sqlx::query(
+        "SELECT vote_value, COUNT(*) as count FROM votes WHERE proposal_id = $1 GROUP BY vote_value"
+    )
+    .bind(proposal_id)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    let mut yes_votes: i64 = 0;
+    let mut no_votes: i64 = 0;
+    let mut abstain_votes: i64 = 0;
+    
+    for vote in &votes {
+        let value: String = vote.get("vote_value");
+        let count: i64 = vote.get("count");
+        match value.as_str() {
+            "yes" => yes_votes = count,
+            "no" => no_votes = count,
+            "abstain" => abstain_votes = count,
+            _ => {}
+        }
+    }
+    
+    let total_votes = yes_votes + no_votes + abstain_votes;
+    let yes_percent = if total_votes > 0 { (yes_votes as f64 / total_votes as f64) * 100.0 } else { 0.0 };
+    let no_percent = if total_votes > 0 { (no_votes as f64 / total_votes as f64) * 100.0 } else { 0.0 };
+    let abstain_percent = if total_votes > 0 { (abstain_votes as f64 / total_votes as f64) * 100.0 } else { 0.0 };
+    
+    ctx.insert("proposal_id", &id.to_string());
+    ctx.insert("title", &title);
+    ctx.insert("description", &description.clone().unwrap_or_default());
+    ctx.insert("proposal_type", &proposal_type);
+    ctx.insert("status", &status);
+    ctx.insert("community_name", &community_name);
+    ctx.insert("community_id", &community_id.to_string());
+    ctx.insert("author_name", &author_name);
+    ctx.insert("vote_count", &vote_count);
+    ctx.insert("quorum_required", &quorum_required.unwrap_or(0));
+    ctx.insert("is_author", &is_author);
+    ctx.insert("is_member", &is_member);
+    ctx.insert("user_vote", &user_vote);
+    ctx.insert("yes_votes", &yes_votes);
+    ctx.insert("no_votes", &no_votes);
+    ctx.insert("abstain_votes", &abstain_votes);
+    ctx.insert("total_votes", &total_votes);
+    ctx.insert("yes_percent", &yes_percent);
+    ctx.insert("no_percent", &no_percent);
+    ctx.insert("abstain_percent", &abstain_percent);
+    ctx.insert("created_at", &created_at.format("%d/%m/%Y %H:%M").to_string());
+    
+    if let Some(ends) = voting_ends {
+        ctx.insert("voting_ends_at", &ends.format("%d/%m/%Y %H:%M").to_string());
+        let now = chrono::Utc::now();
+        ctx.insert("voting_ended", &(ends < now));
+    } else {
+        ctx.insert("voting_ends_at", &"");
+        ctx.insert("voting_ended", &false);
+    }
+    
+    // Render inline template since we don't have a dedicated template file
+    let html = format!(r#"
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} - Governance - Civiqo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {{ font-family: 'Inter', sans-serif; }}
+    </style>
+    <script>
+        tailwind.config = {{
+            theme: {{
+                extend: {{
+                    colors: {{
+                        'civiqo-blue': '#4F46E5',
+                        'civiqo-green': '#57C98A',
+                        'civiqo-eco-green': '#10B981',
+                        'civiqo-gray-50': '#F9FAFB',
+                        'civiqo-gray-100': '#F3F4F6',
+                        'civiqo-gray-200': '#E5E7EB',
+                        'civiqo-gray-600': '#4B5563',
+                        'civiqo-gray-700': '#374151',
+                        'civiqo-gray-900': '#111827',
+                    }}
+                }}
+            }}
+        }}
+    </script>
+</head>
+<body class="bg-civiqo-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-civiqo-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <a href="/" class="text-2xl font-bold text-civiqo-blue">Civiqo</a>
+                <nav class="flex items-center space-x-6">
+                    <a href="/dashboard" class="text-civiqo-gray-600 hover:text-civiqo-gray-900">Dashboard</a>
+                    <a href="/communities" class="text-civiqo-gray-600 hover:text-civiqo-gray-900">Community</a>
+                    <a href="/governance" class="text-civiqo-blue font-medium">Governance</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Breadcrumb -->
+        <nav class="mb-6">
+            <ol class="flex items-center space-x-2 text-sm text-civiqo-gray-600">
+                <li><a href="/governance" class="hover:text-civiqo-blue">Governance</a></li>
+                <li><span class="mx-2">/</span></li>
+                <li class="text-civiqo-gray-900 font-medium">{title}</li>
+            </ol>
+        </nav>
+
+        <!-- Proposal Card -->
+        <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 overflow-hidden">
+            <!-- Header -->
+            <div class="p-6 border-b border-civiqo-gray-200">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-civiqo-gray-900">{title}</h1>
+                        <p class="mt-1 text-civiqo-gray-600">
+                            Proposta da <span class="font-medium">{author_name}</span> in 
+                            <a href="/communities/{community_id}" class="text-civiqo-blue hover:underline">{community_name}</a>
+                        </p>
+                    </div>
+                    <span class="px-3 py-1 {status_class} text-sm rounded-full font-medium">{status_label}</span>
+                </div>
+            </div>
+
+            <!-- Description -->
+            <div class="p-6 border-b border-civiqo-gray-200">
+                <h2 class="text-lg font-semibold text-civiqo-gray-900 mb-3">Descrizione</h2>
+                <p class="text-civiqo-gray-700 whitespace-pre-wrap">{description}</p>
+            </div>
+
+            <!-- Voting Section -->
+            <div class="p-6" id="voting-section">
+                <h2 class="text-lg font-semibold text-civiqo-gray-900 mb-4">Risultati Votazione</h2>
+                
+                <!-- Results -->
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm font-medium text-civiqo-gray-900">Sì</span>
+                            <span class="text-sm text-civiqo-gray-600">{yes_percent:.1}% ({yes_votes})</span>
+                        </div>
+                        <div class="w-full bg-civiqo-gray-200 rounded-full h-3">
+                            <div class="h-3 rounded-full bg-civiqo-eco-green transition-all" style="width: {yes_percent}%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm font-medium text-civiqo-gray-900">No</span>
+                            <span class="text-sm text-civiqo-gray-600">{no_percent:.1}% ({no_votes})</span>
+                        </div>
+                        <div class="w-full bg-civiqo-gray-200 rounded-full h-3">
+                            <div class="h-3 rounded-full bg-red-500 transition-all" style="width: {no_percent}%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm font-medium text-civiqo-gray-900">Astenuto</span>
+                            <span class="text-sm text-civiqo-gray-600">{abstain_percent:.1}% ({abstain_votes})</span>
+                        </div>
+                        <div class="w-full bg-civiqo-gray-200 rounded-full h-3">
+                            <div class="h-3 rounded-full bg-civiqo-gray-400 transition-all" style="width: {abstain_percent}%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-sm text-civiqo-gray-600 mb-6">Totale voti: {total_votes}</p>
+
+                {vote_buttons}
+            </div>
+        </div>
+
+        <!-- Back link -->
+        <div class="mt-6">
+            <a href="/governance" class="text-civiqo-blue hover:underline">← Torna alla lista proposte</a>
+        </div>
+    </main>
+</body>
+</html>
+"#,
+        title = title,
+        author_name = author_name,
+        community_id = community_id,
+        community_name = community_name,
+        status_class = match status.as_str() {
+            "active" => "bg-civiqo-eco-green/10 text-civiqo-eco-green",
+            "draft" => "bg-yellow-100 text-yellow-800",
+            "passed" => "bg-blue-100 text-blue-800",
+            "rejected" => "bg-red-100 text-red-800",
+            _ => "bg-gray-100 text-gray-800",
+        },
+        status_label = match status.as_str() {
+            "active" => "Attiva",
+            "draft" => "Bozza",
+            "passed" => "Approvata",
+            "rejected" => "Respinta",
+            "closed" => "Chiusa",
+            _ => "Sconosciuto",
+        },
+        description = description.unwrap_or_default(),
+        yes_percent = yes_percent,
+        yes_votes = yes_votes,
+        no_percent = no_percent,
+        no_votes = no_votes,
+        abstain_percent = abstain_percent,
+        abstain_votes = abstain_votes,
+        total_votes = total_votes,
+        vote_buttons = if status == "active" && is_member {
+            let current_vote = user_vote.as_deref().unwrap_or("");
+            let yes_class = if current_vote == "yes" { "bg-civiqo-eco-green text-white" } else { "bg-civiqo-gray-100 hover:bg-civiqo-eco-green/20 text-civiqo-gray-700" };
+            let no_class = if current_vote == "no" { "bg-red-500 text-white" } else { "bg-civiqo-gray-100 hover:bg-red-100 text-civiqo-gray-700" };
+            let abstain_class = if current_vote == "abstain" { "bg-civiqo-gray-500 text-white" } else { "bg-civiqo-gray-100 hover:bg-civiqo-gray-200 text-civiqo-gray-700" };
+            format!(r##"
+                <div class="flex items-center space-x-3">
+                    <span class="text-sm text-civiqo-gray-600 mr-2">Il tuo voto:</span>
+                    <button hx-post="/api/proposals/{id}/vote" 
+                            hx-vals='{{"vote_value": "yes"}}'
+                            hx-target="#voting-section"
+                            hx-swap="innerHTML"
+                            class="px-4 py-2 rounded-lg font-medium transition {yes_class}">
+                        👍 Sì
+                    </button>
+                    <button hx-post="/api/proposals/{id}/vote" 
+                            hx-vals='{{"vote_value": "no"}}'
+                            hx-target="#voting-section"
+                            hx-swap="innerHTML"
+                            class="px-4 py-2 rounded-lg font-medium transition {no_class}">
+                        👎 No
+                    </button>
+                    <button hx-post="/api/proposals/{id}/vote" 
+                            hx-vals='{{"vote_value": "abstain"}}'
+                            hx-target="#voting-section"
+                            hx-swap="innerHTML"
+                            class="px-4 py-2 rounded-lg font-medium transition {abstain_class}">
+                        🤷 Astenuto
+                    </button>
+                </div>
+            "##, 
+                id = proposal_id,
+                yes_class = yes_class,
+                no_class = no_class,
+                abstain_class = abstain_class
+            )
+        } else if status == "active" && !is_member {
+            r#"<p class="text-sm text-civiqo-gray-600 italic">Devi essere membro della community per votare.</p>"#.to_string()
+        } else if status == "draft" && is_author {
+            format!(r##"
+                <button hx-post="/api/proposals/{id}/activate" 
+                        hx-target="#voting-section"
+                        hx-swap="innerHTML"
+                        class="px-4 py-2 bg-civiqo-eco-green text-white rounded-lg font-medium hover:bg-civiqo-eco-green/90 transition">
+                    Attiva Votazione
+                </button>
+            "##, id = proposal_id)
+        } else {
+            String::new()
+        }
+    );
+    
+    Ok(Html(html).into_response())
+}
+
 /// Points of Interest / Map page
 pub async fn poi(
     LocaleExtractor(locale): LocaleExtractor,

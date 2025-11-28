@@ -483,16 +483,21 @@ pub async fn get_results_fragment(
     Ok(Html(html))
 }
 
-/// Activate proposal (start voting)
+/// Activate proposal (start voting) - returns HTML for HTMX
 /// POST /api/proposals/:id/activate
 pub async fn activate_proposal(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
     Path(proposal_id): Path<Uuid>,
-) -> Result<Json<ProposalResponse>, AppError> {
+) -> Result<Html<String>, AppError> {
     // Verify user is author
     let proposal = sqlx::query(
-        "SELECT created_by, status FROM proposals WHERE id = $1"
+        r#"SELECT p.created_by, p.status, p.title, p.description, p.voting_ends_at,
+                  c.name as community_name,
+                  (SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id) as vote_count
+           FROM proposals p
+           JOIN communities c ON p.community_id = c.id
+           WHERE p.id = $1"#
     )
     .bind(proposal_id)
     .fetch_optional(&state.db.pool)
@@ -505,12 +510,12 @@ pub async fn activate_proposal(
         .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID".to_string())))?;
     
     if created_by != user_uuid {
-        return Err(AppError(anyhow::anyhow!("Only the author can activate the proposal".to_string())));
+        return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg">Solo l'autore può attivare la proposta</div>"#.to_string()));
     }
     
     let status: String = proposal.get("status");
     if status != "draft" {
-        return Err(AppError(anyhow::anyhow!("Only draft proposals can be activated".to_string())));
+        return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg">Solo le bozze possono essere attivate</div>"#.to_string()));
     }
     
     // Update status to active
@@ -520,7 +525,54 @@ pub async fn activate_proposal(
         .await
         .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
     
-    get_proposal(State(state), Path(proposal_id)).await
+    // Return updated card HTML
+    let title: String = proposal.get("title");
+    let description: Option<String> = proposal.get("description");
+    let community_name: String = proposal.get("community_name");
+    let vote_count: i64 = proposal.get("vote_count");
+    let voting_ends: Option<chrono::DateTime<chrono::Utc>> = proposal.get("voting_ends_at");
+    
+    let ends_text = voting_ends
+        .map(|dt| {
+            let now = chrono::Utc::now();
+            let diff = dt.signed_duration_since(now);
+            if diff.num_seconds() < 0 {
+                "Votazione terminata".to_string()
+            } else if diff.num_days() > 0 {
+                format!("Termina tra {} giorni", diff.num_days())
+            } else if diff.num_hours() > 0 {
+                format!("Termina tra {} ore", diff.num_hours())
+            } else {
+                "In scadenza".to_string()
+            }
+        })
+        .unwrap_or_else(|| "Nessuna scadenza".to_string());
+    
+    Ok(Html(format!(r#"
+    <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition border border-civiqo-gray-200">
+        <div class="flex items-start justify-between mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-civiqo-gray-900">{}</h3>
+                <p class="text-civiqo-gray-600 text-sm mt-1">{}</p>
+            </div>
+            <span class="px-3 py-1 bg-civiqo-eco-green/10 text-civiqo-eco-green text-sm rounded-full font-medium">Attiva</span>
+        </div>
+        <p class="text-civiqo-gray-700 mb-4 line-clamp-2">{}</p>
+        <div class="flex items-center justify-between text-sm text-civiqo-gray-600">
+            <div class="flex items-center space-x-4">
+                <span>{}</span>
+                <span>•</span>
+                <span>{} voti</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <a href="/governance/{}" 
+                   class="px-3 py-1 bg-civiqo-blue text-white text-sm rounded-lg hover:bg-civiqo-blue-dark transition">
+                    Vota
+                </a>
+            </div>
+        </div>
+    </div>
+    "#, title, community_name, description.unwrap_or_default(), ends_text, vote_count, proposal_id)))
 }
 
 /// Close proposal
