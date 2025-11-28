@@ -17,7 +17,7 @@ mod auth;
 mod i18n;
 mod i18n_tera;
 
-use handlers::{pages, htmx, api, posts, comments, reactions, proposals, stubs::health_check};
+use handlers::{pages, htmx, api, posts, comments, reactions, proposals, businesses, admin, stubs::health_check};
 use auth::{login, callback, logout}; // Auth handlers
 use i18n::{locale_middleware, get_available_languages};
 
@@ -121,12 +121,14 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/communities/{id}/posts/new", get(pages::create_post_page))
         .route("/posts/{id}", get(pages::post_detail))
         .route("/businesses", get(pages::businesses))
+        .route("/businesses/new", get(pages::create_business_page))
         .route("/businesses/{id}", get(pages::business_detail))
         .route("/chat", get(pages::chat_list))
         .route("/chat/{room_id}", get(pages::chat_room))
         .route("/governance", get(pages::governance))
         .route("/governance/{id}", get(pages::proposal_detail))
         .route("/poi", get(pages::poi))
+        .route("/admin", get(pages::admin_dashboard))
         .route("/test-db", get(pages::test_db))
         // User profile pages
         .route("/users/{id}", get(pages::user_profile))
@@ -169,6 +171,8 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/communities/{id}/proposals", get(htmx::community_proposals))
         .route("/htmx/communities/{id}/proposals", post(htmx::create_proposal_htmx))
         .route("/htmx/communities/{id}/proposals/count", get(htmx::community_proposals_count))
+        // Admin HTMX fragments
+        .route("/htmx/admin/dashboard", get(admin::admin_dashboard_fragment))
         
         // REST API Endpoints
         // NOTE: POST /api/users removed - users are created via Auth0 OAuth2 flow
@@ -229,6 +233,29 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/proposals/{id}/results", get(proposals::get_results))
         .route("/api/proposals/{id}/activate", post(proposals::activate_proposal))
         .route("/api/proposals/{id}/close", post(proposals::close_proposal))
+        
+        // Business endpoints
+        .route("/api/businesses", get(businesses::list_businesses))
+        .route("/api/businesses", post(businesses::create_business))
+        .route("/api/businesses/{id}", get(businesses::get_business))
+        .route("/api/businesses/{id}", put(businesses::update_business))
+        .route("/api/businesses/{id}", delete(businesses::delete_business))
+        .route("/api/businesses/{id}/products", get(businesses::list_products))
+        .route("/api/businesses/{id}/products", post(businesses::create_product))
+        .route("/api/businesses/{id}/reviews", get(businesses::list_reviews))
+        .route("/api/businesses/{id}/reviews", post(businesses::create_review))
+        .route("/api/orders", get(businesses::list_user_orders))
+        .route("/api/orders", post(businesses::create_order))
+        .route("/api/orders/{id}/status", put(businesses::update_order_status))
+        
+        // Admin/Analytics endpoints (Phase 7)
+        .route("/api/admin/analytics/summary", get(admin::get_analytics_summary))
+        .route("/api/admin/analytics/events", get(admin::list_analytics_events))
+        .route("/api/analytics/track", post(admin::track_event))
+        .route("/api/admin/moderation", get(admin::list_moderation_queue))
+        .route("/api/admin/moderation/{id}", put(admin::update_moderation_item))
+        .route("/api/report", post(admin::report_content))
+        .route("/api/admin/audit-logs", get(admin::list_audit_logs))
         
         // i18n endpoints
         .route("/api/set-language", post(set_language))

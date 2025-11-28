@@ -1,0 +1,53 @@
+{# Product Card Fragment - Displays a single product #}
+{# Variables: id, name, description, price, currency, image_url, is_available, business_id #}
+
+<div class="bg-white rounded-lg border border-civiqo-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+    <!-- Product Image -->
+    <div class="h-40 bg-civiqo-gray-100 relative">
+        {% if image_url %}
+        <img src="{{ image_url }}" alt="{{ name }}" class="w-full h-full object-cover">
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center">
+            <svg class="w-12 h-12 text-civiqo-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" 
+                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+            </svg>
+        </div>
+        {% endif %}
+        
+        {% if not is_available %}
+        <div class="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <span class="text-white font-medium">Non disponibile</span>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Product Info -->
+    <div class="p-4">
+        <h4 class="font-medium text-civiqo-gray-900 mb-1 line-clamp-1">{{ name }}</h4>
+        
+        {% if description %}
+        <p class="text-civiqo-gray-600 text-sm mb-3 line-clamp-2">{{ description }}</p>
+        {% endif %}
+        
+        <div class="flex items-center justify-between">
+            <span class="text-lg font-semibold text-civiqo-gray-900">
+                {{ currency | default(value="€") }} {{ price | round(precision=2) }}
+            </span>
+            
+            {% if is_available %}
+            <button hx-post="/api/cart/add"
+                    hx-vals='{"product_id": "{{ id }}", "quantity": 1}'
+                    hx-target="#cart-count"
+                    hx-swap="innerHTML"
+                    class="px-3 py-1 bg-civiqo-blue text-white text-sm rounded-lg hover:bg-civiqo-blue-dark transition">
+                <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                </svg>
+                Aggiungi
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>

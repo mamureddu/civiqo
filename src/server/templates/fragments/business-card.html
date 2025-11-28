@@ -1,0 +1,79 @@
+{# Business Card Fragment - Used in business listings #}
+{# Variables: id, name, description, category, address, rating_avg, review_count, is_verified, cover_url #}
+
+<a href="/businesses/{{ id }}" 
+   class="bg-white rounded-xl shadow-sm overflow-hidden border border-civiqo-gray-200 hover:shadow-md transition-shadow group">
+    <!-- Cover Image -->
+    <div class="h-48 bg-gradient-to-br from-civiqo-blue/10 to-civiqo-green/10 relative">
+        {% if cover_url %}
+        <img src="{{ cover_url }}" alt="{{ name }}" class="w-full h-full object-cover">
+        {% else %}
+        <div class="w-full h-full flex items-center justify-center">
+            <svg class="w-16 h-16 text-civiqo-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" 
+                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+        </div>
+        {% endif %}
+        
+        {% if is_verified %}
+        <span class="absolute top-3 right-3 inline-flex items-center px-2 py-1 bg-civiqo-eco-green text-white text-xs rounded-full">
+            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Verificato
+        </span>
+        {% endif %}
+    </div>
+    
+    <!-- Content -->
+    <div class="p-5">
+        <div class="flex items-start justify-between mb-2">
+            <h3 class="text-lg font-semibold text-civiqo-gray-900 group-hover:text-civiqo-blue transition-colors line-clamp-1">
+                {{ name }}
+            </h3>
+        </div>
+        
+        {% if category %}
+        <span class="inline-block px-2 py-0.5 bg-civiqo-gray-100 text-civiqo-gray-600 text-xs rounded-full mb-2">
+            {{ category }}
+        </span>
+        {% endif %}
+        
+        {% if description %}
+        <p class="text-civiqo-gray-600 text-sm line-clamp-2 mb-3">{{ description }}</p>
+        {% endif %}
+        
+        <!-- Rating and Reviews -->
+        <div class="flex items-center justify-between text-sm">
+            <div class="flex items-center">
+                {% set full_stars = rating_avg | round(method="floor") %}
+                {% for i in range(end=5) %}
+                    {% if i < full_stars %}
+                    <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                    </svg>
+                    {% else %}
+                    <svg class="w-4 h-4 text-civiqo-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                    </svg>
+                    {% endif %}
+                {% endfor %}
+                <span class="ml-1 text-civiqo-gray-600">{{ rating_avg | round(precision=1) }}</span>
+            </div>
+            <span class="text-civiqo-gray-500">{{ review_count }} recensioni</span>
+        </div>
+        
+        {% if address %}
+        <div class="flex items-center mt-3 text-sm text-civiqo-gray-500">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span class="line-clamp-1">{{ address }}</span>
+        </div>
+        {% endif %}
+    </div>
+</a>

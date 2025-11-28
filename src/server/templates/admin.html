@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Civiqo{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-brand font-bold text-civiqo-gray-900">Admin Dashboard</h1>
+        <p class="mt-2 text-civiqo-gray-600">Gestisci la piattaforma Civiqo</p>
+    </div>
+
+    <!-- Stats Cards -->
+    <div id="admin-stats" 
+         hx-get="/htmx/admin/dashboard" 
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <!-- Loading placeholders -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {% for i in range(end=4) %}
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-civiqo-gray-200 animate-pulse">
+                <div class="h-4 bg-civiqo-gray-200 rounded w-1/2 mb-4"></div>
+                <div class="h-8 bg-civiqo-gray-200 rounded w-1/3"></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mt-8" x-data="{ activeTab: 'moderation' }">
+        <div class="border-b border-civiqo-gray-200">
+            <nav class="flex space-x-8">
+                <button @click="activeTab = 'moderation'"
+                        :class="activeTab === 'moderation' ? 'border-civiqo-blue text-civiqo-blue' : 'border-transparent text-civiqo-gray-600 hover:text-civiqo-gray-900'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition">
+                    Moderazione
+                </button>
+                <button @click="activeTab = 'analytics'"
+                        :class="activeTab === 'analytics' ? 'border-civiqo-blue text-civiqo-blue' : 'border-transparent text-civiqo-gray-600 hover:text-civiqo-gray-900'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition">
+                    Analytics
+                </button>
+                <button @click="activeTab = 'audit'"
+                        :class="activeTab === 'audit' ? 'border-civiqo-blue text-civiqo-blue' : 'border-transparent text-civiqo-gray-600 hover:text-civiqo-gray-900'"
+                        class="py-4 px-1 border-b-2 font-medium text-sm transition">
+                    Audit Log
+                </button>
+            </nav>
+        </div>
+
+        <!-- Moderation Tab -->
+        <div x-show="activeTab === 'moderation'" class="py-6">
+            <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 overflow-hidden">
+                <div class="p-4 border-b border-civiqo-gray-200 flex items-center justify-between">
+                    <h3 class="font-semibold text-civiqo-gray-900">Coda di Moderazione</h3>
+                    <select class="px-3 py-1 border border-civiqo-gray-200 rounded-lg text-sm"
+                            hx-get="/htmx/admin/moderation"
+                            hx-trigger="change"
+                            hx-target="#moderation-list"
+                            name="status">
+                        <option value="pending">In Attesa</option>
+                        <option value="reviewing">In Revisione</option>
+                        <option value="approved">Approvati</option>
+                        <option value="rejected">Rifiutati</option>
+                    </select>
+                </div>
+                <div id="moderation-list" 
+                     hx-get="/htmx/admin/moderation" 
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="divide-y divide-civiqo-gray-200">
+                    <div class="p-8 text-center text-civiqo-gray-500">
+                        <div class="animate-spin w-8 h-8 border-2 border-civiqo-blue border-t-transparent rounded-full mx-auto mb-2"></div>
+                        Caricamento...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Tab -->
+        <div x-show="activeTab === 'analytics'" class="py-6">
+            <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6">
+                <h3 class="font-semibold text-civiqo-gray-900 mb-4">Eventi Recenti</h3>
+                <div id="analytics-events"
+                     hx-get="/htmx/admin/analytics"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <div class="text-center text-civiqo-gray-500 py-8">
+                        Caricamento analytics...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Log Tab -->
+        <div x-show="activeTab === 'audit'" class="py-6">
+            <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 overflow-hidden">
+                <div class="p-4 border-b border-civiqo-gray-200">
+                    <h3 class="font-semibold text-civiqo-gray-900">Log delle Attività</h3>
+                </div>
+                <div id="audit-log"
+                     hx-get="/htmx/admin/audit-logs"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"
+                     class="divide-y divide-civiqo-gray-200">
+                    <div class="p-8 text-center text-civiqo-gray-500">
+                        Caricamento log...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

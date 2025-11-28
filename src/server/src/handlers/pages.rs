@@ -396,16 +396,86 @@ pub async fn businesses(
 /// Business detail page
 pub async fn business_detail(
     LocaleExtractor(locale): LocaleExtractor,
+    OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<String>,
+    Path(business_id): Path<i64>,
+) -> Result<Response, AppError> {
+    use sqlx::Row;
+    
+    let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
+    
+    // Add auth info
+    if let Some(ref u) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("user_id", &u.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    // Fetch business from database
+    let business = sqlx::query(
+        r#"SELECT id, name, description, category, address, phone, email, website,
+                  COALESCE(rating_avg, 0) as rating_avg,
+                  COALESCE(review_count, 0) as review_count,
+                  COALESCE(is_verified, false) as is_verified,
+                  owner_id
+           FROM businesses WHERE id = $1"#
+    )
+    .bind(business_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    
+    match business {
+        Some(row) => {
+            ctx.insert("business_id", &business_id);
+            ctx.insert("business_name", &row.get::<String, _>("name"));
+            ctx.insert("business_description", &row.get::<Option<String>, _>("description").unwrap_or_default());
+            ctx.insert("business_category", &row.get::<Option<String>, _>("category").unwrap_or_default());
+            ctx.insert("business_address", &row.get::<Option<String>, _>("address").unwrap_or_default());
+            ctx.insert("business_phone", &row.get::<Option<String>, _>("phone").unwrap_or_default());
+            ctx.insert("business_email", &row.get::<Option<String>, _>("email").unwrap_or_default());
+            ctx.insert("business_website", &row.get::<Option<String>, _>("website").unwrap_or_default());
+            ctx.insert("rating_avg", &row.get::<f64, _>("rating_avg"));
+            ctx.insert("review_count", &row.get::<i32, _>("review_count"));
+            ctx.insert("is_verified", &row.get::<bool, _>("is_verified"));
+            
+            // Check if current user is owner
+            if let Some(ref u) = user {
+                let owner_id: Option<uuid::Uuid> = row.get("owner_id");
+                if let (Some(owner), Ok(user_uuid)) = (owner_id, uuid::Uuid::parse_str(&u.user_id)) {
+                    ctx.insert("is_owner", &(owner == user_uuid));
+                } else {
+                    ctx.insert("is_owner", &false);
+                }
+            } else {
+                ctx.insert("is_owner", &false);
+            }
+        }
+        None => {
+            return Ok(axum::response::Redirect::to("/businesses").into_response());
+        }
+    }
+    
+    let html = state.tera.render("business_detail.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+
+/// Create business page
+pub async fn create_business_page(
+    LocaleExtractor(locale): LocaleExtractor,
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    ctx.insert("business_id", &business_id);
-    ctx.insert("business_name", &format!("Business {}", &business_id[..8.min(business_id.len())]));
-    ctx.insert("business_category", "Local Business");
+    ctx.insert("logged_in", &true);
+    ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
+    ctx.insert("user_id", &user.user_id);
     
-    let html = state.tera.render("business_detail.html", &ctx)?;
+    let html = state.tera.render("create_business.html", &ctx)?;
     Ok(Html(html).into_response())
 }
 
@@ -1694,5 +1764,23 @@ pub async fn search_page(
     }
     
     let html = state.tera.render("search.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+
+/// Admin dashboard page
+pub async fn admin_dashboard(
+    LocaleExtractor(locale): LocaleExtractor,
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    // TODO: Add admin role check
+    
+    let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
+    ctx.insert("logged_in", &true);
+    ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
+    ctx.insert("user_id", &user.user_id);
+    
+    let html = state.tera.render("admin.html", &ctx)?;
     Ok(Html(html).into_response())
 }
