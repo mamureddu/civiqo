@@ -31,7 +31,7 @@ pub struct RoomParticipant {
     pub id: Uuid,
     pub room_id: Uuid,
     pub user_id: Uuid,
-    pub role: ParticipantRole,
+    pub role: Option<String>, // VARCHAR in DB: 'admin', 'moderator', 'member'
     pub joined_at: DateTime<Utc>,
     pub last_read_at: Option<DateTime<Utc>>,
 }

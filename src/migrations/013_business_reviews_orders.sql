@@ -7,9 +7,10 @@
 -- PART 1: Reviews System
 -- ============================================================================
 
+-- Note: id is UUID without default - application generates UUIDv7 via Uuid::now_v7()
 CREATE TABLE IF NOT EXISTS business_reviews (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
-    business_id BIGINT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
     title VARCHAR(255),
@@ -22,9 +23,10 @@ CREATE TABLE IF NOT EXISTS business_reviews (
 );
 
 -- Review responses (business owner can respond)
+-- Note: id is UUID without default - application generates UUIDv7 via Uuid::now_v7()
 CREATE TABLE IF NOT EXISTS review_responses (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
-    review_id BIGINT NOT NULL REFERENCES business_reviews(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    review_id UUID NOT NULL REFERENCES business_reviews(id) ON DELETE CASCADE,
     responder_id UUID NOT NULL REFERENCES users(id),
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -35,9 +37,10 @@ CREATE TABLE IF NOT EXISTS review_responses (
 -- PART 2: Orders System
 -- ============================================================================
 
+-- Note: id is UUID without default - application generates UUIDv7 via Uuid::now_v7()
 CREATE TABLE IF NOT EXISTS orders (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
-    business_id BIGINT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY,
+    business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id),
     status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled')),
     total_amount NUMERIC(10, 2) NOT NULL,
@@ -51,10 +54,11 @@ CREATE TABLE IF NOT EXISTS orders (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Note: id is UUID without default - application generates UUIDv7 via Uuid::now_v7()
 CREATE TABLE IF NOT EXISTS order_items (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
-    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    product_id BIGINT NOT NULL REFERENCES business_products(id),
+    id UUID PRIMARY KEY,
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES business_products(id),
     product_name VARCHAR(255) NOT NULL, -- Snapshot at order time
     quantity INT NOT NULL CHECK (quantity > 0),
     unit_price NUMERIC(10, 2) NOT NULL,
