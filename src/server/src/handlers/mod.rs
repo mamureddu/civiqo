@@ -1,7 +1,6 @@
 // Legacy API handlers (disabled for now)
 // pub mod auth;
 // pub mod communities;
-// pub mod businesses;
 // pub mod governance;
 // pub mod uploads;
 
@@ -17,3 +16,4 @@ pub mod posts;
 pub mod comments;
 pub mod reactions;
 pub mod proposals;
+pub mod businesses;

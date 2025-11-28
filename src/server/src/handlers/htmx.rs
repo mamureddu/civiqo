@@ -253,6 +253,43 @@ pub async fn user_communities(
     Ok(Html(html))
 }
 
+/// User communities as select options (PROTECTED - for proposal form)
+pub async fn user_communities_options(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Html<String> {
+    let user_uuid = match uuid::Uuid::parse_str(&user.user_id) {
+        Ok(id) => id,
+        Err(_) => return Html(r#"<option value="">Errore: ID utente non valido</option>"#.to_string()),
+    };
+    
+    // Fetch communities where user is a member (can create proposals)
+    let communities = sqlx::query(
+        r#"SELECT c.id, c.name
+           FROM communities c
+           JOIN community_members cm ON c.id = cm.community_id
+           WHERE cm.user_id = $1 AND cm.status = 'active'
+           ORDER BY c.name ASC"#
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if communities.is_empty() {
+        return Html(r#"<option value="">Nessuna community disponibile</option>"#.to_string());
+    }
+    
+    let mut html = String::from(r#"<option value="">Seleziona una community...</option>"#);
+    for row in communities {
+        let id: uuid::Uuid = row.get("id");
+        let name: String = row.get("name");
+        html.push_str(&format!(r#"<option value="{}">{}</option>"#, id, name));
+    }
+    
+    Html(html)
+}
+
 /// Dashboard active proposals fragment (PROTECTED - requires authentication)
 pub async fn dashboard_active_proposals(
     AuthUser(user): AuthUser,
@@ -454,35 +491,102 @@ pub async fn community_feed(
 // BUSINESSES FRAGMENTS
 // =============================================================================
 
-/// Businesses list fragment
-pub async fn businesses_list(State(_state): State<Arc<AppState>>) -> Html<String> {
-    // TODO: Fetch from database when businesses table exists
-    Html(r#"
-    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div class="h-48 bg-gradient-to-r from-blue-400 to-blue-600"></div>
-        <div class="p-6">
-            <h3 class="text-lg font-semibold text-gray-900">Sample Business</h3>
-            <p class="text-gray-600 text-sm mt-1">A sample business listing</p>
-            <div class="mt-4 flex items-center text-sm text-gray-500">
-                <span>⭐ 4.5</span>
-                <span class="mx-2">•</span>
-                <span>Open Now</span>
-            </div>
+/// Businesses list fragment - fetches from database
+pub async fn businesses_list(State(state): State<Arc<AppState>>) -> Html<String> {
+    let businesses = sqlx::query(
+        r#"SELECT b.id, b.name, b.description, b.category, b.address, 
+                  b.rating_avg, b.review_count, b.cover_url, b.is_verified
+           FROM businesses b
+           WHERE b.is_active = true
+           ORDER BY b.rating_avg DESC NULLS LAST, b.created_at DESC
+           LIMIT 12"#
+    )
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+
+    if businesses.is_empty() {
+        return Html(r#"
+        <div class="col-span-full text-center py-12">
+            <svg class="w-16 h-16 mx-auto text-civiqo-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+            <p class="text-civiqo-gray-600 font-medium">Nessuna attività trovata</p>
+            <p class="text-civiqo-gray-500 text-sm mt-1">Sii il primo ad aggiungere un'attività!</p>
         </div>
-    </div>
-    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div class="h-48 bg-gradient-to-r from-green-400 to-green-600"></div>
-        <div class="p-6">
-            <h3 class="text-lg font-semibold text-gray-900">Another Business</h3>
-            <p class="text-gray-600 text-sm mt-1">Another sample business</p>
-            <div class="mt-4 flex items-center text-sm text-gray-500">
-                <span>⭐ 4.8</span>
-                <span class="mx-2">•</span>
-                <span>Closed</span>
+        "#.to_string());
+    }
+
+    let mut html = String::new();
+    for row in businesses {
+        let id: uuid::Uuid = row.get("id");
+        let name: String = row.get("name");
+        let description: Option<String> = row.get("description");
+        let category: Option<String> = row.get("category");
+        let address: Option<String> = row.get("address");
+        let rating_avg: Option<f64> = row.get("rating_avg");
+        let review_count: i32 = row.get::<Option<i32>, _>("review_count").unwrap_or(0);
+        let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
+
+        let rating = rating_avg.unwrap_or(0.0);
+        let stars = render_stars(rating);
+        let verified_badge = if is_verified {
+            r#"<span class="inline-flex items-center px-2 py-0.5 bg-civiqo-eco-green/10 text-civiqo-eco-green text-xs rounded-full ml-2">
+                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                Verificato
+            </span>"#
+        } else { "" };
+
+        html.push_str(&format!(r#"
+        <a href="/businesses/{}" class="bg-white rounded-xl shadow-sm overflow-hidden border border-civiqo-gray-200 hover:shadow-md transition-shadow group">
+            <div class="h-40 bg-gradient-to-br from-civiqo-blue/10 to-civiqo-eco-green/10 flex items-center justify-center">
+                <svg class="w-16 h-16 text-civiqo-gray-300 group-hover:text-civiqo-blue transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                </svg>
             </div>
-        </div>
-    </div>
-    "#.to_string())
+            <div class="p-4">
+                <div class="flex items-center">
+                    <h3 class="text-lg font-brand font-semibold text-civiqo-gray-900 group-hover:text-civiqo-blue transition-colors">{}</h3>
+                    {}
+                </div>
+                <p class="text-civiqo-gray-500 text-sm mt-1">{}</p>
+                <p class="text-civiqo-gray-600 text-sm mt-2 line-clamp-2">{}</p>
+                <div class="mt-3 flex items-center justify-between">
+                    <div class="flex items-center text-sm">
+                        {}
+                        <span class="ml-1 text-civiqo-gray-500">({} recensioni)</span>
+                    </div>
+                    {}
+                </div>
+            </div>
+        </a>
+        "#, 
+            id,
+            name,
+            verified_badge,
+            category.unwrap_or_else(|| "Attività Locale".to_string()),
+            description.unwrap_or_default(),
+            stars,
+            review_count,
+            address.map(|a| format!(r#"<span class="text-civiqo-gray-500 text-xs truncate max-w-[120px]">{}</span>"#, a)).unwrap_or_default()
+        ));
+    }
+
+    Html(html)
+}
+
+/// Helper function to render star rating
+fn render_stars(rating: f64) -> String {
+    let full_stars = rating.floor() as i32;
+    let mut stars = String::new();
+    for i in 0..5 {
+        if i < full_stars {
+            stars.push_str(r#"<svg class="w-4 h-4 text-civiqo-yellow" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>"#);
+        } else {
+            stars.push_str(r#"<svg class="w-4 h-4 text-civiqo-gray-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>"#);
+        }
+    }
+    format!(r#"<div class="flex">{}</div>"#, stars)
 }
 
 /// Businesses search fragment
@@ -490,20 +594,115 @@ pub async fn businesses_list(State(_state): State<Arc<AppState>>) -> Html<String
 pub struct BusinessSearchQuery {
     #[serde(default)]
     pub q: String,
+    #[serde(default)]
+    pub category: String,
 }
 
 pub async fn businesses_search(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Query(query): Query<BusinessSearchQuery>,
 ) -> Html<String> {
-    // TODO: Implement actual search when businesses table exists
-    let search_term = query.q;
-    Html(format!(r#"
-    <div class="col-span-full text-center py-8 text-gray-500">
-        <p>Search results for "{}"</p>
-        <p class="text-sm mt-2">No businesses found matching your search.</p>
-    </div>
-    "#, search_term))
+    let search_term = query.q.trim();
+    let category = query.category.trim();
+    
+    let businesses = if search_term.is_empty() && category.is_empty() {
+        sqlx::query(
+            r#"SELECT b.id, b.name, b.description, b.category, b.address, 
+                      b.rating_avg, b.review_count, b.cover_url, b.is_verified
+               FROM businesses b
+               WHERE b.is_active = true
+               ORDER BY b.rating_avg DESC NULLS LAST
+               LIMIT 12"#
+        )
+        .fetch_all(&state.db.pool)
+        .await
+        .unwrap_or_default()
+    } else {
+        let mut conditions = vec!["b.is_active = true"];
+        let mut query_str = String::from(
+            r#"SELECT b.id, b.name, b.description, b.category, b.address, 
+                      b.rating_avg, b.review_count, b.cover_url, b.is_verified
+               FROM businesses b WHERE "#
+        );
+        
+        if !search_term.is_empty() {
+            conditions.push("(b.name ILIKE $1 OR b.description ILIKE $1)");
+        }
+        if !category.is_empty() {
+            conditions.push("b.category = $2");
+        }
+        
+        query_str.push_str(&conditions.join(" AND "));
+        query_str.push_str(" ORDER BY b.rating_avg DESC NULLS LAST LIMIT 12");
+        
+        let search_pattern = format!("%{}%", search_term);
+        sqlx::query(&query_str)
+            .bind(&search_pattern)
+            .bind(&category)
+            .fetch_all(&state.db.pool)
+            .await
+            .unwrap_or_default()
+    };
+
+    if businesses.is_empty() {
+        return Html(format!(r#"
+        <div class="col-span-full text-center py-12">
+            <svg class="w-16 h-16 mx-auto text-civiqo-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <p class="text-civiqo-gray-600 font-medium">Nessun risultato per "{}"</p>
+            <p class="text-civiqo-gray-500 text-sm mt-1">Prova con termini di ricerca diversi</p>
+        </div>
+        "#, search_term));
+    }
+
+    // Reuse the same rendering logic
+    let mut html = String::new();
+    for row in businesses {
+        let id: uuid::Uuid = row.get("id");
+        let name: String = row.get("name");
+        let description: Option<String> = row.get("description");
+        let category: Option<String> = row.get("category");
+        let address: Option<String> = row.get("address");
+        let rating_avg: Option<f64> = row.get("rating_avg");
+        let review_count: i32 = row.get::<Option<i32>, _>("review_count").unwrap_or(0);
+        let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
+
+        let rating = rating_avg.unwrap_or(0.0);
+        let stars = render_stars(rating);
+        let verified_badge = if is_verified {
+            r#"<span class="inline-flex items-center px-2 py-0.5 bg-civiqo-eco-green/10 text-civiqo-eco-green text-xs rounded-full ml-2">✓</span>"#
+        } else { "" };
+
+        html.push_str(&format!(r#"
+        <a href="/businesses/{}" class="bg-white rounded-xl shadow-sm overflow-hidden border border-civiqo-gray-200 hover:shadow-md transition-shadow group">
+            <div class="h-40 bg-gradient-to-br from-civiqo-blue/10 to-civiqo-eco-green/10 flex items-center justify-center">
+                <svg class="w-16 h-16 text-civiqo-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                </svg>
+            </div>
+            <div class="p-4">
+                <div class="flex items-center">
+                    <h3 class="text-lg font-brand font-semibold text-civiqo-gray-900">{}</h3>
+                    {}
+                </div>
+                <p class="text-civiqo-gray-500 text-sm mt-1">{}</p>
+                <p class="text-civiqo-gray-600 text-sm mt-2 line-clamp-2">{}</p>
+                <div class="mt-3 flex items-center text-sm">
+                    {}
+                    <span class="ml-1 text-civiqo-gray-500">({} recensioni)</span>
+                </div>
+            </div>
+        </a>
+        "#, 
+            id, name, verified_badge,
+            category.unwrap_or_else(|| "Attività Locale".to_string()),
+            description.unwrap_or_default(),
+            stars, review_count
+        ));
+    }
+
+    Html(html)
 }
 
 /// Business posts fragment
@@ -511,43 +710,169 @@ pub async fn business_posts(
     axum::extract::Path(_business_id): axum::extract::Path<String>,
 ) -> Html<String> {
     Html(r#"
-    <div class="text-center py-4 text-gray-500">
-        <p>No updates from this business yet.</p>
+    <div class="text-center py-8 text-civiqo-gray-500">
+        <svg class="w-12 h-12 mx-auto text-civiqo-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
+        </svg>
+        <p class="font-medium">Nessun aggiornamento</p>
+        <p class="text-sm mt-1">Questa attività non ha ancora pubblicato aggiornamenti</p>
     </div>
     "#.to_string())
 }
 
 /// Business reviews fragment
 pub async fn business_reviews(
-    axum::extract::Path(_business_id): axum::extract::Path<String>,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(business_id): axum::extract::Path<String>,
 ) -> Html<String> {
-    Html(r#"
-    <div class="text-center py-4 text-gray-500">
-        <p>No reviews yet. Be the first to leave a review!</p>
-    </div>
-    "#.to_string())
+    let business_uuid = match uuid::Uuid::parse_str(&business_id) {
+        Ok(id) => id,
+        Err(_) => return Html(r#"<div class="text-civiqo-coral">ID attività non valido</div>"#.to_string()),
+    };
+
+    let reviews = sqlx::query(
+        r#"SELECT r.id, r.rating, r.title, r.content, r.created_at,
+                  u.display_name, u.avatar_url
+           FROM business_reviews r
+           JOIN users u ON r.user_id = u.id
+           WHERE r.business_id = $1
+           ORDER BY r.created_at DESC
+           LIMIT 10"#
+    )
+    .bind(business_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+
+    if reviews.is_empty() {
+        return Html(r#"
+        <div class="text-center py-8 text-civiqo-gray-500">
+            <svg class="w-12 h-12 mx-auto text-civiqo-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+            </svg>
+            <p class="font-medium">Nessuna recensione</p>
+            <p class="text-sm mt-1">Sii il primo a lasciare una recensione!</p>
+        </div>
+        "#.to_string());
+    }
+
+    let mut html = String::new();
+    for row in reviews {
+        let rating: i32 = row.get("rating");
+        let title: Option<String> = row.get("title");
+        let content: Option<String> = row.get("content");
+        let display_name: String = row.get("display_name");
+        let avatar_url: Option<String> = row.get("avatar_url");
+        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+
+        let stars = render_stars(rating as f64);
+        let avatar = avatar_url.map(|url| format!(r#"<img src="{}" alt="{}" class="w-10 h-10 rounded-full object-cover"/>"#, url, display_name))
+            .unwrap_or_else(|| format!(r#"<div class="w-10 h-10 rounded-full bg-civiqo-blue text-white flex items-center justify-center font-medium">{}</div>"#, 
+                display_name.chars().next().unwrap_or('U').to_uppercase()));
+
+        html.push_str(&format!(r#"
+        <div class="border-b border-civiqo-gray-200 pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
+            <div class="flex items-start gap-3">
+                {}
+                <div class="flex-1">
+                    <div class="flex items-center justify-between">
+                        <span class="font-medium text-civiqo-gray-900">{}</span>
+                        <span class="text-xs text-civiqo-gray-500">{}</span>
+                    </div>
+                    <div class="mt-1">{}</div>
+                    {}
+                    {}
+                </div>
+            </div>
+        </div>
+        "#,
+            avatar,
+            display_name,
+            created_at.format("%d/%m/%Y"),
+            stars,
+            title.map(|t| format!(r#"<h4 class="font-medium text-civiqo-gray-900 mt-2">{}</h4>"#, t)).unwrap_or_default(),
+            content.map(|c| format!(r#"<p class="text-civiqo-gray-600 text-sm mt-1">{}</p>"#, c)).unwrap_or_default()
+        ));
+    }
+
+    Html(html)
 }
 
 // =============================================================================
 // GOVERNANCE FRAGMENTS
 // =============================================================================
 
-/// Governance proposals fragment
-pub async fn governance_proposals(State(state): State<Arc<AppState>>) -> Html<String> {
+#[derive(Debug, serde::Deserialize)]
+pub struct GovernanceProposalsQuery {
+    pub status: Option<String>,
+}
+
+/// Governance proposals fragment with status filter
+pub async fn governance_proposals(
+    user: crate::auth::OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<GovernanceProposalsQuery>,
+) -> Html<String> {
     use sqlx::Row;
     
-    // Fetch proposals from database
-    let proposals = sqlx::query(
-        r#"SELECT p.id, p.title, p.description, p.status, p.voting_ends_at,
-                  c.name as community_name,
-                  (SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id) as vote_count
-           FROM proposals p
-           JOIN communities c ON p.community_id = c.id
-           ORDER BY p.created_at DESC
-           LIMIT 10"#
-    )
-    .fetch_all(&state.db.pool)
-    .await;
+    let filter = params.status.unwrap_or_else(|| "active".to_string());
+    
+    // Build query based on filter
+    let proposals = match filter.as_str() {
+        "completed" => {
+            sqlx::query(
+                r#"SELECT p.id, p.title, p.description, p.status, p.voting_ends_at,
+                          c.name as community_name,
+                          (SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id) as vote_count
+                   FROM proposals p
+                   JOIN communities c ON p.community_id = c.id
+                   WHERE p.status IN ('passed', 'rejected', 'closed')
+                   ORDER BY p.created_at DESC
+                   LIMIT 20"#
+            )
+            .fetch_all(&state.db.pool)
+            .await
+        }
+        "mine" => {
+            // Get user's proposals if logged in
+            if let crate::auth::OptionalAuthUser(Some(ref u)) = user {
+                if let Ok(user_uuid) = uuid::Uuid::parse_str(&u.user_id) {
+                    sqlx::query(
+                        r#"SELECT p.id, p.title, p.description, p.status, p.voting_ends_at,
+                                  c.name as community_name,
+                                  (SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id) as vote_count
+                           FROM proposals p
+                           JOIN communities c ON p.community_id = c.id
+                           WHERE p.created_by = $1
+                           ORDER BY p.created_at DESC
+                           LIMIT 20"#
+                    )
+                    .bind(user_uuid)
+                    .fetch_all(&state.db.pool)
+                    .await
+                } else {
+                    Ok(vec![])
+                }
+            } else {
+                Ok(vec![])
+            }
+        }
+        _ => {
+            // Default: active proposals
+            sqlx::query(
+                r#"SELECT p.id, p.title, p.description, p.status, p.voting_ends_at,
+                          c.name as community_name,
+                          (SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id) as vote_count
+                   FROM proposals p
+                   JOIN communities c ON p.community_id = c.id
+                   WHERE p.status = 'active'
+                   ORDER BY p.created_at DESC
+                   LIMIT 20"#
+            )
+            .fetch_all(&state.db.pool)
+            .await
+        }
+    };
     
     match proposals {
         Ok(rows) if !rows.is_empty() => {
@@ -561,72 +886,93 @@ pub async fn governance_proposals(State(state): State<Arc<AppState>>) -> Html<St
                 let vote_count: i64 = row.get("vote_count");
                 let voting_ends: Option<chrono::DateTime<chrono::Utc>> = row.get("voting_ends_at");
                 
-                let status_class = match status.as_str() {
-                    "active" => "bg-green-100 text-green-800",
-                    "draft" => "bg-yellow-100 text-yellow-800",
-                    "closed" => "bg-gray-100 text-gray-800",
-                    _ => "bg-blue-100 text-blue-800",
+                let (status_class, status_label) = match status.as_str() {
+                    "active" => ("bg-civiqo-eco-green/10 text-civiqo-eco-green", "Attiva"),
+                    "draft" => ("bg-civiqo-yellow/10 text-civiqo-yellow", "Bozza"),
+                    "passed" => ("bg-civiqo-blue/10 text-civiqo-blue", "Approvata"),
+                    "rejected" => ("bg-civiqo-coral/10 text-civiqo-coral", "Respinta"),
+                    "closed" => ("bg-civiqo-gray-200 text-civiqo-gray-600", "Chiusa"),
+                    _ => ("bg-civiqo-gray-200 text-civiqo-gray-600", "Sconosciuto"),
                 };
                 
                 let ends_text = voting_ends
                     .map(|dt| {
                         let now = chrono::Utc::now();
                         let diff = dt.signed_duration_since(now);
-                        if diff.num_days() > 0 {
-                            format!("Ends in {} days", diff.num_days())
+                        if diff.num_seconds() < 0 {
+                            "Votazione terminata".to_string()
+                        } else if diff.num_days() > 0 {
+                            format!("Termina tra {} giorni", diff.num_days())
                         } else if diff.num_hours() > 0 {
-                            format!("Ends in {} hours", diff.num_hours())
+                            format!("Termina tra {} ore", diff.num_hours())
                         } else {
-                            "Ending soon".to_string()
+                            "In scadenza".to_string()
                         }
                     })
-                    .unwrap_or_else(|| "No end date".to_string());
+                    .unwrap_or_else(|| "Nessuna scadenza".to_string());
                 
                 html.push_str(&format!(r#"
-                <div class="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition">
+                <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition border border-civiqo-gray-200">
                     <div class="flex items-start justify-between mb-4">
                         <div>
-                            <h3 class="text-lg font-semibold text-civiqo-gray-900">{}</h3>
-                            <p class="text-civiqo-gray-600 text-sm mt-1">{}</p>
+                            <h3 class="text-lg font-semibold text-civiqo-gray-900">{title}</h3>
+                            <p class="text-civiqo-gray-600 text-sm mt-1">{community}</p>
                         </div>
-                        <span class="px-3 py-1 {} text-sm rounded-full capitalize">{}</span>
+                        <span class="px-3 py-1 {status_class} text-sm rounded-full font-medium">{status_label}</span>
                     </div>
-                    <p class="text-civiqo-gray-700 mb-4">{}</p>
-                    <div class="flex items-center justify-between text-sm text-civiqo-gray-500">
+                    <p class="text-civiqo-gray-700 mb-4 line-clamp-2">{description}</p>
+                    <div class="flex items-center justify-between text-sm text-civiqo-gray-600">
                         <div class="flex items-center space-x-4">
-                            <span>{}</span>
+                            <span>{ends}</span>
                             <span>•</span>
-                            <span>{} votes</span>
+                            <span>{votes} voti</span>
                         </div>
-                        <a href="/governance/{}" 
-                           class="text-civiqo-blue hover:underline"
-                           hx-boost="true">View Details →</a>
+                        <a href="/governance/{id}" 
+                           class="text-civiqo-blue hover:underline font-medium"
+                           hx-boost="true">Dettagli →</a>
                     </div>
                 </div>
                 "#,
-                    title,
-                    community_name,
-                    status_class,
-                    status,
-                    description.unwrap_or_default(),
-                    ends_text,
-                    vote_count,
-                    id
+                    title = title,
+                    community = community_name,
+                    status_class = status_class,
+                    status_label = status_label,
+                    description = description.unwrap_or_default(),
+                    ends = ends_text,
+                    votes = vote_count,
+                    id = id
                 ));
             }
             Html(html)
         }
         _ => {
-            Html(r#"
-            <div class="bg-white rounded-lg shadow-sm p-8 text-center">
+            let (icon, title, message) = match filter.as_str() {
+                "completed" => (
+                    r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>"#,
+                    "Nessuna proposta completata",
+                    "Le proposte completate appariranno qui."
+                ),
+                "mine" => (
+                    r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>"#,
+                    "Nessuna proposta creata",
+                    "Non hai ancora creato proposte. Inizia ora!"
+                ),
+                _ => (
+                    r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>"#,
+                    "Nessuna proposta attiva",
+                    "Sii il primo a creare una proposta per la tua community!"
+                ),
+            };
+            
+            Html(format!(r#"
+            <div class="bg-white rounded-xl shadow-sm p-8 text-center border border-civiqo-gray-200">
                 <svg class="mx-auto h-12 w-12 text-civiqo-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    {icon}
                 </svg>
-                <h3 class="mt-4 text-lg font-medium text-civiqo-gray-900">No proposals yet</h3>
-                <p class="mt-2 text-civiqo-gray-600">Be the first to create a proposal for your community!</p>
+                <h3 class="mt-4 text-lg font-medium text-civiqo-gray-900">{title}</h3>
+                <p class="mt-2 text-civiqo-gray-600">{message}</p>
             </div>
-            "#.to_string())
+            "#, icon = icon, title = title, message = message))
         }
     }
 }

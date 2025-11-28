@@ -136,3 +136,141 @@ pub struct BusinessSearchResult {
     pub distance_km: Option<f64>,
     pub product_count: i64,
 }
+
+// ============================================================================
+// Reviews
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct BusinessReview {
+    pub id: i64,
+    pub business_id: i64,
+    pub user_id: Uuid,
+    pub rating: i32,
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub is_verified_purchase: bool,
+    pub helpful_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReviewWithUser {
+    pub id: i64,
+    pub business_id: i64,
+    pub user_id: Uuid,
+    pub user_name: String,
+    pub user_avatar: Option<String>,
+    pub rating: i32,
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub is_verified_purchase: bool,
+    pub helpful_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub response: Option<ReviewResponse>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewResponse {
+    pub id: i64,
+    pub content: String,
+    pub responder_name: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateReviewRequest {
+    pub rating: i32,
+    pub title: Option<String>,
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateReviewResponseRequest {
+    pub content: String,
+}
+
+// ============================================================================
+// Orders
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum OrderStatus {
+    Pending,
+    Confirmed,
+    Preparing,
+    Ready,
+    Delivered,
+    Cancelled,
+}
+
+impl std::fmt::Display for OrderStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OrderStatus::Pending => write!(f, "pending"),
+            OrderStatus::Confirmed => write!(f, "confirmed"),
+            OrderStatus::Preparing => write!(f, "preparing"),
+            OrderStatus::Ready => write!(f, "ready"),
+            OrderStatus::Delivered => write!(f, "delivered"),
+            OrderStatus::Cancelled => write!(f, "cancelled"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Order {
+    pub id: i64,
+    pub business_id: i64,
+    pub user_id: Uuid,
+    pub status: String,
+    pub total_amount: Decimal,
+    pub currency: String,
+    pub notes: Option<String>,
+    pub delivery_address: Option<String>,
+    pub delivery_type: String,
+    pub estimated_ready_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct OrderItem {
+    pub id: i64,
+    pub order_id: i64,
+    pub product_id: i64,
+    pub product_name: String,
+    pub quantity: i32,
+    pub unit_price: Decimal,
+    pub total_price: Decimal,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrderWithItems {
+    pub order: Order,
+    pub items: Vec<OrderItem>,
+    pub business_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateOrderRequest {
+    pub items: Vec<CreateOrderItemRequest>,
+    pub notes: Option<String>,
+    pub delivery_type: Option<String>,
+    pub delivery_address: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateOrderItemRequest {
+    pub product_id: i64,
+    pub quantity: i32,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateOrderStatusRequest {
+    pub status: String,
+    pub estimated_ready_at: Option<DateTime<Utc>>,
+}

@@ -1,38 +1,74 @@
 {% extends "base.html" %}
 
-{% block title %}{{ business_name }} - Civiqo{% endblock %}
+{% block title %}{{ business.name | default(value="Attività") }} - Civiqo{% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Business Header -->
-    <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-        <div class="h-64 bg-gray-200 relative">
-            <img src="/static/images/placeholder-business.jpg" alt="{{ business_name }}" class="w-full h-full object-cover" onerror="this.style.display='none'"/>
-            <div class="absolute top-4 right-4">
-                <span class="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium">Open</span>
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6 border border-civiqo-gray-200">
+        <div class="h-64 bg-gradient-to-br from-civiqo-blue/10 to-civiqo-eco-green/10 relative">
+            {% if business.cover_url %}
+            <img src="{{ business.cover_url }}" alt="{{ business.name }}" class="w-full h-full object-cover"/>
+            {% else %}
+            <div class="w-full h-full flex items-center justify-center">
+                <svg class="w-24 h-24 text-civiqo-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                </svg>
             </div>
+            {% endif %}
+            {% if business.is_verified %}
+            <div class="absolute top-4 left-4">
+                <span class="inline-flex items-center px-3 py-1 bg-civiqo-eco-green text-white rounded-full text-sm font-medium">
+                    <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    Verificato
+                </span>
+            </div>
+            {% endif %}
         </div>
         <div class="px-6 py-6">
-            <div class="flex items-start justify-between">
+            <div class="flex flex-col md:flex-row items-start justify-between gap-4">
                 <div>
-                    <h1 class="text-3xl font-bold text-gray-900">{{ business_name }}</h1>
-                    <p class="text-gray-600 mt-2">{{ business_category | default(value="Local Business") }}</p>
-                    <div class="flex items-center mt-3 space-x-4">
+                    <h1 class="text-3xl font-brand font-bold text-civiqo-gray-900">{{ business.name | default(value="Nome Attività") }}</h1>
+                    <p class="text-civiqo-gray-600 mt-2">{{ business.category | default(value="Attività Locale") }}</p>
+                    <div class="flex flex-wrap items-center mt-3 gap-4">
                         <div class="flex items-center">
-                            <span class="text-yellow-400">★★★★☆</span>
-                            <span class="ml-2 text-sm text-gray-600">4.5 (123 reviews)</span>
+                            {% set rating = business.rating_avg | default(value=0) %}
+                            <div class="flex text-civiqo-yellow">
+                                {% for i in range(end=5) %}
+                                    {% if i < rating %}
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                    {% else %}
+                                    <svg class="w-5 h-5 text-civiqo-gray-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <span class="ml-2 text-sm text-civiqo-gray-600">{{ rating }} ({{ business.review_count | default(value=0) }} recensioni)</span>
                         </div>
-                        <span class="text-gray-400">•</span>
-                        <span class="text-sm text-gray-600">📍 Downtown</span>
+                        {% if business.address %}
+                        <span class="text-civiqo-gray-400">•</span>
+                        <span class="text-sm text-civiqo-gray-600 flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                            {{ business.address }}
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="flex space-x-3">
-                    <button class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                        Share
+                    <button class="px-4 py-2 border border-civiqo-gray-200 rounded-lg hover:bg-civiqo-gray-50 transition text-civiqo-gray-700">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                        </svg>
                     </button>
-                    <button class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                        Follow
+                    {% if logged_in %}
+                    <button class="px-6 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue-dark transition">
+                        Segui
                     </button>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -42,29 +78,47 @@
         <!-- Main Content -->
         <div class="lg:col-span-2 space-y-6">
             <!-- About -->
-            <div class="bg-white rounded-lg shadow-sm p-6">
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">About</h2>
-                <p class="text-gray-600">{{ business_description | default(value="Welcome to our business! We're dedicated to serving our community with quality products and services.") }}</p>
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-civiqo-gray-200">
+                <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900 mb-4">Chi Siamo</h2>
+                <p class="text-civiqo-gray-600">{{ business.description | default(value="Benvenuti nella nostra attività! Siamo dedicati a servire la nostra community con prodotti e servizi di qualità.") }}</p>
             </div>
 
-            <!-- Posts/Updates -->
-            <div class="bg-white rounded-lg shadow-sm p-6">
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Updates</h2>
-                <div class="space-y-4" hx-get="/htmx/businesses/{{ business_id }}/posts" hx-trigger="load" hx-swap="innerHTML">
-                    <div class="animate-pulse space-y-3">
-                        <div class="h-4 bg-gray-200 rounded w-full"></div>
-                        <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+            <!-- Products -->
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-civiqo-gray-200">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900">Prodotti e Servizi</h2>
+                    {% if is_owner %}
+                    <button class="text-civiqo-blue hover:underline text-sm font-medium">+ Aggiungi</button>
+                    {% endif %}
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="products-list" 
+                     hx-get="/htmx/businesses/{{ business.id }}/products" hx-trigger="load" hx-swap="innerHTML">
+                    <div class="animate-pulse space-y-3 p-4 border border-civiqo-gray-200 rounded-lg">
+                        <div class="h-4 bg-civiqo-gray-200 rounded w-3/4"></div>
+                        <div class="h-4 bg-civiqo-gray-200 rounded w-1/2"></div>
                     </div>
                 </div>
             </div>
 
             <!-- Reviews -->
-            <div class="bg-white rounded-lg shadow-sm p-6">
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">Reviews</h2>
-                <div class="space-y-4" hx-get="/htmx/businesses/{{ business_id }}/reviews" hx-trigger="load" hx-swap="innerHTML">
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-civiqo-gray-200">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900">Recensioni</h2>
+                    {% if logged_in and not is_owner %}
+                    <button class="text-civiqo-blue hover:underline text-sm font-medium"
+                            hx-get="/htmx/businesses/{{ business.id }}/review-form"
+                            hx-target="#review-form-container"
+                            hx-swap="innerHTML">
+                        Scrivi Recensione
+                    </button>
+                    {% endif %}
+                </div>
+                <div id="review-form-container" class="mb-4"></div>
+                <div class="space-y-4" id="reviews-list"
+                     hx-get="/htmx/businesses/{{ business.id }}/reviews" hx-trigger="load" hx-swap="innerHTML">
                     <div class="animate-pulse space-y-3">
-                        <div class="h-4 bg-gray-200 rounded w-full"></div>
-                        <div class="h-4 bg-gray-200 rounded w-2/3"></div>
+                        <div class="h-4 bg-civiqo-gray-200 rounded w-full"></div>
+                        <div class="h-4 bg-civiqo-gray-200 rounded w-2/3"></div>
                     </div>
                 </div>
             </div>
@@ -73,62 +127,92 @@
         <!-- Sidebar -->
         <div class="space-y-6">
             <!-- Contact Info -->
-            <div class="bg-white rounded-lg shadow-sm p-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-civiqo-gray-200">
+                <h3 class="text-lg font-brand font-semibold text-civiqo-gray-900 mb-4">Contatti</h3>
                 <div class="space-y-3">
-                    <div class="flex items-start">
-                        <span class="text-gray-400 mr-3">📞</span>
-                        <span class="text-gray-600">(555) 123-4567</span>
+                    {% if business.phone %}
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 text-civiqo-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                        </svg>
+                        <a href="tel:{{ business.phone }}" class="text-civiqo-gray-600 hover:text-civiqo-blue">{{ business.phone }}</a>
                     </div>
-                    <div class="flex items-start">
-                        <span class="text-gray-400 mr-3">📧</span>
-                        <span class="text-gray-600">info@business.com</span>
+                    {% endif %}
+                    {% if business.email %}
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 text-civiqo-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                        <a href="mailto:{{ business.email }}" class="text-civiqo-gray-600 hover:text-civiqo-blue">{{ business.email }}</a>
                     </div>
-                    <div class="flex items-start">
-                        <span class="text-gray-400 mr-3">🌐</span>
-                        <a href="#" class="text-blue-600 hover:underline">www.business.com</a>
+                    {% endif %}
+                    {% if business.website %}
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 text-civiqo-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                        </svg>
+                        <a href="{{ business.website }}" target="_blank" class="text-civiqo-blue hover:underline">{{ business.website }}</a>
                     </div>
+                    {% endif %}
+                    {% if business.address %}
                     <div class="flex items-start">
-                        <span class="text-gray-400 mr-3">📍</span>
-                        <span class="text-gray-600">123 Main St, City, ST 12345</span>
+                        <svg class="w-5 h-5 text-civiqo-gray-400 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        <span class="text-civiqo-gray-600">{{ business.address }}</span>
                     </div>
+                    {% endif %}
                 </div>
             </div>
 
             <!-- Hours -->
-            <div class="bg-white rounded-lg shadow-sm p-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Hours</h3>
-                <div class="space-y-2 text-sm">
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-civiqo-gray-200">
+                <h3 class="text-lg font-brand font-semibold text-civiqo-gray-900 mb-4">Orari</h3>
+                <div class="space-y-2 text-sm" id="business-hours"
+                     hx-get="/htmx/businesses/{{ business.id }}/hours" hx-trigger="load" hx-swap="innerHTML">
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Monday</span>
-                        <span class="text-gray-900">9:00 AM - 6:00 PM</span>
+                        <span class="text-civiqo-gray-600">Lunedì</span>
+                        <span class="text-civiqo-gray-900">9:00 - 18:00</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Tuesday</span>
-                        <span class="text-gray-900">9:00 AM - 6:00 PM</span>
+                        <span class="text-civiqo-gray-600">Martedì</span>
+                        <span class="text-civiqo-gray-900">9:00 - 18:00</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Wednesday</span>
-                        <span class="text-gray-900">9:00 AM - 6:00 PM</span>
+                        <span class="text-civiqo-gray-600">Mercoledì</span>
+                        <span class="text-civiqo-gray-900">9:00 - 18:00</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Thursday</span>
-                        <span class="text-gray-900">9:00 AM - 6:00 PM</span>
+                        <span class="text-civiqo-gray-600">Giovedì</span>
+                        <span class="text-civiqo-gray-900">9:00 - 18:00</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Friday</span>
-                        <span class="text-gray-900">9:00 AM - 8:00 PM</span>
+                        <span class="text-civiqo-gray-600">Venerdì</span>
+                        <span class="text-civiqo-gray-900">9:00 - 20:00</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Saturday</span>
-                        <span class="text-gray-900">10:00 AM - 6:00 PM</span>
+                        <span class="text-civiqo-gray-600">Sabato</span>
+                        <span class="text-civiqo-gray-900">10:00 - 18:00</span>
                     </div>
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Sunday</span>
-                        <span class="text-gray-900 font-medium text-red-600">Closed</span>
+                        <span class="text-civiqo-gray-600">Domenica</span>
+                        <span class="text-civiqo-coral font-medium">Chiuso</span>
                     </div>
                 </div>
             </div>
+
+            <!-- Order CTA -->
+            {% if logged_in and business.has_products %}
+            <div class="bg-gradient-to-br from-civiqo-blue to-civiqo-blue-dark rounded-xl shadow-sm p-6 text-white">
+                <h3 class="text-lg font-brand font-semibold mb-2">Ordina Ora</h3>
+                <p class="text-white/80 text-sm mb-4">Ordina prodotti e servizi direttamente online</p>
+                <a href="/businesses/{{ business.id }}/order" 
+                   class="block w-full py-2 bg-white text-civiqo-blue rounded-lg text-center font-medium hover:bg-civiqo-gray-50 transition">
+                    Vai all'Ordine
+                </a>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

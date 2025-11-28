@@ -32,7 +32,7 @@ pub struct ApiState {
 /// Create the full application router for testing
 /// This mirrors the router in main.rs
 pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Send + Sync>> {
-    use handlers::{pages, htmx, api, posts, comments, reactions, proposals, stubs::health_check};
+    use handlers::{pages, htmx, api, posts, comments, reactions, proposals, businesses, stubs::health_check};
     use auth::{login, callback, logout};
     
     // Load environment
@@ -129,6 +129,7 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/htmx/communities/:id/posts", post(posts::create_post_htmx))
         .route("/htmx/chat/:room_id/header", get(htmx::chat_header))
         .route("/htmx/user/communities", get(htmx::user_communities))
+        .route("/htmx/user/communities-options", get(htmx::user_communities_options))
         .route("/htmx/user/activity", get(htmx::user_activity))
         .route("/htmx/dashboard/active-proposals", get(htmx::dashboard_active_proposals))
         // Business HTMX fragments
@@ -220,6 +221,20 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/api/proposals/:id/results", get(proposals::get_results))
         .route("/api/proposals/:id/activate", post(proposals::activate_proposal))
         .route("/api/proposals/:id/close", post(proposals::close_proposal))
+        
+        // Business endpoints (Phase 4)
+        .route("/api/businesses", get(businesses::list_businesses))
+        .route("/api/businesses", post(businesses::create_business))
+        .route("/api/businesses/:id", get(businesses::get_business))
+        .route("/api/businesses/:id", put(businesses::update_business))
+        .route("/api/businesses/:id", delete(businesses::delete_business))
+        .route("/api/businesses/:id/products", get(businesses::list_products))
+        .route("/api/businesses/:id/products", post(businesses::create_product))
+        .route("/api/businesses/:id/reviews", get(businesses::list_reviews))
+        .route("/api/businesses/:id/reviews", post(businesses::create_review))
+        .route("/api/businesses/:id/orders", post(businesses::create_order))
+        .route("/api/orders", get(businesses::list_user_orders))
+        .route("/api/orders/:id/status", put(businesses::update_order_status))
         
         // Fallback for 404
         .fallback(pages::not_found)
