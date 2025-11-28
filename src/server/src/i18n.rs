@@ -37,6 +37,7 @@ pub struct Locale {
     pub code: String,
 }
 
+#[allow(dead_code)]
 impl Locale {
     pub fn new(code: &str) -> Self {
         let lang_id: LanguageIdentifier = code.parse().unwrap_or_else(|_| {
@@ -140,6 +141,7 @@ pub struct LanguageInfo {
 }
 
 /// Helper to create translation context for Tera templates
+#[allow(dead_code)]
 pub fn create_translation_context(locale: &Locale) -> HashMap<String, String> {
     let mut context = HashMap::new();
     context.insert("lang".to_string(), locale.code.clone());

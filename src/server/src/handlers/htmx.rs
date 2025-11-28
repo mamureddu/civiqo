@@ -254,6 +254,7 @@ pub async fn user_communities(
 }
 
 /// User communities as select options (PROTECTED - for proposal form)
+#[allow(dead_code)]
 pub async fn user_communities_options(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
@@ -327,7 +328,7 @@ pub async fn dashboard_active_proposals(
     
     let mut html = String::new();
     for row in proposals {
-        let id: uuid::Uuid = row.get("id");
+        let _id: uuid::Uuid = row.get("id");
         let title: String = row.get("title");
         let community_name: String = row.get("community_name");
         let community_id: uuid::Uuid = row.get("community_id");
@@ -663,7 +664,7 @@ pub async fn businesses_search(
         let name: String = row.get("name");
         let description: Option<String> = row.get("description");
         let category: Option<String> = row.get("category");
-        let address: Option<String> = row.get("address");
+        let _address: Option<String> = row.get("address");
         let rating_avg: Option<f64> = row.get("rating_avg");
         let review_count: i32 = row.get::<Option<i32>, _>("review_count").unwrap_or(0);
         let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
@@ -1114,6 +1115,7 @@ pub async fn community_proposals(
 
 /// Create proposal via HTMX form
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct CreateProposalForm {
     pub community_id: uuid::Uuid,
     pub title: String,
@@ -1566,6 +1568,7 @@ pub async fn follow_button(
 // =============================================================================
 
 /// Notifications dropdown content
+#[allow(dead_code)]
 pub async fn notifications_dropdown(
     crate::auth::AuthUser(user): crate::auth::AuthUser,
     State(state): State<Arc<AppState>>,
@@ -1847,6 +1850,7 @@ pub struct NotificationsQuery {
     pub page: Option<i32>,
 }
 
+#[allow(dead_code)]
 pub async fn notifications_list(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
@@ -1942,7 +1946,8 @@ pub async fn notifications_list(
     }
 }
 
-fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, page: i32, filter: &str) -> String {
+#[allow(dead_code)]
+fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, _page: i32, _filter: &str) -> String {
     let mut html = String::new();
     
     for notification in notifications {
@@ -1954,7 +1959,7 @@ fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, page: i3
         let target_type: Option<String> = notification.get("target_type");
         let target_id: Option<String> = notification.get("target_id");
         let actor_name: Option<String> = notification.get("actor_name");
-        let actor_avatar: Option<String> = notification.get("actor_avatar");
+        let _actor_avatar: Option<String> = notification.get("actor_avatar");
         
         // Calculate time ago
         let now = chrono::Utc::now();
@@ -2037,6 +2042,7 @@ fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, page: i3
     html
 }
 
+#[allow(dead_code)]
 fn render_empty_notifications(filter: &str) -> String {
     let message = match filter {
         "unread" => "Hai letto tutte le notifiche!",
@@ -2057,6 +2063,7 @@ fn render_empty_notifications(filter: &str) -> String {
 }
 
 /// Mark all notifications as read
+#[allow(dead_code)]
 pub async fn mark_all_notifications_read(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
@@ -2077,6 +2084,7 @@ pub async fn mark_all_notifications_read(
 }
 
 /// Mark single notification as read
+#[allow(dead_code)]
 pub async fn mark_notification_read(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,

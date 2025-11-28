@@ -4,7 +4,6 @@ use axum::{
     Router,
 };
 use std::sync::Arc;
-use tower_http::services::ServeDir;
 use tower_sessions::{SessionManagerLayer, MemoryStore};
 use tera::Tera;
 use shared::{database::Database, auth::Auth0Config};

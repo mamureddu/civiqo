@@ -52,6 +52,7 @@ pub struct CastVoteRequest {
 }
 
 #[derive(Debug, Deserialize, Default)]
+#[allow(dead_code)]
 pub struct ProposalsQuery {
     pub community_id: Option<Uuid>,
     pub status: Option<String>,

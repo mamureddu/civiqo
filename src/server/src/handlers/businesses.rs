@@ -6,6 +6,8 @@
 //! - Reviews
 //! - Orders
 
+#![allow(dead_code)]
+
 use axum::{
     extract::{Path, Query, State},
     response::Json,

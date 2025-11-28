@@ -1123,6 +1123,7 @@ pub async fn edit_profile_page(
 }
 
 /// 404 Not Found page
+#[allow(dead_code)]
 pub async fn not_found(
     LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
@@ -1147,6 +1148,7 @@ pub async fn not_found(
 }
 
 /// 500 Internal Server Error page
+#[allow(dead_code)]
 pub async fn internal_error(
     LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
@@ -1175,6 +1177,7 @@ pub async fn internal_error(
 }
 
 /// Notifications page
+#[allow(dead_code)]
 pub async fn notifications(
     LocaleExtractor(locale): LocaleExtractor,
     AuthUser(user): AuthUser,
@@ -1199,6 +1202,7 @@ pub struct SearchPageQuery {
 }
 
 /// Search results page
+#[allow(dead_code)]
 pub async fn search_page(
     LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,

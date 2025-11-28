@@ -415,7 +415,7 @@ pub async fn get_communities(
     };
     
     // Build query based on filter type - ALWAYS use parameterized queries
-    let (query, count_query) = if let Some(ref user) = user {
+    let (query, count_query) = if let Some(ref _user) = user {
         // Authenticated user - can see public + their memberships
         let main_query = format!(
             "SELECT c.id, c.name, c.description, c.slug, c.is_public, c.created_at,
@@ -2427,6 +2427,7 @@ pub async fn unfollow_user(
 }
 
 /// Dismiss welcome modal (PROTECTED)
+#[allow(dead_code)]
 pub async fn dismiss_welcome(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
@@ -2450,6 +2451,7 @@ pub async fn dismiss_welcome(
 }
 
 /// Dismiss profile completion banner (PROTECTED)
+#[allow(dead_code)]
 pub async fn dismiss_profile_banner(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
