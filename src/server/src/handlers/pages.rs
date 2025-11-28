@@ -7,6 +7,7 @@ use tera::{Context, Tera};
 use std::sync::Arc;
 use shared::database::Database;
 use crate::auth::{AuthUser, OptionalAuthUser};
+use crate::i18n_tera::{LocaleExtractor, add_i18n_context};
 use sqlx::Row;
 
 /// Application state for page handlers
@@ -17,12 +18,16 @@ pub struct AppState {
 
 /// Home page
 pub async fn index(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     tracing::info!("Rendering index page");
     
     let mut ctx = Context::new();
+    
+    // Add i18n context
+    add_i18n_context(&mut ctx, &locale);
     
     // Add auth info to context
     if let Some(user) = user {

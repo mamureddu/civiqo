@@ -14,6 +14,8 @@ pub mod config;
 pub mod handlers;
 pub mod auth;
 pub mod models;
+pub mod i18n;
+pub mod i18n_tera;
 // pub mod middleware; // Disabled - using tower-sessions instead
 
 // Re-export main types from main.rs

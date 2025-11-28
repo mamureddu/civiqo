@@ -87,6 +87,11 @@ base64 = "0.22"
 hex = "0.4"
 config = "0.14"
 
+# Internationalization (i18n)
+fluent-templates = "0.9"
+unic-langid = "0.9"
+accept-language = "3.1"
+
 # Crypto
 ring = "0.17"
 rustls = "0.23"

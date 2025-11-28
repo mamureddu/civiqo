@@ -14,9 +14,12 @@ use shared::database::Database;
 
 mod handlers;
 mod auth;
+mod i18n;
+mod i18n_tera;
 
 use handlers::{pages, htmx, api, posts, comments, reactions, proposals, stubs::health_check};
 use auth::{login, callback, logout}; // Auth handlers
+use i18n::{locale_middleware, get_available_languages};
 
 pub struct AppState {
     pub tera: Tera,
@@ -226,14 +229,57 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/proposals/:id/activate", post(proposals::activate_proposal))
         .route("/api/proposals/:id/close", post(proposals::close_proposal))
         
+        // i18n endpoints
+        .route("/api/set-language", post(set_language))
+        .route("/api/languages", get(list_languages))
+        
         // Static files
         .nest_service("/static", ServeDir::new(static_path))
         
         .with_state(page_state.clone())
+        .layer(axum::middleware::from_fn(locale_middleware))
         .layer(session_layer)
         .layer(TraceLayer::new_for_http());
 
     Ok(app)
+}
+
+/// Set language preference (stores in cookie)
+async fn set_language(
+    axum::extract::Form(form): axum::extract::Form<SetLanguageForm>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::{header, HeaderValue, StatusCode};
+    use axum::response::Response;
+    
+    let lang = if i18n::SUPPORTED_LANGUAGES.contains(&form.lang.as_str()) {
+        form.lang.clone()
+    } else {
+        i18n::DEFAULT_LANGUAGE.to_string()
+    };
+    
+    // Create cookie with 30-day expiration
+    let cookie = format!(
+        "{}={}; Path=/; Max-Age=2592000; SameSite=Lax",
+        i18n::LANGUAGE_COOKIE_NAME,
+        lang
+    );
+    
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::SET_COOKIE, HeaderValue::from_str(&cookie).unwrap())
+        .header("HX-Refresh", "true") // Tell HTMX to refresh the page
+        .body(axum::body::Body::empty())
+        .unwrap()
+}
+
+#[derive(serde::Deserialize)]
+struct SetLanguageForm {
+    lang: String,
+}
+
+/// List available languages
+async fn list_languages() -> axum::Json<Vec<i18n::LanguageInfo>> {
+    axum::Json(get_available_languages())
 }
 
 // Health check and root endpoints are now in handlers/stubs.rs
