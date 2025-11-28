@@ -9,11 +9,11 @@ pub struct ChatRoom {
     pub community_id: Uuid,
     pub name: String,
     pub description: Option<String>,
-    pub room_type: RoomType,
-    pub is_private: bool,
+    pub room_type: Option<RoomType>,  // DB has DEFAULT 'public'
+    pub is_private: Option<bool>,     // DB has DEFAULT false
     pub created_by: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,  // DB has DEFAULT NOW()
+    pub updated_at: Option<DateTime<Utc>>,  // DB has DEFAULT NOW()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
