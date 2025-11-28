@@ -51,13 +51,11 @@ impl Locale {
     /// Get a translated string by key
     pub fn t(&self, key: &str) -> String {
         LOCALES.lookup(&self.lang_id, key)
-            .unwrap_or_else(|| format!("[{}]", key))
     }
 
     /// Get a translated string with arguments
     pub fn t_with_args(&self, key: &str, args: &HashMap<String, FluentValue>) -> String {
         LOCALES.lookup_with_args(&self.lang_id, key, args)
-            .unwrap_or_else(|| format!("[{}]", key))
     }
 
     /// Check if this is the default language

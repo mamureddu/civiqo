@@ -123,18 +123,19 @@ fn get_translations_for_locale(locale: &Locale) -> HashMap<String, String> {
     ];
     
     for key in keys {
-        if let Some(translation) = LOCALES.lookup(&locale.lang_id, key) {
-            // Convert key from kebab-case to a valid template key
-            // e.g., "nav-home" -> "nav_home" for easier template access
-            let template_key = key.replace('-', "_");
-            translations.insert(template_key, translation);
-        }
+        // fluent-templates returns String directly, not Option
+        let translation = LOCALES.lookup(&locale.lang_id, key);
+        // Convert key from kebab-case to a valid template key
+        // e.g., "nav-home" -> "nav_home" for easier template access
+        let template_key = key.replace('-', "_");
+        translations.insert(template_key, translation);
     }
     
     translations
 }
 
 /// Extractor for Locale from request extensions
+#[derive(Clone)]
 pub struct LocaleExtractor(pub Locale);
 
 impl<S> axum::extract::FromRequestParts<S> for LocaleExtractor
@@ -143,16 +144,23 @@ where
 {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(
-        parts: &mut axum::http::request::Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
-        let locale = parts
-            .extensions
-            .get::<Locale>()
-            .cloned()
-            .unwrap_or_default();
-        Ok(LocaleExtractor(locale))
+    fn from_request_parts<'life0, 'life1, 'async_trait>(
+        parts: &'life0 mut axum::http::request::Parts,
+        _state: &'life1 S,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self, Self::Rejection>> + Send + 'async_trait>>
+    where
+        'life0: 'async_trait,
+        'life1: 'async_trait,
+        Self: 'async_trait,
+    {
+        Box::pin(async move {
+            let locale = parts
+                .extensions
+                .get::<Locale>()
+                .cloned()
+                .unwrap_or_default();
+            Ok(LocaleExtractor(locale))
+        })
     }
 }
 

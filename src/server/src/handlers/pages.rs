@@ -45,12 +45,14 @@ pub async fn index(
 
 /// Communities list page
 pub async fn communities(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Add auth info to context
     if let Some(user) = user {
@@ -92,10 +94,12 @@ pub async fn communities(
 
 /// Chat rooms list page
 pub async fn chat_list(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Add auth info to context
     if let Some(ref u) = user {
@@ -138,11 +142,13 @@ pub async fn chat_list(
 
 /// Chat room page
 pub async fn chat_room(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<String>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     ctx.insert("room_id", &room_id);
     ctx.insert("room_name", &format!("Room {}", &room_id[..8])); // Placeholder
     
@@ -163,12 +169,14 @@ pub async fn chat_room(
 
 /// Create community page (PROTECTED - requires authentication)
 pub async fn create_community(
+    LocaleExtractor(locale): LocaleExtractor,
     AuthUser(user): AuthUser, // Requires authentication
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     tracing::info!("Rendering create community page for user: {}", user.user_id);
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Auth info (always logged in for create community)
     ctx.insert("logged_in", &true);
@@ -184,6 +192,7 @@ pub async fn create_community(
 
 /// User dashboard page (PROTECTED - requires authentication)
 pub async fn dashboard(
+    LocaleExtractor(locale): LocaleExtractor,
     AuthUser(user): AuthUser, // Requires authentication
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
@@ -192,6 +201,7 @@ pub async fn dashboard(
     tracing::info!("Rendering dashboard page for user: {}", user.user_id);
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Auth info (always logged in for dashboard)
     ctx.insert("logged_in", &true);
@@ -239,6 +249,7 @@ pub async fn dashboard(
 
 /// Community detail page
 pub async fn community_detail(
+    LocaleExtractor(locale): LocaleExtractor,
     crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
     State(state): State<Arc<AppState>>,
     Path(community_id): Path<String>,
@@ -246,6 +257,7 @@ pub async fn community_detail(
     use sqlx::Row;
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Parse user UUID if logged in
     let user_uuid = if let Some(ref u) = user {
@@ -371,17 +383,24 @@ pub async fn community_detail(
 }
 
 /// Businesses list page
-pub async fn businesses(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
-    let html = state.tera.render("businesses.html", &Context::new())?;
+pub async fn businesses(
+    LocaleExtractor(locale): LocaleExtractor,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
+    let html = state.tera.render("businesses.html", &ctx)?;
     Ok(Html(html).into_response())
 }
 
 /// Business detail page
 pub async fn business_detail(
+    LocaleExtractor(locale): LocaleExtractor,
     State(state): State<Arc<AppState>>,
     Path(business_id): Path<String>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     ctx.insert("business_id", &business_id);
     ctx.insert("business_name", &format!("Business {}", &business_id[..8.min(business_id.len())]));
     ctx.insert("business_category", "Local Business");
@@ -392,10 +411,12 @@ pub async fn business_detail(
 
 /// Governance page
 pub async fn governance(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Add auth info to context
     if let Some(ref user) = user {
@@ -446,13 +467,19 @@ pub async fn governance(
 }
 
 /// Points of Interest / Map page
-pub async fn poi(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
-    let html = state.tera.render("poi.html", &Context::new())?;
+pub async fn poi(
+    LocaleExtractor(locale): LocaleExtractor,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
+    let html = state.tera.render("poi.html", &ctx)?;
     Ok(Html(html).into_response())
 }
 
 /// Community posts list page
 pub async fn community_posts(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
     Path(community_id): Path<String>,
@@ -461,6 +488,7 @@ pub async fn community_posts(
     use sqlx::Row;
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
@@ -591,6 +619,7 @@ pub async fn community_posts(
 
 /// Post detail page
 pub async fn post_detail(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
     Path(post_id): Path<String>,
@@ -598,6 +627,7 @@ pub async fn post_detail(
     use sqlx::Row;
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&post_id)
@@ -772,6 +802,7 @@ pub async fn post_detail(
 
 /// Create post page (PROTECTED)
 pub async fn create_post_page(
+    LocaleExtractor(locale): LocaleExtractor,
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
     Path(community_id): Path<String>,
@@ -779,6 +810,7 @@ pub async fn create_post_page(
     use sqlx::Row;
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
@@ -832,10 +864,14 @@ pub struct PostsQueryParams {
 }
 
 /// Database test page - shows real data from DB
-pub async fn test_db(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
+pub async fn test_db(
+    LocaleExtractor(locale): LocaleExtractor,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
     use sqlx::Row;
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Get counts
     let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
@@ -930,6 +966,7 @@ where
 
 /// User profile page (PUBLIC)
 pub async fn user_profile(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(current_user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<String>,
@@ -937,6 +974,7 @@ pub async fn user_profile(
     use sqlx::Row;
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     // Parse target user UUID
     let target_uuid = uuid::Uuid::parse_str(&user_id)
@@ -1031,6 +1069,7 @@ pub async fn user_profile(
 
 /// Edit profile page (PROTECTED)
 pub async fn edit_profile_page(
+    LocaleExtractor(locale): LocaleExtractor,
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<String>,
@@ -1046,6 +1085,7 @@ pub async fn edit_profile_page(
     }
     
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     ctx.insert("logged_in", &true);
     ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
     ctx.insert("picture", &user.picture);
@@ -1084,10 +1124,12 @@ pub async fn edit_profile_page(
 
 /// 404 Not Found page
 pub async fn not_found(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Response {
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
@@ -1106,10 +1148,12 @@ pub async fn not_found(
 
 /// 500 Internal Server Error page
 pub async fn internal_error(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Response {
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
@@ -1132,10 +1176,12 @@ pub async fn internal_error(
 
 /// Notifications page
 pub async fn notifications(
+    LocaleExtractor(locale): LocaleExtractor,
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     ctx.insert("logged_in", &true);
     ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
@@ -1154,11 +1200,13 @@ pub struct SearchPageQuery {
 
 /// Search results page
 pub async fn search_page(
+    LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
     axum::extract::Query(params): axum::extract::Query<SearchPageQuery>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
     
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);

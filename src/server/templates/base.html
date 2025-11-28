@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang | default(value='it') }}">
 
 <head>
     <meta charset="UTF-8">
@@ -265,8 +265,55 @@
 
     <!-- Footer -->
     <footer class="bg-white border-t border-civiqo-gray-200 mt-12">
-        <div class="container mx-auto px-4 py-8 text-center text-civiqo-gray-600 text-sm">
-            <p>&copy; 2025 Civiqo. La tecnologia che avvicina le comunità.</p>
+        <div class="container mx-auto px-4 py-8">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                <p class="text-civiqo-gray-600 text-sm">&copy; 2025 Civiqo. La tecnologia che avvicina le comunità.</p>
+                
+                <!-- Language Switcher -->
+                <div class="flex items-center gap-2" x-data="{ open: false }">
+                    <span class="text-civiqo-gray-600 text-sm">🌐</span>
+                    <div class="relative">
+                        <button @click="open = !open" 
+                                class="flex items-center gap-2 px-3 py-1.5 text-sm text-civiqo-gray-600 hover:text-civiqo-blue border border-civiqo-gray-200 rounded-lg hover:border-civiqo-blue transition-colors"
+                                aria-label="Seleziona lingua"
+                                :aria-expanded="open">
+                            {% if lang == 'en' %}
+                            <span>🇬🇧</span>
+                            <span>English</span>
+                            {% else %}
+                            <span>🇮🇹</span>
+                            <span>Italiano</span>
+                            {% endif %}
+                            <svg class="w-4 h-4 transition-transform" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div x-show="open" x-cloak @click.away="open = false"
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:enter-start="opacity-0 scale-95"
+                             x-transition:enter-end="opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-75"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95"
+                             class="absolute bottom-full mb-2 right-0 w-40 bg-white rounded-lg shadow-lg border border-civiqo-gray-200 py-1 z-50">
+                            <form hx-post="/api/set-language" hx-swap="none" class="contents">
+                                <button type="submit" name="lang" value="it"
+                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-civiqo-gray-50 transition-colors {% if lang != 'en' %}text-civiqo-blue font-medium{% else %}text-civiqo-gray-600{% endif %}">
+                                    <span>🇮🇹</span>
+                                    <span>Italiano</span>
+                                    {% if lang != 'en' %}<svg class="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>{% endif %}
+                                </button>
+                                <button type="submit" name="lang" value="en"
+                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-civiqo-gray-50 transition-colors {% if lang == 'en' %}text-civiqo-blue font-medium{% else %}text-civiqo-gray-600{% endif %}">
+                                    <span>🇬🇧</span>
+                                    <span>English</span>
+                                    {% if lang == 'en' %}<svg class="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>{% endif %}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </footer>
 
