@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::{Request, FromRequestParts, State},
     http::{StatusCode, request::Parts},
     response::{IntoResponse, Redirect},
@@ -330,7 +329,6 @@ pub async fn logout(req: Request) -> impl IntoResponse {
 /// Example: `async fn protected_route(AuthUser(user): AuthUser) -> impl IntoResponse`
 pub struct AuthUser(pub SessionData);
 
-#[async_trait]
 impl<S> FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,
@@ -357,7 +355,6 @@ where
 /// This extractor never fails - it returns None if no session or no user
 pub struct OptionalAuthUser(pub Option<SessionData>);
 
-#[async_trait]
 impl<S> FromRequestParts<S> for OptionalAuthUser
 where
     S: Send + Sync,

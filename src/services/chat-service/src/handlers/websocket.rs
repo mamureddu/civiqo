@@ -93,7 +93,7 @@ async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
         while let Some(message) = message_rx.recv().await {
             match serde_json::to_string(&message) {
                 Ok(json) => {
-                    if let Err(e) = ws_sender.send(Message::Text(json)).await {
+                    if let Err(e) = ws_sender.send(Message::Text(json.into())).await {
                         error!("Failed to send WebSocket message: {}", e);
                         break;
                     }

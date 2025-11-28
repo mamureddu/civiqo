@@ -19,7 +19,7 @@ pub struct CreateCommunityRequest {
     pub description: Option<String>,
 
     /// URL-friendly slug (3-50 characters, lowercase, alphanumeric + hyphens)
-    #[validate(length(min = 3, max = 50), regex = "SLUG_REGEX")]
+    #[validate(length(min = 3, max = 50), regex(path = *SLUG_REGEX))]
     pub slug: String,
 
     /// Whether community is public (optional, defaults to true)

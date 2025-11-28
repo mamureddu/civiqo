@@ -32,8 +32,8 @@ fn get_translations_for_locale(locale: &Locale) -> HashMap<String, String> {
         "nav-home", "nav-communities", "nav-governance", "nav-businesses",
         "nav-chat", "nav-profile", "nav-search", "nav-notifications",
         
-        // Header
-        "header-login", "header-logout", "header-register", "header-welcome",
+        // Header (note: header-welcome requires $name variable, handle separately)
+        "header-login", "header-logout", "header-register",
         
         // Actions
         "action-save", "action-cancel", "action-delete", "action-edit",
@@ -144,23 +144,16 @@ where
 {
     type Rejection = std::convert::Infallible;
 
-    fn from_request_parts<'life0, 'life1, 'async_trait>(
-        parts: &'life0 mut axum::http::request::Parts,
-        _state: &'life1 S,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self, Self::Rejection>> + Send + 'async_trait>>
-    where
-        'life0: 'async_trait,
-        'life1: 'async_trait,
-        Self: 'async_trait,
-    {
-        Box::pin(async move {
-            let locale = parts
-                .extensions
-                .get::<Locale>()
-                .cloned()
-                .unwrap_or_default();
-            Ok(LocaleExtractor(locale))
-        })
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let locale = parts
+            .extensions
+            .get::<Locale>()
+            .cloned()
+            .unwrap_or_default();
+        Ok(LocaleExtractor(locale))
     }
 }
 

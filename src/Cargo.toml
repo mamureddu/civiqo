@@ -8,7 +8,7 @@ resolver = "2"
 
 [workspace.dependencies]
 # Async runtime
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.48", features = ["full"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -23,9 +23,9 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Error handling
 anyhow = "1.0"
-thiserror = "1.0"
-rust_decimal = { version = "1.33", features = ["serde"] }
-validator = { version = "0.16", features = ["derive"] }
+thiserror = "2.0"
+rust_decimal = { version = "1.36", features = ["serde"] }
+validator = { version = "0.20", features = ["derive"] }
 md5 = "0.7"
 
 # Logging
@@ -33,23 +33,23 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # HTTP and Lambda
-lambda_runtime = "0.8"
-lambda_http = "0.11"
-axum = { version = "0.7", features = ["macros"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+lambda_runtime = "1.0"
+lambda_http = "1.0"
+axum = { version = "0.8", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 # Auth
-jsonwebtoken = "9.0"
+jsonwebtoken = "9.3"
 tower-sessions = { version = "0.14", features = ["memory-store"] }
-http = "1.0"
+http = "1.2"
 cookie = "0.18"
-reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
-openidconnect = "3.0"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+openidconnect = "4.0"
 urlencoding = "2.1"
 
 # WebSocket
-tokio-tungstenite = "0.21"
+tokio-tungstenite = "0.28"
 
 # AWS SDK
 aws-config = "1.0"
@@ -59,28 +59,28 @@ aws-sdk-s3 = "1.0"
 
 # Cryptography
 ring = "0.17"
-base64 = "0.21"
+base64 = "0.22"
 
 # Configuration
-config = "0.13"
+config = "0.15"
 dotenvy = "0.15"
 
 # Testing dependencies
-insta = "1.0"
-mockall = "0.11"
-test-case = "3.0"
+insta = "1.41"
+mockall = "0.14"
+test-case = "3.3"
 tokio-test = "0.4"
-tempfile = "3.0"
-serial_test = "3.0"
-wiremock = "0.5"
-rstest = "0.18"
+tempfile = "3.14"
+serial_test = "3.2"
+wiremock = "0.6"
+rstest = "0.23"
 
 # TLS
-rustls = "0.21"
-rustls-native-certs = "0.6"
+rustls = "0.23"
+rustls-native-certs = "0.8"
 
 # Internationalization (i18n)
-fluent-templates = "0.9"
+fluent-templates = "0.11"
 unic-langid = "0.9"
 accept-language = "3.1"
 

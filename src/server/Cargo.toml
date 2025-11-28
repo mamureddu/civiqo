@@ -59,8 +59,7 @@ regex = "1.10"
 dotenvy = { workspace = true }
 
 # Templating for HTMX
-tera = "1.19"
-actix-files = "0.6"
+tera = "1.20"
 
 # Internationalization (i18n)
 fluent-templates = { workspace = true }
@@ -80,5 +79,5 @@ rstest = { workspace = true }
 mockall = { workspace = true }
 insta = { workspace = true }
 test-case = { workspace = true }
-axum-test = "14.0"
+axum-test = "18.0"
 jsonwebtoken = { workspace = true }
