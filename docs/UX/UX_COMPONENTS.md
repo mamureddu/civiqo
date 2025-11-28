@@ -354,6 +354,83 @@
 
 ---
 
+## 📝 Text Overflow Patterns
+
+> Pattern per gestire testi lunghi che potrebbero rompere il layout.
+
+### Problema
+Testi dinamici (email, nomi utente, titoli) possono eccedere lo spazio disponibile, causando:
+- Overflow orizzontale
+- Rottura del layout delle card
+- Esperienza utente degradata
+
+### Soluzione Base: Truncate con Tooltip
+```html
+<!-- Container DEVE avere min-w-0 per permettere al truncate di funzionare in flex -->
+<div class="flex items-center">
+    <div class="flex-shrink-0"><!-- Icon/Avatar --></div>
+    <div class="ml-4 min-w-0 flex-1">
+        <p class="text-sm text-civiqo-gray-600">Label</p>
+        <p class="font-semibold text-civiqo-gray-900 truncate" title="{{ full_text }}">
+            {{ full_text }}
+        </p>
+    </div>
+</div>
+```
+
+**Classi chiave:**
+- `min-w-0` - Permette al contenuto flex di shrinkare sotto il contenuto
+- `flex-1` - Occupa lo spazio disponibile
+- `truncate` - Applica `overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`
+- `title="..."` - Tooltip nativo per mostrare il testo completo
+
+### Varianti
+
+#### Truncate Multi-linea (Line Clamp)
+```html
+<p class="line-clamp-2">
+    Testo lungo che verrà troncato dopo 2 righe con ellipsis...
+</p>
+```
+- **Uso**: Descrizioni, bio, contenuti lunghi
+- **Richiede**: `@tailwindcss/line-clamp` o CSS custom
+
+#### Truncate Responsive
+```html
+<p class="truncate max-w-[150px] sm:max-w-[200px] md:max-w-[300px]">
+    {{ text }}
+</p>
+```
+- **Uso**: Quando serve controllo preciso per breakpoint
+
+#### Break Word (Fallback)
+```html
+<p class="break-all">
+    verylongemailaddress@verylongdomainname.com
+</p>
+```
+- **Uso**: Quando il troncamento non è desiderato
+- **Attenzione**: Può rompere parole a metà
+
+### Checklist Implementazione
+- [ ] Container padre ha `min-w-0` se in contesto flex
+- [ ] Elemento testo ha `truncate`
+- [ ] Attributo `title` presente per accessibilità
+- [ ] Testato con testi molto lunghi (50+ caratteri)
+- [ ] Verificato su mobile
+
+### Dove Applicare
+| Componente | Campo | Pattern |
+|------------|-------|---------|
+| Stat Card | email, username | Truncate + Tooltip |
+| User Card | name, email | Truncate + Tooltip |
+| Community Card | name, description | Truncate / Line Clamp |
+| Post Card | title | Truncate |
+| Comment | author name | Truncate |
+| Notification | message | Line Clamp 2 |
+
+---
+
 ## 🔄 Pattern HTMX
 
 ### Loading Indicator

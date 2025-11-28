@@ -42,9 +42,9 @@
                       {{ member.email | truncate(length=1) | upper }}
                     </div>
                   </div>
-                  <div class="ml-4">
-                    <p class="text-sm font-medium text-gray-900">{{ member.email }}</p>
-                    <p class="text-sm text-gray-500">{{ member.user_id | truncate(length=8) }}</p>
+                  <div class="ml-4 min-w-0 max-w-[200px]">
+                    <p class="text-sm font-medium text-gray-900 truncate" title="{{ member.email }}">{{ member.email }}</p>
+                    <p class="text-sm text-gray-500 truncate">{{ member.user_id | truncate(length=8) }}</p>
                   </div>
                 </div>
               </td>

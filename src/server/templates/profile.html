@@ -25,9 +25,9 @@
                     </div>
                     {% endif %}
                 </div>
-                <div class="pb-2">
-                    <h1 class="text-2xl font-bold text-gray-900">{{ profile_name }}</h1>
-                    <p class="text-gray-500">{{ email }}</p>
+                <div class="pb-2 min-w-0 flex-1">
+                    <h1 class="text-2xl font-bold text-gray-900 truncate" title="{{ profile_name }}">{{ profile_name }}</h1>
+                    <p class="text-gray-500 truncate" title="{{ email }}">{{ email }}</p>
                 </div>
             </div>
             
