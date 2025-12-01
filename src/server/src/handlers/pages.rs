@@ -147,10 +147,15 @@ pub async fn chat_room(
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<String>,
 ) -> Result<Response, AppError> {
+    // Validate room_id is a valid UUID
+    let room_uuid = uuid::Uuid::parse_str(&room_id).map_err(|_| {
+        AppError::BadRequest("Invalid room ID format".to_string())
+    })?;
+    
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
     ctx.insert("room_id", &room_id);
-    ctx.insert("room_name", &format!("Room {}", &room_id[..8])); // Placeholder
+    ctx.insert("room_name", &format!("Room {}", &room_uuid.to_string()[..8]));
     
     // Add auth info to context
     if let Some(user) = user {
@@ -212,7 +217,7 @@ pub async fn dashboard(
     
     // Parse user_id as UUID
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|e| AppError(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
     
     // Fetch user's communities from database
     let communities = sqlx::query(
@@ -273,7 +278,7 @@ pub async fn community_detail(
     
     // Parse community UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid community ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid community ID")))?;
     
     // Fetch community details with all needed fields
     let community = sqlx::query(
@@ -426,7 +431,7 @@ pub async fn business_detail(
     .bind(business_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     match business {
         Some(row) => {
@@ -565,7 +570,7 @@ pub async fn proposal_detail(
     .bind(proposal_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     let proposal = match proposal {
         Some(p) => p,
@@ -720,7 +725,7 @@ pub async fn community_posts(
     
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid community ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid community ID")))?;
     
     // Add auth info
     let user_uuid = if let Some(ref u) = user {
@@ -741,7 +746,7 @@ pub async fn community_posts(
     .bind(uuid)
     .fetch_optional(&state.db.pool)
     .await?
-    .ok_or_else(|| AppError(anyhow::anyhow!("Community not found")))?;
+    .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Community not found")))?;
     
     let community_data = serde_json::json!({
         "id": community.get::<uuid::Uuid, _>("id").to_string(),
@@ -859,7 +864,7 @@ pub async fn post_detail(
     
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&post_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid post ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid post ID")))?;
     
     // Add auth info - always insert user_id (even as null) for template
     let user_uuid = if let Some(ref u) = user {
@@ -885,7 +890,7 @@ pub async fn post_detail(
     .bind(uuid)
     .fetch_optional(&state.db.pool)
     .await?
-    .ok_or_else(|| AppError(anyhow::anyhow!("Post not found")))?;
+    .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Post not found")))?;
     
     let community_id = post.get::<uuid::Uuid, _>("community_id");
     let author_id = post.get::<uuid::Uuid, _>("author_id");
@@ -1042,10 +1047,10 @@ pub async fn create_post_page(
     
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid community ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid community ID")))?;
     
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     // Auth info
     ctx.insert("logged_in", &true);
@@ -1058,7 +1063,7 @@ pub async fn create_post_page(
         .bind(uuid)
         .fetch_optional(&state.db.pool)
         .await?
-        .ok_or_else(|| AppError(anyhow::anyhow!("Community not found")))?;
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Community not found")))?;
     
     // Check membership
     let is_member = sqlx::query_scalar::<_, i64>(
@@ -1071,7 +1076,7 @@ pub async fn create_post_page(
     .unwrap_or(0) > 0;
     
     if !is_member {
-        return Err(AppError(anyhow::anyhow!("You must be a member to create posts")));
+        return Err(AppError::Internal(anyhow::anyhow!("You must be a member to create posts")));
     }
     
     let community_data = serde_json::json!({
@@ -1166,16 +1171,54 @@ pub async fn test_db(
 
 /// Error type for page handlers
 #[derive(Debug)]
-pub struct AppError(pub anyhow::Error);
+#[allow(dead_code)]
+pub enum AppError {
+    /// Internal server error (500)
+    Internal(anyhow::Error),
+    /// Bad request error (400)
+    BadRequest(String),
+    /// Not found error (404)
+    NotFound(String),
+}
+
+#[allow(dead_code)]
+impl AppError {
+    /// Create a bad request error
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self::BadRequest(msg.into())
+    }
+    
+    /// Create a not found error
+    pub fn not_found(msg: impl Into<String>) -> Self {
+        Self::NotFound(msg.into())
+    }
+}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        tracing::error!("Page render error: {:?}", self.0);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html("<h1>Internal Server Error</h1>"),
-        )
-            .into_response()
+        match self {
+            AppError::Internal(err) => {
+                tracing::error!("Page render error: {:?}", err);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Html("<h1>Internal Server Error</h1>"),
+                ).into_response()
+            }
+            AppError::BadRequest(msg) => {
+                tracing::warn!("Bad request: {}", msg);
+                (
+                    StatusCode::BAD_REQUEST,
+                    Html(format!("<h1>Bad Request</h1><p>{}</p>", msg)),
+                ).into_response()
+            }
+            AppError::NotFound(msg) => {
+                tracing::warn!("Not found: {}", msg);
+                (
+                    StatusCode::NOT_FOUND,
+                    Html(format!("<h1>Not Found</h1><p>{}</p>", msg)),
+                ).into_response()
+            }
+        }
     }
 }
 
@@ -1184,7 +1227,7 @@ where
     E: Into<anyhow::Error>,
 {
     fn from(err: E) -> Self {
-        Self(err.into())
+        Self::Internal(err.into())
     }
 }
 
@@ -1206,7 +1249,7 @@ pub async fn user_profile(
     
     // Parse target user UUID
     let target_uuid = uuid::Uuid::parse_str(&user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     // Add auth info to context
     let is_own_profile = if let Some(ref u) = current_user {
@@ -1320,7 +1363,7 @@ pub async fn edit_profile_page(
     ctx.insert("user_id", &user.user_id);
     
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     // Fetch current profile
     let profile = sqlx::query(

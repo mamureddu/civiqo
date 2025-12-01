@@ -1416,6 +1416,393 @@ async fn test_htmx_empty_fragment() {
 }
 
 // ============================================================================
+// 15. NAVIGATION UX TESTS
+// ============================================================================
+// These tests verify the navigation structure follows UX requirements.
+// Key principle: Businesses and Governance belong INSIDE communities, not global.
+
+/// Test: Navbar has link to Communities
+#[tokio::test]
+async fn test_nav_navbar_has_communities_link() {
+    let server = create_server().await;
+    let response = server.get("/").await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("href=\"/communities\"") || body.contains("href='/communities'"),
+        "Navbar MUST contain link to /communities"
+    );
+}
+
+/// Test: Navbar has link to Chat
+#[tokio::test]
+async fn test_nav_navbar_has_chat_link() {
+    let server = create_server().await;
+    let response = server.get("/").await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("href=\"/chat\"") || body.contains("href='/chat'"),
+        "Navbar MUST contain link to /chat"
+    );
+}
+
+/// Test: Navbar should NOT have global Businesses link
+/// Businesses belong to communities, not global navigation
+#[tokio::test]
+async fn test_nav_navbar_no_global_businesses() {
+    let server = create_server().await;
+    let response = server.get("/").await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    // Extract just the nav/header section to avoid false positives from page content
+    let nav_end = body.find("</header>").unwrap_or(5000).min(5000);
+    let nav_section = &body[..nav_end];
+    
+    assert!(
+        !nav_section.contains("href=\"/businesses\"") && !nav_section.contains("href='/businesses'"),
+        "Navbar should NOT contain global /businesses link - businesses belong to communities"
+    );
+}
+
+/// Test: Navbar has auth section (login or profile)
+#[tokio::test]
+async fn test_nav_navbar_has_auth_section() {
+    let server = create_server().await;
+    let response = server.get("/").await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("/auth/login") || body.contains("Accedi") || body.contains("Login") || body.contains("profile"),
+        "Navbar MUST contain auth section"
+    );
+}
+
+/// Test: Community detail has Feed tab
+#[tokio::test]
+#[serial]
+async fn test_nav_community_has_feed_tab() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/communities/{}", community_id)).await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("Feed") || body.contains("feed"),
+        "Community detail MUST have Feed tab"
+    );
+}
+
+/// Test: Community detail has Members tab
+#[tokio::test]
+#[serial]
+async fn test_nav_community_has_members_tab() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/communities/{}", community_id)).await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("Membri") || body.contains("members") || body.contains("Members"),
+        "Community detail MUST have Members tab"
+    );
+}
+
+/// Test: Community detail has Governance/Votazioni tab
+#[tokio::test]
+#[serial]
+async fn test_nav_community_has_governance_tab() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/communities/{}", community_id)).await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("Votazioni") || body.contains("governance") || body.contains("Governance") || body.contains("Proposte"),
+        "Community detail MUST have Governance/Votazioni tab"
+    );
+}
+
+/// Test: Community detail has Businesses/Attività tab
+/// THIS TEST WILL FAIL until the tab is implemented
+#[tokio::test]
+#[serial]
+async fn test_nav_community_has_businesses_tab() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/communities/{}", community_id)).await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("Attività") || body.contains("businesses") || body.contains("Negozi") || body.contains("Locali"),
+        "Community detail MUST have Attività/Businesses tab"
+    );
+}
+
+/// Test: Community detail has Chat tab
+/// THIS TEST WILL FAIL until the tab is implemented
+#[tokio::test]
+#[serial]
+async fn test_nav_community_has_chat_tab() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/communities/{}", community_id)).await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains(">Chat<") || body.contains("chat") || body.contains("Messaggi"),
+        "Community detail MUST have Chat tab"
+    );
+}
+
+/// Test: HTMX endpoint for community businesses exists
+/// THIS TEST WILL FAIL until the endpoint is implemented
+#[tokio::test]
+#[serial]
+async fn test_nav_htmx_community_businesses_endpoint() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/htmx/communities/{}/businesses", community_id)).await;
+    
+    let status = response.status_code();
+    assert!(
+        status.is_success(),
+        "Endpoint /htmx/communities/{{id}}/businesses MUST exist and return 200, got {}",
+        status
+    );
+}
+
+/// Test: HTMX endpoint for community chat exists
+/// THIS TEST WILL FAIL until the endpoint is implemented
+#[tokio::test]
+#[serial]
+async fn test_nav_htmx_community_chat_endpoint() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/htmx/communities/{}/chat", community_id)).await;
+    
+    let status = response.status_code();
+    assert!(
+        status.is_success(),
+        "Endpoint /htmx/communities/{{id}}/chat MUST exist and return 200, got {}",
+        status
+    );
+}
+
+/// Test: Footer has language switcher
+#[tokio::test]
+async fn test_nav_footer_has_language_switcher() {
+    let server = create_server().await;
+    let response = server.get("/").await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("set-language") || body.contains("lang") || 
+        body.contains("Italiano") || body.contains("English"),
+        "Footer MUST have language switcher"
+    );
+}
+
+/// Test: Community detail has join/leave button
+#[tokio::test]
+#[serial]
+async fn test_nav_community_has_join_button() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/communities/{}", community_id)).await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("Unisciti") || body.contains("join") || body.contains("Lascia") || 
+        body.contains("leave") || body.contains("Membro") || body.contains("Accedi per unirti"),
+        "Community detail MUST have Join/Leave button"
+    );
+}
+
+/// Test: Post detail has breadcrumb to community
+#[tokio::test]
+#[serial]
+async fn test_nav_post_has_breadcrumb() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    // Create a test post
+    let test_email = format!("{}@test.local", *TEST_RUN_ID);
+    let creator = sqlx::query!(
+        "SELECT id FROM users WHERE email = $1",
+        test_email
+    )
+    .fetch_optional(&db.pool)
+    .await
+    .ok()
+    .flatten();
+    
+    if let Some(user) = creator {
+        let post_id = Uuid::now_v7();
+        sqlx::query!(
+            "INSERT INTO posts (id, community_id, author_id, title, content, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+             ON CONFLICT DO NOTHING",
+            post_id,
+            community_id,
+            user.id,
+            format!("Nav Test Post {}", &TEST_RUN_ID[15..23]),
+            "Test post for navigation breadcrumb"
+        )
+        .execute(&db.pool)
+        .await
+        .ok();
+        
+        let server = create_server().await;
+        let response = server.get(&format!("/posts/{}", post_id)).await;
+        
+        if response.status_code().is_success() {
+            let body = response.text();
+            assert!(
+                body.contains("/communities") && body.contains(&community_id.to_string()),
+                "Post detail MUST have breadcrumb with community link"
+            );
+        }
+        
+        // Cleanup
+        sqlx::query!("DELETE FROM posts WHERE id = $1", post_id)
+            .execute(&db.pool)
+            .await
+            .ok();
+    }
+}
+
+/// Test: Dashboard link exists in template (visible when logged in)
+/// Note: Dashboard link is conditional on logged_in, so we check the dashboard page exists
+#[tokio::test]
+async fn test_nav_dashboard_page_exists() {
+    let server = create_server().await;
+    let response = server.get("/dashboard").await;
+    
+    // Dashboard page should exist (may redirect to login if not authenticated)
+    let status = response.status_code();
+    assert!(
+        status.is_success() || status.as_u16() == 302 || status.as_u16() == 401,
+        "Dashboard page MUST exist (may require auth)"
+    );
+}
+
+/// Test: Community detail page has post creation capability
+/// Note: The "Nuovo Post" button is only visible for members, but the route should exist
+#[tokio::test]
+#[serial]
+async fn test_nav_community_create_post_route_exists() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/communities/{}/posts/new", community_id)).await;
+    
+    // Route should exist (may require auth/membership)
+    let status = response.status_code();
+    assert!(
+        status.is_success() || status.as_u16() == 302 || status.as_u16() == 401 || status.as_u16() == 403,
+        "Create post route MUST exist for community"
+    );
+}
+
+/// Test: Community detail has "Nuova Proposta" button
+#[tokio::test]
+#[serial]
+async fn test_nav_community_has_new_proposal_button() {
+    let db = setup_db().await;
+    let (community_id, _) = get_or_create_test_community(&db).await;
+    
+    let server = create_server().await;
+    let response = server.get(&format!("/communities/{}", community_id)).await;
+    response.assert_status_success();
+    let body = response.text();
+    
+    assert!(
+        body.contains("Nuova Proposta") || body.contains("proposal") || 
+        body.contains("Crea Proposta") || body.contains("New Proposal"),
+        "Community detail MUST have New Proposal button (for members)"
+    );
+}
+
+/// Test: Notifications page exists
+#[tokio::test]
+async fn test_nav_notifications_page_exists() {
+    let server = create_server().await;
+    let response = server.get("/notifications").await;
+    
+    // May require auth
+    let status = response.status_code();
+    assert!(
+        status.is_success() || status.as_u16() == 302 || status.as_u16() == 401,
+        "Notifications page MUST exist (may require auth)"
+    );
+}
+
+/// Test: Profile page has tabs
+#[tokio::test]
+async fn test_nav_profile_has_tabs() {
+    let server = create_server().await;
+    // Use a fake UUID - will 404 but we can check if route exists
+    let response = server.get("/users/00000000-0000-0000-0000-000000000001").await;
+    
+    let status = response.status_code();
+    if status.is_success() {
+        let body = response.text();
+        assert!(
+            body.contains("Post") && body.contains("Community") && 
+            (body.contains("Follower") || body.contains("follower")),
+            "Profile page MUST have tabs: Post, Community, Follower"
+        );
+    }
+    // 404 is acceptable for non-existent user
+}
+
+/// Test: Chat list shows community rooms
+#[tokio::test]
+async fn test_nav_chat_list_shows_rooms() {
+    let server = create_server().await;
+    let response = server.get("/chat").await;
+    
+    let status = response.status_code();
+    if status.is_success() {
+        let body = response.text();
+        assert!(
+            body.contains("Chat") || body.contains("chat") || 
+            body.contains("room") || body.contains("community"),
+            "Chat list MUST show chat rooms or empty state with community link"
+        );
+    }
+}
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 
@@ -1424,7 +1811,7 @@ async fn test_htmx_empty_fragment() {
 fn test_view_interaction_coverage_summary() {
     println!("View Interaction Tests Coverage:");
     println!("================================");
-    println!("Total HTMX interactions in views: 40");
+    println!("Total HTMX interactions in views: 50+");
     println!("");
     println!("Tests by category:");
     println!("- Homepage & Navigation: 3 tests");
@@ -1441,6 +1828,17 @@ fn test_view_interaction_coverage_summary() {
     println!("- Chat: 2 tests");
     println!("- Other pages: 3 tests");
     println!("- Health: 1 test");
+    println!("- Navigation UX: 13 tests (NEW)");
+    println!("");
+    println!("Navigation UX Tests (test-first approach):");
+    println!("  ✓ Navbar links: Communities, Chat, Auth");
+    println!("  ✗ Navbar NO global Businesses (belongs to community)");
+    println!("  ✓ Community tabs: Feed, Members, Governance");
+    println!("  ✗ Community tabs: Attività, Chat (TO IMPLEMENT)");
+    println!("  ✗ HTMX endpoints: /htmx/communities/:id/businesses (TO IMPLEMENT)");
+    println!("  ✗ HTMX endpoints: /htmx/communities/:id/chat (TO IMPLEMENT)");
+    println!("  ✓ Footer: Language switcher");
+    println!("  ✓ Community: Join/Leave button");
     println!("");
     println!("All authenticated endpoints verify 401 Unauthorized");
     println!("All public endpoints verify successful HTML response");

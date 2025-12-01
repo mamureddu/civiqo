@@ -205,7 +205,7 @@ pub async fn user_communities(
 ) -> Result<Html<String>, AppError> {
     // Parse user_id as UUID
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|e| AppError(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
     
     // Fetch user's communities from database
     let communities = sqlx::query(
@@ -297,7 +297,7 @@ pub async fn dashboard_active_proposals(
     State(state): State<Arc<AppState>>,
 ) -> Result<Html<String>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|e| AppError(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
     
     // Fetch active proposals from user's communities
     let proposals = sqlx::query(
@@ -379,7 +379,7 @@ pub async fn user_activity(
 ) -> Result<Html<String>, AppError> {
     // Parse user_id as UUID
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|e| AppError(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
     
     // Fetch recent posts from user's communities
     let posts = sqlx::query(
@@ -436,7 +436,7 @@ pub async fn community_feed(
     axum::extract::Path(community_id): axum::extract::Path<String>,
 ) -> Result<Html<String>, AppError> {
     let uuid = uuid::Uuid::parse_str(&community_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid community ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid community ID")))?;
     
     let posts = sqlx::query(
         "SELECT p.id, p.title, p.content, p.created_at,
@@ -1164,7 +1164,7 @@ pub async fn create_proposal_htmx(
     
     // Parse user_id
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     // Verify user is member of community
     let is_member = sqlx::query_scalar::<_, i64>(
@@ -1213,7 +1213,7 @@ pub async fn create_proposal_htmx(
     .bind(voting_ends)
     .execute(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     // Return updated proposals list
     Ok(community_proposals(State(state), axum::extract::Path(community_id)).await)
@@ -2135,4 +2135,214 @@ pub async fn mark_notification_read(
     .await;
     
     Html(String::new())
+}
+
+// ============================================================================
+// COMMUNITY-SPECIFIC HTMX ENDPOINTS
+// ============================================================================
+
+/// Community businesses fragment - shows businesses belonging to a community
+pub async fn community_businesses(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let community_uuid = match uuid::Uuid::parse_str(&community_id) {
+        Ok(id) => id,
+        Err(_) => return Html(render_empty_businesses()),
+    };
+    
+    // Verify community exists
+    let community_exists = sqlx::query(
+        "SELECT id FROM communities WHERE id = $1"
+    )
+    .bind(community_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .ok()
+    .flatten();
+    
+    if community_exists.is_none() {
+        return Html(render_empty_businesses());
+    }
+    
+    // Fetch businesses for this community
+    let businesses = sqlx::query(
+        r#"SELECT b.id, b.name, b.description, b.category, b.address, 
+                  b.rating_avg, b.review_count, b.cover_url, b.is_verified
+           FROM businesses b
+           WHERE b.community_id = $1
+           ORDER BY b.is_verified DESC, b.rating_avg DESC NULLS LAST, b.name ASC
+           LIMIT 20"#
+    )
+    .bind(community_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if businesses.is_empty() {
+        return Html(render_empty_businesses());
+    }
+    
+    let mut html = String::from(r#"<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">"#);
+    
+    for row in businesses {
+        let id: uuid::Uuid = row.get("id");
+        let name: String = row.get("name");
+        let description: Option<String> = row.get("description");
+        let category: Option<String> = row.get("category");
+        let address: Option<String> = row.get("address");
+        let rating_avg: Option<f64> = row.get("rating_avg");
+        let review_count: Option<i32> = row.get("review_count");
+        let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
+        
+        let desc = description.unwrap_or_default();
+        let cat = category.unwrap_or_else(|| "Attività".to_string());
+        let addr = address.unwrap_or_default();
+        let rating = rating_avg.unwrap_or(0.0);
+        let reviews = review_count.unwrap_or(0);
+        
+        let verified_badge = if is_verified {
+            r#"<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-civiqo-eco-green/10 text-civiqo-eco-green">
+                <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Verificato
+            </span>"#
+        } else {
+            ""
+        };
+        
+        html.push_str(&format!(r#"
+        <a href="/businesses/{}" class="block bg-white rounded-xl shadow-sm border border-civiqo-gray-200 overflow-hidden hover:shadow-md hover:border-civiqo-blue/30 transition-all group">
+            <div class="p-5">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <h3 class="font-semibold text-civiqo-gray-900 group-hover:text-civiqo-blue transition-colors">{}</h3>
+                        <span class="text-sm text-civiqo-gray-500">{}</span>
+                    </div>
+                    {}
+                </div>
+                <p class="text-sm text-civiqo-gray-600 line-clamp-2 mb-3">{}</p>
+                <div class="flex items-center justify-between text-sm">
+                    <div class="flex items-center text-civiqo-gray-500">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                        </svg>
+                        {}
+                    </div>
+                    <div class="flex items-center">
+                        <svg class="w-4 h-4 text-civiqo-yellow mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                        </svg>
+                        <span class="text-civiqo-gray-900 font-medium">{:.1}</span>
+                        <span class="text-civiqo-gray-400 ml-1">({})</span>
+                    </div>
+                </div>
+            </div>
+        </a>
+        "#, id, name, cat, verified_badge, desc, addr, rating, reviews));
+    }
+    
+    html.push_str("</div>");
+    Html(html)
+}
+
+fn render_empty_businesses() -> String {
+    r#"
+    <div class="text-center py-12 bg-white rounded-xl border border-civiqo-gray-200">
+        <svg class="w-16 h-16 mx-auto text-civiqo-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+        <h3 class="text-lg font-semibold text-civiqo-gray-900 mb-2">Nessuna attività locale</h3>
+        <p class="text-civiqo-gray-600 mb-4">Questa community non ha ancora attività registrate.</p>
+        <p class="text-sm text-civiqo-gray-500">Sei un'attività locale? Registrati per essere visibile ai membri della community!</p>
+    </div>
+    "#.to_string()
+}
+
+/// Community chat fragment - shows chat interface for a community
+pub async fn community_chat(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let community_uuid = match uuid::Uuid::parse_str(&community_id) {
+        Ok(id) => id,
+        Err(_) => return Html(render_chat_error()),
+    };
+    
+    // Verify community exists and get its name
+    let community = sqlx::query(
+        "SELECT id, name FROM communities WHERE id = $1"
+    )
+    .bind(community_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .ok()
+    .flatten();
+    
+    let community_name = match community {
+        Some(row) => row.get::<String, _>("name"),
+        None => return Html(render_chat_error()),
+    };
+    
+    // Return chat interface HTML
+    Html(format!(r#"
+    <div class="bg-white rounded-xl border border-civiqo-gray-200 overflow-hidden">
+        <!-- Chat Header -->
+        <div class="px-6 py-4 border-b border-civiqo-gray-200 bg-civiqo-gray-50">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-full bg-civiqo-blue/10 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-civiqo-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-civiqo-gray-900">Chat di {}</h3>
+                        <p class="text-sm text-civiqo-gray-500">Messaggi della community</p>
+                    </div>
+                </div>
+                <a href="/chat/{}" class="text-sm text-civiqo-blue hover:text-civiqo-blue-dark font-medium">
+                    Apri chat completa →
+                </a>
+            </div>
+        </div>
+        
+        <!-- Chat Messages Preview -->
+        <div class="p-6">
+            <div class="text-center py-8 text-civiqo-gray-500">
+                <svg class="w-12 h-12 mx-auto text-civiqo-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+                <p class="mb-2">Unisciti alla conversazione!</p>
+                <p class="text-sm">Accedi per partecipare alla chat della community.</p>
+            </div>
+        </div>
+        
+        <!-- Chat Input (disabled for non-members) -->
+        <div class="px-6 py-4 border-t border-civiqo-gray-200 bg-civiqo-gray-50">
+            <div class="flex items-center space-x-3">
+                <input type="text" 
+                       placeholder="Accedi per scrivere un messaggio..." 
+                       disabled
+                       class="flex-1 px-4 py-2 border border-civiqo-gray-200 rounded-lg bg-civiqo-gray-100 text-civiqo-gray-400 cursor-not-allowed">
+                <button disabled class="px-4 py-2 bg-civiqo-gray-200 text-civiqo-gray-400 rounded-lg cursor-not-allowed">
+                    Invia
+                </button>
+            </div>
+        </div>
+    </div>
+    "#, community_name, community_uuid))
+}
+
+fn render_chat_error() -> String {
+    r#"
+    <div class="text-center py-12 bg-white rounded-xl border border-civiqo-gray-200">
+        <svg class="w-16 h-16 mx-auto text-civiqo-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <h3 class="text-lg font-semibold text-civiqo-gray-900 mb-2">Chat non disponibile</h3>
+        <p class="text-civiqo-gray-600">Impossibile caricare la chat per questa community.</p>
+    </div>
+    "#.to_string()
 }

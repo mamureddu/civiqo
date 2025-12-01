@@ -110,7 +110,7 @@ pub async fn list_proposals(
         .bind(offset)
         .fetch_all(&state.db.pool)
         .await
-        .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?
     } else {
         sqlx::query(
             r#"SELECT p.id, p.community_id, p.title, p.description, p.proposal_type, 
@@ -130,7 +130,7 @@ pub async fn list_proposals(
         .bind(offset)
         .fetch_all(&state.db.pool)
         .await
-        .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?
     };
     
     let response: Vec<ProposalResponse> = proposals.iter().map(|row| {
@@ -178,8 +178,8 @@ pub async fn get_proposal(
     .bind(proposal_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?
-    .ok_or_else(|| AppError(anyhow::anyhow!("Proposal not found".to_string())))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?
+    .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Proposal not found".to_string())))?;
     
     Ok(Json(ProposalResponse {
         id: row.get::<Uuid, _>("id").to_string(),
@@ -209,10 +209,10 @@ pub async fn create_proposal(
 ) -> Result<Json<ProposalResponse>, AppError> {
     // Validate title
     if payload.title.trim().is_empty() {
-        return Err(AppError(anyhow::anyhow!("Title is required")));
+        return Err(AppError::Internal(anyhow::anyhow!("Title is required")));
     }
     if payload.title.len() > 255 {
-        return Err(AppError(anyhow::anyhow!("Title too long (max 255 chars)")));
+        return Err(AppError::Internal(anyhow::anyhow!("Title too long (max 255 chars)")));
     }
     
     // Verify user is member of community
@@ -223,10 +223,10 @@ pub async fn create_proposal(
     .bind(&user.user_id)
     .fetch_one(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     if is_member == 0 {
-        return Err(AppError(anyhow::anyhow!("Must be a community member to create proposals".to_string())));
+        return Err(AppError::Internal(anyhow::anyhow!("Must be a community member to create proposals".to_string())));
     }
     
     let proposal_type = payload.proposal_type.unwrap_or_else(|| "text".to_string());
@@ -262,7 +262,7 @@ pub async fn create_proposal(
     .bind(quorum as i64)
     .execute(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     // Insert options if poll type
     if proposal_type == "poll" {
@@ -276,7 +276,7 @@ pub async fn create_proposal(
                 .bind(i as i32)
                 .execute(&state.db.pool)
                 .await
-                .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
             }
         }
     }
@@ -300,12 +300,12 @@ pub async fn cast_vote(
     .bind(proposal_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?
-    .ok_or_else(|| AppError(anyhow::anyhow!("Proposal not found".to_string())))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?
+    .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Proposal not found".to_string())))?;
     
     let status: String = proposal.get("status");
     if status != "active" {
-        return Err(AppError(anyhow::anyhow!("Voting is not open for this proposal".to_string())));
+        return Err(AppError::Internal(anyhow::anyhow!("Voting is not open for this proposal".to_string())));
     }
     
     // Verify user is community member
@@ -317,10 +317,10 @@ pub async fn cast_vote(
     .bind(&user.user_id)
     .fetch_one(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     if is_member == 0 {
-        return Err(AppError(anyhow::anyhow!("Must be a community member to vote".to_string())));
+        return Err(AppError::Internal(anyhow::anyhow!("Must be a community member to vote".to_string())));
     }
     
     // Check if user already voted
@@ -331,7 +331,7 @@ pub async fn cast_vote(
     .bind(&user.user_id)
     .fetch_one(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     if existing_vote > 0 {
         // Update existing vote
@@ -343,7 +343,7 @@ pub async fn cast_vote(
         .bind(&user.user_id)
         .execute(&state.db.pool)
         .await
-        .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     } else {
         // Insert new vote
         sqlx::query(
@@ -354,7 +354,7 @@ pub async fn cast_vote(
         .bind(&payload.vote_value)
         .execute(&state.db.pool)
         .await
-        .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     }
     
     // Return updated results fragment
@@ -374,8 +374,8 @@ pub async fn get_results(
     .bind(proposal_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?
-    .ok_or_else(|| AppError(anyhow::anyhow!("Proposal not found".to_string())))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?
+    .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Proposal not found".to_string())))?;
     
     let quorum_required: i64 = proposal.get::<Option<i64>, _>("quorum_required").unwrap_or(0);
     let community_id: Uuid = proposal.get("community_id");
@@ -390,7 +390,7 @@ pub async fn get_results(
     .bind(proposal_id)
     .fetch_all(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     let total_votes: i64 = votes.iter().map(|r| r.get::<i64, _>("count")).sum();
     
@@ -502,12 +502,12 @@ pub async fn activate_proposal(
     .bind(proposal_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?
-    .ok_or_else(|| AppError(anyhow::anyhow!("Proposal not found".to_string())))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?
+    .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Proposal not found".to_string())))?;
     
     let created_by: Uuid = proposal.get("created_by");
     let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID".to_string())))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID".to_string())))?;
     
     if created_by != user_uuid {
         return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg">Solo l'autore può attivare la proposta</div>"#.to_string()));
@@ -523,7 +523,7 @@ pub async fn activate_proposal(
         .bind(proposal_id)
         .execute(&state.db.pool)
         .await
-        .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     // Return updated card HTML
     let title: String = proposal.get("title");
@@ -589,13 +589,13 @@ pub async fn close_proposal(
     .bind(proposal_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?
-    .ok_or_else(|| AppError(anyhow::anyhow!("Proposal not found".to_string())))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?
+    .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Proposal not found".to_string())))?;
     
     let created_by: Uuid = proposal.get("created_by");
     let community_id: Uuid = proposal.get("community_id");
     let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID".to_string())))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID".to_string())))?;
     
     // Check if user is author or admin
     let is_admin = sqlx::query_scalar::<_, i64>(
@@ -610,7 +610,7 @@ pub async fn close_proposal(
     .unwrap_or(0);
     
     if created_by != user_uuid && is_admin == 0 {
-        return Err(AppError(anyhow::anyhow!("Only the author or admin can close the proposal".to_string())));
+        return Err(AppError::Internal(anyhow::anyhow!("Only the author or admin can close the proposal".to_string())));
     }
     
     // Update status to closed
@@ -618,7 +618,7 @@ pub async fn close_proposal(
         .bind(proposal_id)
         .execute(&state.db.pool)
         .await
-        .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     get_proposal(State(state), Path(proposal_id)).await
 }

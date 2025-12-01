@@ -188,7 +188,7 @@ pub async fn list_businesses(
         }
         Err(e) => {
             tracing::error!("Failed to list businesses: {}", e);
-            Err(AppError(anyhow::anyhow!("Failed to list businesses")))
+            Err(AppError::Internal(anyhow::anyhow!("Failed to list businesses")))
         }
     }
 }
@@ -210,7 +210,7 @@ pub async fn get_business(
     .bind(business_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     match business {
         Some(row) => {
@@ -279,7 +279,7 @@ pub async fn get_business(
                 }
             })))
         }
-        None => Err(AppError(anyhow::anyhow!("Business not found")))
+        None => Err(AppError::Internal(anyhow::anyhow!("Business not found")))
     }
 }
 
@@ -290,7 +290,7 @@ pub async fn create_business(
     Json(req): Json<CreateBusinessRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     // Get user's first community (or require community_id in request)
     let community = sqlx::query_scalar::<_, i64>(
@@ -299,9 +299,9 @@ pub async fn create_business(
     .bind(user_uuid)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
-    let community_id = community.ok_or_else(|| AppError(anyhow::anyhow!("User must be member of a community")))?;
+    let community_id = community.ok_or_else(|| AppError::Internal(anyhow::anyhow!("User must be member of a community")))?;
     
     let result = sqlx::query_scalar::<_, i64>(
         r#"INSERT INTO businesses (community_id, owner_id, name, description, category, address, phone, email, website, is_active)
@@ -319,7 +319,7 @@ pub async fn create_business(
     .bind(&req.website)
     .fetch_one(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Failed to create business: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create business: {}", e)))?;
     
     Ok(Json(serde_json::json!({
         "success": true,
@@ -339,7 +339,7 @@ pub async fn update_business(
     Json(req): Json<UpdateBusinessRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     // Verify ownership
     let owner_id: Option<uuid::Uuid> = sqlx::query_scalar(
@@ -348,12 +348,12 @@ pub async fn update_business(
     .bind(business_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     match owner_id {
         Some(id) if id == user_uuid => {}
-        Some(_) => return Err(AppError(anyhow::anyhow!("Non sei il proprietario di questa attività"))),
-        None => return Err(AppError(anyhow::anyhow!("Attività non trovata"))),
+        Some(_) => return Err(AppError::Internal(anyhow::anyhow!("Non sei il proprietario di questa attività"))),
+        None => return Err(AppError::Internal(anyhow::anyhow!("Attività non trovata"))),
     }
     
     // Build dynamic update query
@@ -383,7 +383,7 @@ pub async fn update_business(
     
     q.execute(&state.db.pool)
         .await
-        .map_err(|e| AppError(anyhow::anyhow!("Failed to update business: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update business: {}", e)))?;
     
     Ok(Json(serde_json::json!({
         "success": true,
@@ -398,7 +398,7 @@ pub async fn delete_business(
     Path(business_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     let result = sqlx::query(
         "DELETE FROM businesses WHERE id = $1 AND owner_id = $2"
@@ -407,10 +407,10 @@ pub async fn delete_business(
     .bind(user_uuid)
     .execute(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     if result.rows_affected() == 0 {
-        return Err(AppError(anyhow::anyhow!("Attività non trovata o non autorizzato")));
+        return Err(AppError::Internal(anyhow::anyhow!("Attività non trovata o non autorizzato")));
     }
     
     Ok(Json(serde_json::json!({
@@ -437,7 +437,7 @@ pub async fn list_products(
     .bind(business_id)
     .fetch_all(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     let data: Vec<serde_json::Value> = products.iter().map(|p| {
         serde_json::json!({
@@ -464,7 +464,7 @@ pub async fn create_product(
     Json(req): Json<CreateProductRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     // Verify ownership
     let owner_id: Option<uuid::Uuid> = sqlx::query_scalar(
@@ -473,12 +473,12 @@ pub async fn create_product(
     .bind(business_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     match owner_id {
         Some(id) if id == user_uuid => {}
-        Some(_) => return Err(AppError(anyhow::anyhow!("Non autorizzato"))),
-        None => return Err(AppError(anyhow::anyhow!("Attività non trovata"))),
+        Some(_) => return Err(AppError::Internal(anyhow::anyhow!("Non autorizzato"))),
+        None => return Err(AppError::Internal(anyhow::anyhow!("Attività non trovata"))),
     }
     
     let result = sqlx::query_scalar::<_, i64>(
@@ -493,7 +493,7 @@ pub async fn create_product(
     .bind(req.currency.as_deref().unwrap_or("EUR"))
     .fetch_one(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Failed to create product: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create product: {}", e)))?;
     
     Ok(Json(serde_json::json!({
         "success": true,
@@ -528,7 +528,7 @@ pub async fn list_reviews(
     .bind(business_id)
     .fetch_all(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     let data: Vec<serde_json::Value> = reviews.iter().map(|r| {
         serde_json::json!({
@@ -557,11 +557,11 @@ pub async fn create_review(
     Json(req): Json<CreateReviewRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     // Validate rating
     if req.rating < 1 || req.rating > 5 {
-        return Err(AppError(anyhow::anyhow!("La valutazione deve essere tra 1 e 5")));
+        return Err(AppError::Internal(anyhow::anyhow!("La valutazione deve essere tra 1 e 5")));
     }
     
     // Check if user already reviewed
@@ -572,10 +572,10 @@ pub async fn create_review(
     .bind(user_uuid)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     if existing.is_some() {
-        return Err(AppError(anyhow::anyhow!("Hai già recensito questa attività")));
+        return Err(AppError::Internal(anyhow::anyhow!("Hai già recensito questa attività")));
     }
     
     // Create review
@@ -591,7 +591,7 @@ pub async fn create_review(
     .bind(&req.content)
     .fetch_one(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Failed to create review: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create review: {}", e)))?;
     
     // Update business rating cache
     let _ = sqlx::query(
@@ -621,7 +621,7 @@ pub async fn list_user_orders(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     let orders = sqlx::query(
         r#"SELECT o.id, o.status, o.total_amount, o.currency, o.delivery_type, o.created_at,
@@ -635,7 +635,7 @@ pub async fn list_user_orders(
     .bind(user_uuid)
     .fetch_all(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     let data: Vec<serde_json::Value> = orders.iter().map(|o| {
         serde_json::json!({
@@ -663,10 +663,10 @@ pub async fn create_order(
     Json(req): Json<CreateOrderRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     if req.items.is_empty() {
-        return Err(AppError(anyhow::anyhow!("L'ordine deve contenere almeno un prodotto")));
+        return Err(AppError::Internal(anyhow::anyhow!("L'ordine deve contenere almeno un prodotto")));
     }
     
     // Calculate total and validate products
@@ -681,7 +681,7 @@ pub async fn create_order(
         .bind(business_id)
         .fetch_optional(&state.db.pool)
         .await
-        .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
         
         match product {
             Some(p) => {
@@ -692,7 +692,7 @@ pub async fn create_order(
                 total += item_total;
                 order_items.push((item.product_id, name, item.quantity, price, item_total, item.notes.clone()));
             }
-            None => return Err(AppError(anyhow::anyhow!("Prodotto non disponibile: {}", item.product_id))),
+            None => return Err(AppError::Internal(anyhow::anyhow!("Prodotto non disponibile: {}", item.product_id))),
         }
     }
     
@@ -710,7 +710,7 @@ pub async fn create_order(
     .bind(&req.delivery_address)
     .fetch_one(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Failed to create order: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create order: {}", e)))?;
     
     // Create order items
     for (product_id, name, qty, unit_price, total_price, notes) in order_items {
@@ -755,12 +755,12 @@ pub async fn update_order_status(
     Json(req): Json<UpdateOrderStatusRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     // Validate status
     let valid_statuses = ["pending", "confirmed", "preparing", "ready", "delivered", "cancelled"];
     if !valid_statuses.contains(&req.status.as_str()) {
-        return Err(AppError(anyhow::anyhow!("Stato non valido")));
+        return Err(AppError::Internal(anyhow::anyhow!("Stato non valido")));
     }
     
     // Verify ownership
@@ -772,12 +772,12 @@ pub async fn update_order_status(
     .bind(order_id)
     .fetch_optional(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Database error: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     match owner_check {
         Some(id) if id == user_uuid => {}
-        Some(_) => return Err(AppError(anyhow::anyhow!("Non autorizzato"))),
-        None => return Err(AppError(anyhow::anyhow!("Ordine non trovato"))),
+        Some(_) => return Err(AppError::Internal(anyhow::anyhow!("Non autorizzato"))),
+        None => return Err(AppError::Internal(anyhow::anyhow!("Ordine non trovato"))),
     }
     
     let completed_at = if req.status == "delivered" || req.status == "cancelled" {
@@ -794,7 +794,7 @@ pub async fn update_order_status(
     .bind(order_id)
     .execute(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Failed to update order: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update order: {}", e)))?;
     
     Ok(Json(serde_json::json!({
         "success": true,

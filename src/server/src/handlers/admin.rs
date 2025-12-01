@@ -20,6 +20,7 @@ use crate::auth::AuthUser;
 // ============================================================================
 
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct AnalyticsQuery {
     pub event_type: Option<String>,
     pub community_id: Option<String>,
@@ -40,6 +41,7 @@ pub struct AnalyticsSummary {
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct ModerationQuery {
     pub status: Option<String>,
     pub content_type: Option<String>,
@@ -55,6 +57,7 @@ pub struct UpdateModerationRequest {
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct AuditLogQuery {
     pub user_id: Option<String>,
     pub action: Option<String>,
@@ -201,7 +204,7 @@ pub async fn track_event(
     .bind(metadata)
     .execute(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Failed to track event: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to track event: {}", e)))?;
     
     Ok(Json(serde_json::json!({"success": true})))
 }
@@ -276,7 +279,7 @@ pub async fn update_moderation_item(
     Json(request): Json<UpdateModerationRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     let resolved_at = if request.status == "approved" || request.status == "rejected" {
         Some(chrono::Utc::now())
@@ -297,7 +300,7 @@ pub async fn update_moderation_item(
     .bind(item_id)
     .execute(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Failed to update moderation item: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update moderation item: {}", e)))?;
     
     Ok(Json(serde_json::json!({
         "success": true,
@@ -313,7 +316,7 @@ pub async fn report_content(
     Json(request): Json<ReportContentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
-        .map_err(|_| AppError(anyhow::anyhow!("Invalid user ID")))?;
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
     
     let id = uuid::Uuid::now_v7();
     
@@ -329,7 +332,7 @@ pub async fn report_content(
     .bind(&request.details)
     .execute(&state.db.pool)
     .await
-    .map_err(|e| AppError(anyhow::anyhow!("Failed to report content: {}", e)))?;
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to report content: {}", e)))?;
     
     Ok(Json(serde_json::json!({
         "success": true,

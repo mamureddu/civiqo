@@ -161,6 +161,9 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/htmx/communities/{id}/proposals", get(htmx::community_proposals))
         .route("/htmx/communities/{id}/proposals", post(htmx::create_proposal_htmx))
         .route("/htmx/communities/{id}/proposals/count", get(htmx::community_proposals_count))
+        // Community businesses and chat HTMX fragments
+        .route("/htmx/communities/{id}/businesses", get(htmx::community_businesses))
+        .route("/htmx/communities/{id}/chat", get(htmx::community_chat))
         
         // REST API Endpoints
         .route("/api/users", get(api::get_users))

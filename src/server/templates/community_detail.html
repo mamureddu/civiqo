@@ -113,6 +113,22 @@
                           hx-trigger="load"
                           hx-swap="innerHTML"></span>
                 </button>
+                <button @click="activeTab = 'businesses'"
+                        :class="activeTab === 'businesses' ? 'border-[#57C98A] text-[#57C98A]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="border-b-2 py-4 px-1 text-sm font-medium transition flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                    Attività
+                </button>
+                <button @click="activeTab = 'chat'"
+                        :class="activeTab === 'chat' ? 'border-[#57C98A] text-[#57C98A]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="border-b-2 py-4 px-1 text-sm font-medium transition flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    Chat
+                </button>
             </nav>
         </div>
 
@@ -211,6 +227,34 @@
                     <div class="animate-pulse space-y-4">
                         <div class="h-24 bg-gray-200 rounded"></div>
                         <div class="h-24 bg-gray-200 rounded"></div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Businesses Tab #}
+            <div x-show="activeTab === 'businesses'" x-cloak>
+                <div hx-get="/htmx/communities/{{ community_id }}/businesses"
+                     hx-trigger="intersect once"
+                     hx-swap="innerHTML">
+                    <!-- Loading placeholder -->
+                    <div class="animate-pulse">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div class="h-40 bg-gray-200 rounded-xl"></div>
+                            <div class="h-40 bg-gray-200 rounded-xl"></div>
+                            <div class="h-40 bg-gray-200 rounded-xl"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {# Chat Tab #}
+            <div x-show="activeTab === 'chat'" x-cloak>
+                <div hx-get="/htmx/communities/{{ community_id }}/chat"
+                     hx-trigger="intersect once"
+                     hx-swap="innerHTML">
+                    <!-- Loading placeholder -->
+                    <div class="animate-pulse">
+                        <div class="h-64 bg-gray-200 rounded-xl"></div>
                     </div>
                 </div>
             </div>
