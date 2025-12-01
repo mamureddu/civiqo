@@ -2,11 +2,11 @@
 
 > Documento principale della User Experience. Mantiene la mappa completa delle pagine, flussi e interazioni.
 
-**Ultimo aggiornamento**: 2025-11-27  
-**Versione**: 1.1.0 (Post-Audit)  
+**Ultimo aggiornamento**: 2025-11-28  
+**Versione**: 1.2.0 (Post-Phase 7)  
 **Maintainer**: Agente UX
 
-> ⚠️ **STATO**: Audit completato - Vedi `UX_AUDIT_REPORT.md` e `UX_ACTION_PLAN.md` in questa cartella
+> ✅ **STATO**: Phase 1-7 Complete - Vedi `UX_AUDIT_REPORT_2025-11-28.md` per analisi dettagliata
 
 > 📁 **Cartella di lavoro**: `docs/UX/`
 
@@ -75,16 +75,18 @@
 └─────────┘                                 └────────────┘
 
 
-    ┌─────────────┐          ┌─────────────┐
-    │  Businesses │          │     POI     │
-    │   (list)    │          │   (map)     │
-    └──────┬──────┘          └─────────────┘
+    ┌─────────────┐          ┌─────────────┐          ┌─────────────┐
+    │  Businesses │          │     POI     │          │  Create    │
+    │   (list)    │          │   (map)     │          │  Business   │
+    └──────┬──────┘          └─────────────┘          └─────────────┘
            │
-           ▼
-    ┌─────────────┐
-    │  Business   │
-    │  (detail)   │
-    └─────────────┘
+    ┌──────┴──────┐
+    │             │
+    ▼             ▼
+┌─────────────┐ ┌─────────────┐
+│  Business   │ │   Business   │
+│  (detail)   │ │  (create)    │
+└─────────────┘ └─────────────┘
 
 
     ┌─────────────┐
@@ -97,6 +99,17 @@
     │   Profile   │
     │   (edit)    │
     └─────────────┘
+
+
+    ┌─────────────┐
+    │    Admin    │◄──── Accessible for admin users
+    │  Dashboard  │
+    └─────────────┘
+        │
+    ┌───┴───┬───────┐
+    │       │       │
+    ▼       ▼       ▼
+Moderation Analytics Audit
 ```
 
 ---
@@ -116,8 +129,8 @@
 | Landing | `/` | default | ✅ | Hero + feature highlights |
 | Communities (explore) | `/communities` | default, loading, empty | ✅ | Manca filtri avanzati |
 | Community Detail | `/communities/:id` | default, loading, not_found | ✅ | Solo view per non-membri |
-| **404 Error** | `*` | default | ❌ | **DA CREARE** |
-| **500 Error** | `*` | default | ❌ | **DA CREARE** |
+| 404 Error | `*` | default | ✅ | Pagina custom |
+| 500 Error | `*` | default | ✅ | Pagina custom |
 
 ### Autenticate
 
@@ -129,15 +142,18 @@
 | Create Community | `/communities/create` | form, submitting, success, error | ✅ | Pagina dedicata |
 | Post Detail | `/posts/:id` | default, loading, not_found | ✅ | Con commenti threading |
 | Create Post | `/communities/:id/posts/new` | form, submitting, success, error | ✅ | Form semplice |
-| Chat List | `/chat` | default, loading, empty | ⚠️ | UI esiste, WebSocket parziale |
-| Chat Room | `/chat/:room_id` | default, loading, connecting | ⚠️ | Real-time limitato |
+| Chat List | `/chat` | default, loading, empty | ✅ | UI completa |
+| Chat Room | `/chat/:room_id` | default, loading, connecting | ✅ | WebSocket real-time |
 | Governance | `/governance` | default, loading, empty | ✅ | Lista globale proposals |
+| Proposal Detail | `/governance/:id` | default, loading, not_found | ✅ | Con votazione |
 | Profile View | `/users/:id` | default, loading, not_found | ✅ | Pubblico |
 | Profile Edit | `/users/:id/edit` | form, submitting, success, error | ✅ | Solo owner |
-| Businesses | `/businesses` | default, loading, empty | ⚠️ | Lista base, no CRUD completo |
-| Business Detail | `/businesses/:id` | default, loading, not_found | ⚠️ | Placeholder |
+| Businesses | `/businesses` | default, loading, empty | ✅ | Lista + CRUD completo |
+| Business Detail | `/businesses/:id` | default, loading, not_found | ✅ | Dettaglio completo |
+| Create Business | `/businesses/new` | form, submitting, success, error | ✅ | Form completo |
+| Admin Dashboard | `/admin` | default, loading | ✅ | Analytics, Moderation, Audit |
+| Notifications | `/notifications` | default, loading, empty | ✅ | Pagina dedicata |
 | POI | `/poi` | default, loading | ⚠️ | Placeholder, non funzionale |
-| **Notifications** | `/notifications` | default, loading, empty | ❌ | **DA CREARE** |
 | **Search Results** | `/search` | default, loading, empty | ❌ | **DA CREARE** (solo dropdown) |
 | **Settings** | `/settings` | form | ❌ | **DA CREARE** |
 | **Onboarding** | `/onboarding` | wizard | ❌ | **DA CREARE** |
@@ -310,6 +326,8 @@ Navbar → [Link Votazioni] → Governance Page → Filter by Status → View Al
 
 | Data | Versione | Modifiche |
 |------|----------|-----------|
+| 2025-11-28 | 1.2.0 | Aggiornamento post-Phase 7: Admin, Businesses, Proposal Detail, Chat complete |
+| 2025-11-27 | 1.1.0 | Post-Audit: identificate lacune |
 | 2025-11-27 | 1.0.0 | Creazione iniziale con grafo navigazione, pagine, flussi |
 
 ---

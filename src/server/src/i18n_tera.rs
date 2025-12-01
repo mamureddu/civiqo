@@ -51,6 +51,7 @@ fn get_translations_for_locale(locale: &Locale) -> HashMap<String, String> {
         "communities-filter-my", "communities-empty", "communities-empty-subtitle",
         "community-public", "community-private", "community-verified",
         "community-join", "community-leave", "community-request-join", "community-joined",
+        "community-members",
         
         // Create Community
         "community-create-title", "community-create-subtitle",
@@ -117,9 +118,22 @@ fn get_translations_for_locale(locale: &Locale) -> HashMap<String, String> {
         
         // Footer
         "footer-privacy", "footer-terms", "footer-contact", "footer-about",
+        "footer-tagline",
         
         // Accessibility
         "a11y-menu-toggle", "a11y-language-select", "a11y-close-modal",
+        "a11y-skip-to-content", "a11y-expand", "a11y-collapse", "a11y-required-field",
+        
+        // Admin
+        "admin-title", "admin-moderation", "admin-analytics", "admin-audit",
+        "admin-moderation-queue", "admin-analytics-summary", "admin-audit-logs",
+        
+        // Home page
+        "home-title", "home-subtitle", "home-cta-explore", "home-cta-login",
+        "home-feature-communities-title", "home-feature-communities-desc",
+        "home-feature-chat-title", "home-feature-chat-desc",
+        "home-feature-governance-title", "home-feature-governance-desc",
+        "home-recent-communities", "home-view-all", "home-loading-communities",
     ];
     
     for key in keys {

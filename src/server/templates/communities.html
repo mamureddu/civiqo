@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Communities - Civiqo{% endblock %}
+{% block title %}{{ t.nav_communities }} - Civiqo{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto">
     <div class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-brand font-bold text-civiqo-gray-900">Communities</h1>
+        <h1 class="text-3xl font-brand font-bold text-civiqo-gray-900">{{ t.communities_title }}</h1>
         <a href="/communities/create"
-            class="bg-civiqo-blue text-white px-4 py-2 rounded-lg hover:bg-civiqo-blue-dark transition-colors shadow-sm font-medium">
-            Create Community
+            class="bg-civiqo-blue text-white px-4 py-2 rounded-lg hover:bg-civiqo-blue-dark transition-colors shadow-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue focus-visible:ring-offset-2">
+            {{ t.action_create }}
         </a>
     </div>
 
@@ -17,14 +17,14 @@
         <form hx-get="/htmx/communities/search" hx-trigger="input changed delay:500ms from:#search, change from:#filter"
             hx-target="#communities-list">
             <div class="flex gap-4">
-                <input type="text" id="search" name="q" placeholder="Search communities..."
+                <input type="text" id="search" name="q" placeholder="{{ t.communities_search_placeholder }}"
                     class="flex-1 px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-civiqo-blue transition-shadow">
                 <select id="filter" name="filter"
                     class="px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-civiqo-blue transition-shadow bg-white">
-                    <option value="all">All Communities</option>
-                    <option value="nearby">Nearby</option>
-                    <option value="popular">Most Popular</option>
-                    <option value="recent">Recently Active</option>
+                    <option value="all">{{ t.communities_filter_all }}</option>
+                    <option value="nearby">{{ t.communities_filter_all }}</option>
+                    <option value="popular">{{ t.communities_filter_all }}</option>
+                    <option value="recent">{{ t.communities_filter_all }}</option>
                 </select>
             </div>
         </form>
@@ -33,50 +33,60 @@
     <!-- Create Community Form -->
     {% if logged_in %}
     <div class="bg-white rounded-lg shadow-sm p-6 mb-6 border border-civiqo-gray-200">
-        <h2 class="text-xl font-brand font-bold text-civiqo-gray-900 mb-4">Create New Community</h2>
+        <h2 class="text-xl font-brand font-bold text-civiqo-gray-900 mb-4">{{ t.community_create_title }}</h2>
         <form id="create-community-form" class="space-y-4">
             <div>
-                <label class="block text-sm font-medium text-civiqo-gray-600 mb-1">Community Name</label>
+                <label for="community-name" class="block text-sm font-medium text-civiqo-gray-600 mb-1">
+                    {{ t.community_create_name_label }} <span class="text-civiqo-coral">*</span>
+                </label>
                 <input type="text" name="name" id="community-name" required minlength="3" maxlength="100"
-                    class="w-full px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:outline-none transition-shadow">
+                    aria-describedby="name-error"
+                    class="w-full px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:outline-none transition-shadow invalid:border-civiqo-coral invalid:ring-civiqo-coral">
+                <p id="name-error" class="text-xs text-civiqo-coral mt-1 hidden">{{ t.validation_required | default(value='Campo obbligatorio') }}</p>
             </div>
             <div>
-                <label class="block text-sm font-medium text-civiqo-gray-600 mb-1">Slug (URL-friendly name)</label>
+                <label for="community-slug" class="block text-sm font-medium text-civiqo-gray-600 mb-1">
+                    Slug <span class="text-civiqo-coral">*</span>
+                </label>
                 <input type="text" name="slug" id="community-slug" required minlength="3" maxlength="50"
                     pattern="[a-z0-9\-]+"
                     placeholder="my-community-name"
-                    class="w-full px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:outline-none transition-shadow">
-                <p class="text-xs text-civiqo-gray-500 mt-1">Only lowercase letters, numbers, and hyphens</p>
+                    aria-describedby="slug-hint slug-error"
+                    class="w-full px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:outline-none transition-shadow invalid:border-civiqo-coral invalid:ring-civiqo-coral">
+                <p id="slug-hint" class="text-xs text-civiqo-gray-500 mt-1">{{ t.community_create_name_hint | default(value='Solo lettere minuscole, numeri e trattini') }}</p>
+                <p id="slug-error" class="text-xs text-civiqo-coral mt-1 hidden">{{ t.validation_invalid_format | default(value='Formato non valido') }}</p>
             </div>
             <div>
-                <label class="block text-sm font-medium text-civiqo-gray-600 mb-1">Description</label>
-                <textarea name="description" rows="3" maxlength="1000"
+                <label for="community-description" class="block text-sm font-medium text-civiqo-gray-600 mb-1">{{ t.community_create_description_label }}</label>
+                <textarea name="description" id="community-description" rows="3" maxlength="1000"
+                    aria-describedby="desc-hint"
                     class="w-full px-4 py-2 border border-civiqo-gray-200 rounded-lg focus:ring-2 focus:ring-civiqo-blue focus:outline-none transition-shadow"></textarea>
+                <p id="desc-hint" class="text-xs text-civiqo-gray-500 mt-1">{{ t.community_create_description_max | default(value='Max 1000 caratteri') }}</p>
             </div>
             <div class="flex items-center gap-4">
                 <label class="flex items-center gap-2">
                     <input type="checkbox" name="is_public" checked
                         class="w-4 h-4 text-civiqo-blue border-civiqo-gray-300 rounded focus:ring-civiqo-blue">
-                    <span class="text-sm text-civiqo-gray-600">Public community</span>
+                    <span class="text-sm text-civiqo-gray-600">{{ t.community_create_public_label }}</span>
                 </label>
                 <label class="flex items-center gap-2">
                     <input type="checkbox" name="requires_approval"
                         class="w-4 h-4 text-civiqo-blue border-civiqo-gray-300 rounded focus:ring-civiqo-blue">
-                    <span class="text-sm text-civiqo-gray-600">Require approval to join</span>
+                    <span class="text-sm text-civiqo-gray-600">{{ t.community_create_approval_label }}</span>
                 </label>
             </div>
             <button type="submit"
-                class="px-6 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue-dark transition-colors font-medium shadow-sm">
-                Create Community
+                class="px-6 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue-dark transition-colors font-medium shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue focus-visible:ring-offset-2">
+                {{ t.community_create_submit }}
             </button>
         </form>
         <div id="create-result" class="mt-4"></div>
     </div>
     {% else %}
     <div class="bg-civiqo-blue/5 rounded-lg p-6 mb-6 border border-civiqo-blue/20 text-center">
-        <p class="text-civiqo-gray-600 mb-4">You need to be logged in to create a community.</p>
-        <a href="/auth/login" class="inline-block px-6 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue-dark transition-colors font-medium shadow-sm">
-            Login to Create
+        <p class="text-civiqo-gray-600 mb-4">{{ t.communities_empty_subtitle }}</p>
+        <a href="/auth/login" class="inline-block px-6 py-2 bg-civiqo-blue text-white rounded-lg hover:bg-civiqo-blue-dark transition-colors font-medium shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue focus-visible:ring-offset-2">
+            {{ t.header_login }}
         </a>
     </div>
     {% endif %}
@@ -85,7 +95,7 @@
     <div id="communities-list" hx-get="/htmx/communities/list" hx-trigger="load" hx-swap="innerHTML">
         <!-- Loading state -->
         <div class="text-center py-12 text-civiqo-gray-600">
-            <div class="animate-pulse">Loading communities...</div>
+            <div class="animate-pulse">{{ t.state_loading }}</div>
         </div>
     </div>
 
@@ -110,7 +120,7 @@
         {% endfor %}
         {% else %}
         <div class="col-span-3 text-center py-12 text-civiqo-gray-600">
-            <p>No communities yet. Create the first one!</p>
+            <p>{{ t.communities_empty }}</p>
         </div>
         {% endif %}
     </div>

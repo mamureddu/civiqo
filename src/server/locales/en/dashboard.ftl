@@ -97,3 +97,15 @@ onboarding-step-3-description = Post, comment and vote in your communities
 onboarding-skip = Skip for now
 onboarding-next = Next
 onboarding-finish = Get Started!
+
+# =============================================================================
+# ADMIN
+# =============================================================================
+
+admin-title = Admin Dashboard
+admin-moderation = Moderation
+admin-analytics = Analytics
+admin-audit = Audit Log
+admin-moderation-queue = Moderation Queue
+admin-analytics-summary = Recent Events
+admin-audit-logs = Activity Log

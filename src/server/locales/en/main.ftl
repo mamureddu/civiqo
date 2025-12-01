@@ -116,3 +116,27 @@ a11y-close-modal = Close dialog
 a11y-expand = Expand
 a11y-collapse = Collapse
 a11y-required-field = Required field
+a11y-skip-to-content = Skip to main content
+
+# Footer
+footer-tagline = Technology that brings communities together.
+
+# =============================================================================
+# HOME PAGE
+# =============================================================================
+
+home-title = Welcome to Civiqo
+home-subtitle = Technology that brings communities together.
+home-cta-explore = Explore Communities
+home-cta-login = Login
+
+home-feature-communities-title = Local Communities
+home-feature-communities-desc = Discover and join communities in your area
+home-feature-chat-title = Real-time Chat
+home-feature-chat-desc = End-to-end encrypted communication
+home-feature-governance-title = Democratic Governance
+home-feature-governance-desc = Participate in your community's decisions
+
+home-recent-communities = Recent Communities
+home-view-all = View all →
+home-loading-communities = Loading communities...

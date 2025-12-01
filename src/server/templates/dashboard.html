@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard | Civiqo{% endblock %}
+{% block title %}{{ t.dashboard_title }} | Civiqo{% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Welcome Section -->
     <div class="bg-white rounded-lg shadow-sm p-6 mb-6 border border-civiqo-gray-200">
-        <h1 class="text-3xl font-brand font-bold text-civiqo-gray-900 mb-2">Welcome back!</h1>
-        <p class="text-civiqo-gray-600">Manage your communities and engage with members</p>
+        <h1 class="text-3xl font-brand font-bold text-civiqo-gray-900 mb-2">{{ t.dashboard_title }}!</h1>
+        <p class="text-civiqo-gray-600">{{ t.dashboard_subtitle }}</p>
     </div>
 
     <!-- Quick Stats -->
@@ -21,7 +21,7 @@
                     </svg>
                 </div>
                 <div class="ml-5 min-w-0 flex-1">
-                    <p class="text-sm font-medium text-civiqo-gray-600">Your Communities</p>
+                    <p class="text-sm font-medium text-civiqo-gray-600">{{ t.dashboard_stats_communities }}</p>
                     <p class="text-2xl font-semibold text-civiqo-gray-900">{{ communities_count }}</p>
                 </div>
             </div>
@@ -36,7 +36,7 @@
                     </svg>
                 </div>
                 <div class="ml-5 min-w-0 flex-1">
-                    <p class="text-sm font-medium text-civiqo-gray-600">Welcome</p>
+                    <p class="text-sm font-medium text-civiqo-gray-600">{{ t.nav_profile }}</p>
                     <p class="text-2xl font-semibold text-civiqo-gray-900 truncate" title="{{ username }}">{{ username }}</p>
                 </div>
             </div>
@@ -65,9 +65,9 @@
                 <svg class="w-5 h-5 mr-2 text-civiqo-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
                 </svg>
-                Votazioni Attive
+                {{ t.governance_title }}
             </h2>
-            <a href="/governance" class="text-sm text-civiqo-blue hover:underline">Vedi tutte →</a>
+            <a href="/governance" class="text-sm text-civiqo-blue hover:underline">{{ t.action_view_all }} →</a>
         </div>
         <div class="space-y-3" hx-get="/htmx/dashboard/active-proposals" hx-trigger="load" hx-swap="innerHTML">
             <!-- Loading placeholder -->
@@ -81,13 +81,13 @@
     <!-- Your Communities -->
     <div class="bg-white rounded-lg shadow-sm p-6 mb-6 border border-civiqo-gray-200">
         <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900">Le Tue Community</h2>
+            <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900">{{ t.dashboard_section_communities }}</h2>
             <a href="/communities/create" 
-               class="inline-flex items-center px-4 py-2 bg-civiqo-blue text-white text-sm font-medium rounded-lg hover:bg-civiqo-blue-dark transition-colors shadow-sm">
+               class="inline-flex items-center px-4 py-2 bg-civiqo-blue text-white text-sm font-medium rounded-lg hover:bg-civiqo-blue-dark transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue focus-visible:ring-offset-2">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>
-                Crea Community
+                {{ t.dashboard_action_create_community }}
             </a>
         </div>
         <div class="space-y-4" hx-get="/htmx/user/communities" hx-trigger="load" hx-swap="innerHTML">
@@ -104,7 +104,7 @@
 
     <!-- Recent Activity -->
     <div class="bg-white rounded-lg shadow-sm p-6 border border-civiqo-gray-200">
-        <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900 mb-4">Recent Activity</h2>
+        <h2 class="text-xl font-brand font-semibold text-civiqo-gray-900 mb-4">{{ t.dashboard_section_activity }}</h2>
         <div class="space-y-4" hx-get="/htmx/user/activity" hx-trigger="load" hx-swap="innerHTML">
             <!-- Loading placeholder -->
             <div class="animate-pulse space-y-3">

@@ -1,22 +1,23 @@
 {# Community Card Fragment - Reusable card for community listings #}
 {# Usage: {% include "fragments/community-card.html" %} #}
-{# Context: community (CommunityListResponse), user_authenticated (bool), current_user_id (Option<String>) #}
+{# Context: community (CommunityListResponse), user_authenticated (bool), current_user_id (Option<String>), t (translations) #}
 
-<div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6 border border-gray-200">
+<div class="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 border border-civiqo-gray-200">
   {# Header with name and badge #}
   <div class="flex items-start justify-between mb-3">
     <div class="flex-1">
-      <a href="/communities/{{ community.slug }}" class="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+      <a href="/communities/{{ community.slug }}" 
+         class="text-lg font-semibold text-civiqo-gray-900 hover:text-civiqo-blue transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue focus-visible:ring-offset-2 rounded">
         {{ community.name }}
       </a>
       <div class="flex items-center gap-2 mt-1">
         {% if community.is_public %}
-          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: rgba(93, 201, 138, 0.2); color: #57C98A;">
-            Public
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-civiqo-eco-green/20 text-civiqo-eco-green">
+            {{ t.community_public | default(value='Pubblica') }}
           </span>
         {% else %}
-          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: rgba(107, 114, 128, 0.2); color: #6B7280;">
-            Private
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-civiqo-gray-200 text-civiqo-gray-600">
+            {{ t.community_private | default(value='Privata') }}
           </span>
         {% endif %}
       </div>
@@ -25,64 +26,57 @@
 
   {# Description #}
   {% if community.description %}
-    <p class="text-sm text-gray-600 mb-4 line-clamp-2">
+    <p class="text-sm text-civiqo-gray-600 mb-4 line-clamp-2">
       {{ community.description }}
     </p>
   {% else %}
-    <p class="text-sm text-gray-400 italic mb-4">No description</p>
+    <p class="text-sm text-civiqo-gray-600/60 italic mb-4">{{ t.state_empty | default(value='Nessuna descrizione') }}</p>
   {% endif %}
 
   {# Footer with stats and actions #}
-  <div class="flex items-center justify-between pt-4 border-t border-gray-200">
-    <div class="flex items-center gap-4 text-sm text-gray-600">
+  <div class="flex items-center justify-between pt-4 border-t border-civiqo-gray-200">
+    <div class="flex items-center gap-4 text-sm text-civiqo-gray-600">
       <span class="flex items-center gap-1">
-        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
           <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM9 10a9 9 0 11-18 0 9 9 0 0118 0zm-9 4a4 4 0 014-4h2a4 4 0 014 4v2H0v-2z"></path>
         </svg>
-        {{ community.member_count }} members
+        {{ community.member_count }} {{ t.community_members | default(value='membri') }}
       </span>
-      <span class="text-xs text-gray-500">{{ community.created_at }}</span>
+      <span class="text-xs text-civiqo-gray-600/70">{{ community.created_at }}</span>
     </div>
 
     {# Join Button #}
     {% if user_authenticated %}
       {% if community.user_role %}
         {# User is already a member #}
-        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium" style="background-color: rgba(59, 127, 186, 0.2); color: #3B7FBA;">
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-civiqo-blue/20 text-civiqo-blue">
           {{ community.user_role | capitalize }}
         </span>
       {% else %}
         {# User is not a member - show join button #}
         {% if community.is_public %}
           <button hx-post="/api/communities/{{ community.id }}/join"
-                  hx-confirm="Join this community?"
+                  hx-confirm="{{ t.community_join | default(value='Unisciti') }}?"
                   hx-target="closest div"
                   hx-swap="outerHTML"
-                  class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white transition-colors cursor-pointer"
-                  style="background-color: #57C98A;"
-                  onmouseover="this.style.backgroundColor='#3DAA5F'"
-                  onmouseout="this.style.backgroundColor='#57C98A'">
-            Join
+                  class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white bg-civiqo-eco-green hover:bg-civiqo-eco-green/90 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-eco-green focus-visible:ring-offset-2">
+            {{ t.community_join | default(value='Unisciti') }}
           </button>
         {% else %}
           <button hx-post="/api/communities/{{ community.id }}/request-join"
-                  hx-confirm="Request to join this community?"
+                  hx-confirm="{{ t.community_request_join | default(value='Richiedi accesso') }}?"
                   hx-target="closest div"
                   hx-swap="outerHTML"
-                  class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-white transition-colors cursor-pointer"
-                  style="background-color: #F5C542; color: #111827;"
-                  onmouseover="this.style.backgroundColor='#E5B52F'"
-                  onmouseout="this.style.backgroundColor='#F5C542'">
-            Request
+                  class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-civiqo-gray-900 bg-civiqo-yellow hover:bg-civiqo-yellow/90 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-yellow focus-visible:ring-offset-2">
+            {{ t.community_request_join | default(value='Richiedi') }}
           </button>
         {% endif %}
       {% endif %}
     {% else %}
       {# User not authenticated #}
       <a href="/auth/login?redirect=/communities/{{ community.slug }}"
-         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
-         style="background-color: rgba(107, 114, 128, 0.2); color: #6B7280;">
-        Login to Join
+         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-civiqo-gray-200 text-civiqo-gray-600 hover:bg-civiqo-gray-200/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue focus-visible:ring-offset-2">
+        {{ t.header_login | default(value='Accedi') }}
       </a>
     {% endif %}
   </div>

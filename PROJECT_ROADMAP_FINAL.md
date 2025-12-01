@@ -557,23 +557,53 @@ CREATE TABLE reactions (
 
 ## 🎯 **Next Steps**
 
-### � Priorità: Phase 8 - Deployment & Polish
-1. **Testing**:
-   - End-to-end tests
-   - Load testing
-   - Security audit
-2. **Optimization**:
-   - Database query optimization
-   - Caching (Redis)
-   - CDN for static assets
-3. **Deployment**:
-   - CI/CD pipeline
-   - Monitoring (Prometheus/Grafana)
-   - Logging (structured logs)
-4. **Documentation**:
-   - API documentation (OpenAPI)
-   - User guide
-   - Admin guide
+### 🎯 Priorità: Phase 8 - Deployment & Polish
+
+#### 8.1 UX/UI Polish ✅ COMPLETATO
+> Vedi `docs/UX/UX_AUDIT_REPORT_2025-11-28.md` per dettagli completi
+
+**Internazionalizzazione (i18n) - ✅ COMPLETATA:**
+- ✅ Sistema i18n implementato (`i18n.rs`, `i18n_tera.rs`)
+- ✅ File traduzioni IT/EN (`locales/it/*.ftl`, `locales/en/*.ftl`)
+- ✅ **TUTTI I TEMPLATE USANO LE TRADUZIONI!**
+
+**Template aggiornati con i18n:**
+- [x] `base.html` - navbar, footer, skip link
+- [x] `index.html` - hero, features  
+- [x] `dashboard.html` - stats, sezioni
+- [x] `communities.html` - form, filtri, empty states
+- [x] `governance.html` - tabs, form proposta
+- [x] `create_business.html`, `admin.html`
+- [x] `fragments/community-card.html`
+
+**Non conformità UX risolte:**
+- [x] NC-02: Inline styles in `community-card.html` → classi Tailwind
+- [x] NC-06: ARIA roles aggiunti nei tabs (`role="tablist"`, `role="tab"`)
+- [x] NC-07: Validazione form con `aria-describedby`, inline errors
+- [x] NC-08: Focus states con `focus-visible:ring-2`
+
+**Ancora da fare (Phase 8.2+):**
+- [ ] NC-04: Verifica ruolo admin in `/admin` (richiede middleware auth)
+
+#### 8.2 Testing
+- End-to-end tests
+- Load testing
+- Security audit
+
+#### 8.3 Optimization
+- Database query optimization
+- Caching (Redis)
+- CDN for static assets
+
+#### 8.4 Deployment
+- CI/CD pipeline
+- Monitoring (Prometheus/Grafana)
+- Logging (structured logs)
+
+#### 8.5 Documentation
+- API documentation (OpenAPI)
+- User guide
+- Admin guide
 
 ### 🎁 BONUS: Phase 9 - Federation
 - Federation requests/instances tables
@@ -588,6 +618,11 @@ CREATE TABLE reactions (
 - [x] **Phase 7**: Admin - Analytics, moderation queue, audit logs
 - [x] Upgrade dipendenze (axum 0.8, tokio 1.48, reqwest 0.12, etc.)
 - [x] Fix breaking changes axum 0.8 (route syntax `{param}`, `FromRequestParts`)
+- [x] **UX Audit** - Analisi completa conformità UX/UI
+- [x] **Phase 8.1**: UX/UI Polish - i18n integration, ARIA roles, focus-visible, inline styles fix
+
+### ⚠️ Known Issues (da risolvere in Phase 8.2+)
+- [ ] **Admin senza auth** - `/admin` accessibile a tutti gli utenti autenticati (richiede middleware)
 
 ### Known Issues Fixed ✅
 - [x] `chat-service` schema mismatch - Fixed con SQLx prepare
