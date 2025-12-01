@@ -1,77 +1,79 @@
 {% extends "base.html" %}
 
-{% block title %}Nuovo Post - {{ community.name }} | Civiqo{% endblock %}
+{% block title %}{{ t.posts_create | default(value='Nuovo Post') }} - {{ community.name }} | Civiqo{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50">
-    {# Header #}
-    <header class="bg-white border-b border-gray-200">
-        <div class="max-w-2xl mx-auto px-4 py-4">
-            {# Breadcrumb #}
-            <nav class="text-sm text-gray-500">
-                <a href="/communities" class="hover:text-[#3B7FBA]">Community</a>
-                <span class="mx-2">/</span>
-                <a href="/communities/{{ community.id }}" class="hover:text-[#3B7FBA]">{{ community.name }}</a>
-                <span class="mx-2">/</span>
-                <a href="/communities/{{ community.id }}/posts" class="hover:text-[#3B7FBA]">Posts</a>
-                <span class="mx-2">/</span>
-                <span class="text-gray-700">Nuovo Post</span>
-            </nav>
-        </div>
-    </header>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    {# Breadcrumb #}
+    <nav class="mb-6" aria-label="Breadcrumb">
+        <ol class="flex items-center space-x-2 text-sm text-civiqo-gray-600">
+            <li><a href="/communities" class="hover:text-civiqo-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue rounded">{{ t.nav_communities }}</a></li>
+            <li><span class="mx-2" aria-hidden="true">/</span></li>
+            <li><a href="/communities/{{ community.id }}" class="hover:text-civiqo-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue rounded">{{ community.name }}</a></li>
+            <li><span class="mx-2" aria-hidden="true">/</span></li>
+            <li><a href="/communities/{{ community.id }}/posts" class="hover:text-civiqo-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue rounded">Posts</a></li>
+            <li><span class="mx-2" aria-hidden="true">/</span></li>
+            <li class="text-civiqo-gray-900 font-medium" aria-current="page">{{ t.posts_create | default(value='Nuovo Post') }}</li>
+        </ol>
+    </nav>
     
-    {# Main Content #}
-    <main class="max-w-2xl mx-auto px-4 py-8">
-        {# Community info card #}
-        <div class="bg-[#57C98A]/10 rounded-lg p-4 mb-6 flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-lg bg-[#57C98A] flex items-center justify-center text-white font-bold">
-                {{ community.name | truncate(length=1) | upper }}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {# Main Content #}
+        <div class="lg:col-span-2">
+            {# Community info card #}
+            <div class="bg-civiqo-eco-green/10 rounded-xl p-4 mb-6 flex items-center space-x-3 border border-civiqo-eco-green/20">
+                <div class="w-10 h-10 rounded-lg bg-civiqo-eco-green flex items-center justify-center text-white font-bold">
+                    {{ community.name | truncate(length=1) | upper }}
+                </div>
+                <div>
+                    <p class="text-sm text-civiqo-gray-600">{{ t.posts_publishing_in | default(value='Stai pubblicando in') }}</p>
+                    <p class="font-semibold text-civiqo-gray-900">{{ community.name }}</p>
+                </div>
             </div>
-            <div>
-                <p class="text-sm text-gray-600">Stai pubblicando in</p>
-                <p class="font-semibold text-gray-900">{{ community.name }}</p>
-            </div>
-        </div>
         
         {# Post form #}
         {% set community_id = community.id %}
         {% include "fragments/post-form.html" %}
         
-        {# Tips #}
-        <div class="mt-8 bg-white rounded-lg shadow-md p-6">
-            <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-[#3B7FBA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                Suggerimenti per un buon post
-            </h3>
-            <ul class="space-y-2 text-sm text-gray-600">
-                <li class="flex items-start">
-                    <svg class="w-4 h-4 mr-2 mt-0.5 text-[#57C98A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    Usa un titolo chiaro e descrittivo
-                </li>
-                <li class="flex items-start">
-                    <svg class="w-4 h-4 mr-2 mt-0.5 text-[#57C98A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    Sii rispettoso e costruttivo nei confronti degli altri membri
-                </li>
-                <li class="flex items-start">
-                    <svg class="w-4 h-4 mr-2 mt-0.5 text-[#57C98A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    Aggiungi immagini per rendere il post più coinvolgente
-                </li>
-                <li class="flex items-start">
-                    <svg class="w-4 h-4 mr-2 mt-0.5 text-[#57C98A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    Usa il Markdown per formattare il testo
-                </li>
-            </ul>
         </div>
-    </main>
+        
+        {# Sidebar with Tips #}
+        <div class="lg:col-span-1">
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-civiqo-gray-200 sticky top-8">
+                <h3 class="font-semibold text-civiqo-gray-900 mb-3 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-civiqo-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    {{ t.posts_tips_title | default(value='Suggerimenti') }}
+                </h3>
+                <ul class="space-y-2 text-sm text-civiqo-gray-600">
+                    <li class="flex items-start">
+                        <svg class="w-4 h-4 mr-2 mt-0.5 text-civiqo-eco-green flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        {{ t.posts_tip_1 | default(value='Usa un titolo chiaro e descrittivo') }}
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-4 h-4 mr-2 mt-0.5 text-civiqo-eco-green flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        {{ t.posts_tip_2 | default(value='Sii rispettoso e costruttivo') }}
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-4 h-4 mr-2 mt-0.5 text-civiqo-eco-green flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        {{ t.posts_tip_3 | default(value='Aggiungi immagini per coinvolgere') }}
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-4 h-4 mr-2 mt-0.5 text-civiqo-eco-green flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        {{ t.posts_tip_4 | default(value='Usa Markdown per formattare') }}
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
