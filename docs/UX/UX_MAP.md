@@ -2,11 +2,11 @@
 
 > Documento principale della User Experience. Mantiene la mappa completa delle pagine, flussi e interazioni.
 
-**Ultimo aggiornamento**: 2025-11-28  
-**Versione**: 1.2.0 (Post-Phase 7)  
+**Ultimo aggiornamento**: 2025-12-02  
+**Versione**: 1.3.0 (Single-Community Refactor)  
 **Maintainer**: Agente UX
 
-> ✅ **STATO**: Phase 1-7 Complete - Vedi `UX_AUDIT_REPORT_2025-11-28.md` per analisi dettagliata
+> ✅ **STATO**: Single-Community Refactor Complete - Vedi `UX_AUDIT_SINGLE_COMMUNITY_2025-12-02.md` per analisi dettagliata
 
 > 📁 **Cartella di lavoro**: `docs/UX/`
 
@@ -152,11 +152,11 @@ Moderation Analytics Audit
 | Business Detail | `/businesses/:id` | default, loading, not_found | ✅ | Dettaglio completo |
 | Create Business | `/businesses/new` | form, submitting, success, error | ✅ | Form completo |
 | Admin Dashboard | `/admin` | default, loading | ✅ | Analytics, Moderation, Audit |
+| Instance Settings | `/admin/settings` | form, saving, success, error | ✅ | Solo admin istanza |
 | Notifications | `/notifications` | default, loading, empty | ✅ | Pagina dedicata |
 | POI | `/poi` | default, loading | ⚠️ | Placeholder, non funzionale |
+| Setup Wizard | `/setup` | wizard, submitting, success, error | ✅ | Solo se no community |
 | **Search Results** | `/search` | default, loading, empty | ❌ | **DA CREARE** (solo dropdown) |
-| **Settings** | `/settings` | form | ❌ | **DA CREARE** |
-| **Onboarding** | `/onboarding` | wizard | ❌ | **DA CREARE** |
 
 ---
 
