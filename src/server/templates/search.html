@@ -73,7 +73,7 @@
                     <img src="{{ user.avatar_url }}" alt="{{ user.name }}" class="w-12 h-12 rounded-full object-cover">
                     {% else %}
                     <div class="w-12 h-12 rounded-full bg-civiqo-eco-green/10 text-civiqo-eco-green flex items-center justify-center font-semibold text-lg">
-                        {{ user.name | first | upper | default(value='?') }}
+                        {{ user.name | default(value="?") | truncate(length=1, end="") | upper }}
                     </div>
                     {% endif %}
                     <div class="flex-1 min-w-0">
@@ -100,7 +100,7 @@
                 {% for community in communities %}
                 <a href="/communities/{{ community.id }}" class="flex items-center gap-4 p-4 hover:bg-civiqo-gray-50 transition-colors">
                     <div class="w-12 h-12 rounded-xl bg-civiqo-blue/10 text-civiqo-blue flex items-center justify-center font-semibold text-lg">
-                        {{ community.name | first | upper }}
+                        {{ community.name | truncate(length=1, end="") | upper }}
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="font-medium text-civiqo-gray-900">{{ community.name }}</p>

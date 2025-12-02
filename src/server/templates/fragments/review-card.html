@@ -9,7 +9,7 @@
             <img src="{{ user_avatar }}" alt="{{ user_name }}" class="w-10 h-10 rounded-full object-cover">
             {% else %}
             <div class="w-10 h-10 rounded-full bg-civiqo-blue/10 flex items-center justify-center">
-                <span class="text-civiqo-blue font-medium text-sm">{{ user_name | first | upper }}</span>
+                <span class="text-civiqo-blue font-medium text-sm">{{ user_name | default(value="?") | truncate(length=1, end="") | upper }}</span>
             </div>
             {% endif %}
         </div>

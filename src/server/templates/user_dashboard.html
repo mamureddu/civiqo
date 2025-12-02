@@ -175,7 +175,7 @@
                     <img src="{{ community.logo_url }}" alt="{{ community.name }}" class="w-12 h-12 rounded-lg mr-3 object-cover">
                     {% else %}
                     <div class="w-12 h-12 rounded-lg bg-white/20 flex items-center justify-center mr-3">
-                        <span class="text-xl font-bold">{{ community.name | default(value="C") | first | upper }}</span>
+                        <span class="text-xl font-bold">{{ community.name | default(value="C") | truncate(length=1, end="") | upper }}</span>
                     </div>
                     {% endif %}
                     <div>

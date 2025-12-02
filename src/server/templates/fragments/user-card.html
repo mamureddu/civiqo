@@ -8,7 +8,7 @@
             <img src="{{ avatar_url }}" alt="{{ name }}" class="w-full h-full object-cover">
             {% else %}
             <div class="w-full h-full flex items-center justify-center bg-[#57C98A]/10 text-[#57C98A] font-medium">
-                {{ name | first | upper }}
+                {{ name | default(value="?") | truncate(length=1, end="") | upper }}
             </div>
             {% endif %}
         </div>

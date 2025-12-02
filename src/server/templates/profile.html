@@ -21,7 +21,7 @@
                     <img src="{{ avatar_url }}" alt="{{ profile_name }}" class="w-full h-full object-cover">
                     {% else %}
                     <div class="w-full h-full flex items-center justify-center bg-[#57C98A]/10 text-[#57C98A] text-4xl font-bold">
-                        {{ profile_name | first | upper }}
+                        {{ profile_name | default(value="U") | truncate(length=1, end="") | upper }}
                     </div>
                     {% endif %}
                 </div>

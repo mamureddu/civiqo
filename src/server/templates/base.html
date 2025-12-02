@@ -15,8 +15,38 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Nunito:wght@700&display=swap"
         rel="stylesheet">
 
-    <!-- TailwindCSS (compiled) -->
-    <link rel="stylesheet" href="/static/css/tailwind.css">
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'civiqo-blue': '#2563EB',
+                        'civiqo-green': '#57C98A',
+                        'civiqo-coral': '#FF6B6B',
+                        'civiqo-lilac': '#A78BFA',
+                        'civiqo-gray': {
+                            50: '#F9FAFB',
+                            100: '#F3F4F6',
+                            200: '#E5E7EB',
+                            300: '#D1D5DB',
+                            400: '#9CA3AF',
+                            500: '#6B7280',
+                            600: '#4B5563',
+                            700: '#374151',
+                            800: '#1F2937',
+                            900: '#111827',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        brand: ['Nunito', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
 
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
