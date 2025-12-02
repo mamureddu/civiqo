@@ -187,3 +187,4 @@ config.local.toml
 config.override.toml
 
 
+tailwindcss

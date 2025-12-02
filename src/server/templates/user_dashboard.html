@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.dashboard_title | default(value="Dashboard") }} | {{ community.name | default(value="Civiqo") }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-8">
+    <!-- Welcome Header -->
+    <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6 mb-8">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-brand font-bold text-civiqo-gray-900">
+                    {{ t.dashboard_welcome | default(value="Ciao") }}, {{ username }}!
+                </h1>
+                <p class="text-civiqo-gray-600 mt-1">
+                    {{ t.dashboard_subtitle | default(value="Ecco cosa succede nella tua community") }}
+                </p>
+            </div>
+            {% if is_admin %}
+            <a href="/admin/settings" 
+               class="inline-flex items-center px-4 py-2 bg-civiqo-gray-100 text-civiqo-gray-700 rounded-lg hover:bg-civiqo-gray-200 transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                {{ t.settings_title | default(value="Impostazioni") }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-civiqo-blue/10 rounded-xl p-3">
+                    <svg class="h-6 w-6 text-civiqo-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-civiqo-gray-600">{{ t.community_members | default(value="Membri") }}</p>
+                    <p class="text-2xl font-semibold text-civiqo-gray-900">{{ community.member_count | default(value=0) }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-civiqo-coral/10 rounded-xl p-3">
+                    <svg class="h-6 w-6 text-civiqo-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-civiqo-gray-600">{{ t.proposals_title | default(value="Proposte") }}</p>
+                    <p class="text-2xl font-semibold text-civiqo-gray-900" hx-get="/htmx/stats/proposals" hx-trigger="load" hx-swap="innerHTML">-</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 bg-civiqo-eco-green/10 rounded-xl p-3">
+                    <svg class="h-6 w-6 text-civiqo-eco-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-civiqo-gray-600">{{ t.nav_chat | default(value="Chat") }}</p>
+                    <p class="text-2xl font-semibold text-civiqo-gray-900" hx-get="/htmx/stats/messages" hx-trigger="load" hx-swap="innerHTML">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid md:grid-cols-3 gap-8">
+        <!-- Left Column: Activity -->
+        <div class="md:col-span-2 space-y-6">
+            <!-- My Activity -->
+            <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-civiqo-gray-900 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-civiqo-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        {{ t.dashboard_section_activity | default(value="La tua attività") }}
+                    </h2>
+                </div>
+                <div hx-get="/htmx/user/activity" hx-trigger="load" hx-swap="innerHTML" class="space-y-4">
+                    <div class="animate-pulse space-y-3">
+                        <div class="h-12 bg-civiqo-gray-100 rounded-lg"></div>
+                        <div class="h-12 bg-civiqo-gray-100 rounded-lg"></div>
+                        <div class="h-12 bg-civiqo-gray-100 rounded-lg"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Proposals to Vote -->
+            <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-civiqo-gray-900 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-civiqo-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                        </svg>
+                        {{ t.governance_proposals_to_vote | default(value="Proposte da votare") }}
+                    </h2>
+                    <a href="/governance" class="text-sm text-civiqo-blue hover:underline">
+                        {{ t.action_view_all | default(value="Vedi tutte") }} →
+                    </a>
+                </div>
+                <div hx-get="/htmx/dashboard/active-proposals" hx-trigger="load" hx-swap="innerHTML" class="space-y-4">
+                    <div class="animate-pulse space-y-3">
+                        <div class="h-16 bg-civiqo-gray-100 rounded-lg"></div>
+                        <div class="h-16 bg-civiqo-gray-100 rounded-lg"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Quick Actions & Info -->
+        <div class="space-y-6">
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-civiqo-gray-900 mb-4">{{ t.dashboard_quick_actions | default(value="Azioni rapide") }}</h2>
+                <div class="space-y-3">
+                    <a href="/governance/proposals/create" 
+                       class="flex items-center p-3 rounded-lg hover:bg-civiqo-gray-50 transition-colors group">
+                        <div class="w-10 h-10 bg-civiqo-coral/10 rounded-lg flex items-center justify-center mr-3 group-hover:bg-civiqo-coral/20">
+                            <svg class="w-5 h-5 text-civiqo-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-medium text-civiqo-gray-900">{{ t.proposals_create | default(value="Nuova proposta") }}</p>
+                            <p class="text-sm text-civiqo-gray-600">{{ t.proposals_create_hint | default(value="Proponi un'idea") }}</p>
+                        </div>
+                    </a>
+                    
+                    <a href="/chat" 
+                       class="flex items-center p-3 rounded-lg hover:bg-civiqo-gray-50 transition-colors group">
+                        <div class="w-10 h-10 bg-civiqo-eco-green/10 rounded-lg flex items-center justify-center mr-3 group-hover:bg-civiqo-eco-green/20">
+                            <svg class="w-5 h-5 text-civiqo-eco-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-medium text-civiqo-gray-900">{{ t.nav_chat | default(value="Chat") }}</p>
+                            <p class="text-sm text-civiqo-gray-600">{{ t.chat_subtitle | default(value="Partecipa alla discussione") }}</p>
+                        </div>
+                    </a>
+                    
+                    <a href="/profile" 
+                       class="flex items-center p-3 rounded-lg hover:bg-civiqo-gray-50 transition-colors group">
+                        <div class="w-10 h-10 bg-civiqo-blue/10 rounded-lg flex items-center justify-center mr-3 group-hover:bg-civiqo-blue/20">
+                            <svg class="w-5 h-5 text-civiqo-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-medium text-civiqo-gray-900">{{ t.nav_profile | default(value="Profilo") }}</p>
+                            <p class="text-sm text-civiqo-gray-600">{{ t.profile_edit | default(value="Modifica il tuo profilo") }}</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Community Info -->
+            <div class="bg-gradient-to-br from-civiqo-blue to-civiqo-blue-dark rounded-xl shadow-sm p-6 text-white">
+                <div class="flex items-center mb-4">
+                    {% if community.logo_url %}
+                    <img src="{{ community.logo_url }}" alt="{{ community.name }}" class="w-12 h-12 rounded-lg mr-3 object-cover">
+                    {% else %}
+                    <div class="w-12 h-12 rounded-lg bg-white/20 flex items-center justify-center mr-3">
+                        <span class="text-xl font-bold">{{ community.name | default(value="C") | first | upper }}</span>
+                    </div>
+                    {% endif %}
+                    <div>
+                        <h3 class="font-semibold">{{ community.name | default(value="Community") }}</h3>
+                        <p class="text-sm text-white/80">{{ community.member_count | default(value=0) }} {{ t.community_members | default(value="membri") }}</p>
+                    </div>
+                </div>
+                <p class="text-sm text-white/90 mb-4">{{ community.description | default(value="") | truncate(length=100) }}</p>
+                <a href="/" class="inline-flex items-center text-sm font-medium hover:underline">
+                    {{ t.action_view_all | default(value="Vai alla community") }} →
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

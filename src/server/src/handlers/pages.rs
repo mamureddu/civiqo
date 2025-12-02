@@ -16,80 +16,92 @@ pub struct AppState {
     pub db: Database,
 }
 
-/// Home page
+/// Home page - Single Community Mode
+/// If setup not completed -> redirect to /setup
+/// If setup completed -> show the single community page
 pub async fn index(
     LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
-    tracing::info!("Rendering index page");
+    tracing::info!("Rendering index page (single-community mode)");
     
-    let mut ctx = Context::new();
-    
-    // Add i18n context
-    add_i18n_context(&mut ctx, &locale);
-    
-    // Add auth info to context
-    if let Some(user) = user {
-        ctx.insert("logged_in", &true);
-        ctx.insert("username", &user.name.unwrap_or(user.email.clone()));
-        ctx.insert("picture", &user.picture);
-    } else {
-        ctx.insert("logged_in", &false);
-    }
-    
-    let html = state.tera.render("index.html", &ctx)?;
-    tracing::info!("Index page rendered successfully");
-    Ok(Html(html).into_response())
-}
-
-/// Communities list page
-pub async fn communities(
-    LocaleExtractor(locale): LocaleExtractor,
-    OptionalAuthUser(user): OptionalAuthUser,
-    State(state): State<Arc<AppState>>,
-) -> Result<Response, AppError> {
-    use sqlx::Row;
-    
-    let mut ctx = Context::new();
-    add_i18n_context(&mut ctx, &locale);
-    
-    // Add auth info to context
-    if let Some(user) = user {
-        ctx.insert("logged_in", &true);
-        ctx.insert("username", &user.name.unwrap_or(user.email.clone()));
-        ctx.insert("picture", &user.picture);
-    } else {
-        ctx.insert("logged_in", &false);
-    }
-    
-    // Fetch all communities from database
-    let communities = sqlx::query(
-        "SELECT c.id, c.name, c.description, c.created_at, 
-                COALESCE(p.name, u.email) as creator_name 
-         FROM communities c 
-         LEFT JOIN users u ON c.created_by = u.id 
-         LEFT JOIN user_profiles p ON u.id = p.user_id
-         ORDER BY c.created_at DESC"
+    // Check if setup is completed
+    let setup_completed: bool = sqlx::query_scalar(
+        "SELECT COALESCE(value = 'true', false) FROM instance_settings WHERE key = 'setup_completed'"
     )
-    .fetch_all(&state.db.pool)
+    .fetch_optional(&state.db.pool)
     .await
-    .unwrap_or_default();
+    .unwrap_or(None)
+    .unwrap_or(false);
     
-    let communities_data: Vec<serde_json::Value> = communities.iter().map(|row| {
-        serde_json::json!({
+    if !setup_completed {
+        tracing::info!("Setup not completed, redirecting to /setup");
+        return Ok(axum::response::Redirect::to("/setup").into_response());
+    }
+    
+    // Get the single community
+    let community = sqlx::query(
+        "SELECT c.id, c.name, c.description, c.slug, c.is_public, 
+                c.logo_url, c.cover_url, c.primary_color, c.secondary_color, c.accent_color,
+                c.created_at, COUNT(DISTINCT m.user_id) as member_count
+         FROM communities c
+         LEFT JOIN community_members m ON c.id = m.community_id
+         GROUP BY c.id
+         ORDER BY c.created_at ASC
+         LIMIT 1"
+    )
+    .fetch_optional(&state.db.pool)
+    .await
+    .unwrap_or(None);
+    
+    let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
+    
+    // Add auth info to context
+    if let Some(ref u) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("picture", &u.picture);
+        ctx.insert("user_id", &u.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    if let Some(row) = community {
+        let community_data = serde_json::json!({
             "id": row.get::<uuid::Uuid, _>("id").to_string(),
             "name": row.get::<String, _>("name"),
             "description": row.get::<Option<String>, _>("description").unwrap_or_default(),
-            "creator_name": row.get::<Option<String>, _>("creator_name").unwrap_or_else(|| "Unknown".to_string()),
-            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d").to_string(),
-        })
-    }).collect();
+            "slug": row.get::<String, _>("slug"),
+            "is_public": row.get::<bool, _>("is_public"),
+            "logo_url": row.get::<Option<String>, _>("logo_url"),
+            "cover_url": row.get::<Option<String>, _>("cover_url"),
+            "primary_color": row.get::<Option<String>, _>("primary_color").unwrap_or_else(|| "#2563EB".to_string()),
+            "secondary_color": row.get::<Option<String>, _>("secondary_color").unwrap_or_else(|| "#57C98A".to_string()),
+            "accent_color": row.get::<Option<String>, _>("accent_color").unwrap_or_else(|| "#FF6B6B".to_string()),
+            "member_count": row.get::<i64, _>("member_count"),
+        });
+        ctx.insert("community", &community_data);
+        ctx.insert("has_community", &true);
+    } else {
+        ctx.insert("has_community", &false);
+    }
     
-    ctx.insert("communities", &communities_data);
-    
-    let html = state.tera.render("communities.html", &ctx)?;
+    let html = state.tera.render("community_home.html", &ctx)?;
+    tracing::info!("Community home page rendered successfully");
     Ok(Html(html).into_response())
+}
+
+/// Communities list page - DEPRECATED in single-community mode
+/// Redirects to home page (the single community)
+pub async fn communities(
+    _locale: LocaleExtractor,
+    _user: OptionalAuthUser,
+    _state: State<Arc<AppState>>,
+) -> Response {
+    tracing::info!("Redirecting /communities to / (single-community mode)");
+    axum::response::Redirect::permanent("/").into_response()
 }
 
 /// Chat rooms list page
@@ -196,6 +208,7 @@ pub async fn create_community(
 }
 
 /// User dashboard page (PROTECTED - requires authentication)
+/// Single-community mode: shows user's activity in the single community
 pub async fn dashboard(
     LocaleExtractor(locale): LocaleExtractor,
     AuthUser(user): AuthUser, // Requires authentication
@@ -204,6 +217,19 @@ pub async fn dashboard(
     use sqlx::Row;
     
     tracing::info!("Rendering dashboard page for user: {}", user.user_id);
+    
+    // Check if setup is completed
+    let setup_completed: bool = sqlx::query_scalar(
+        "SELECT COALESCE(value = 'true', false) FROM instance_settings WHERE key = 'setup_completed'"
+    )
+    .fetch_optional(&state.db.pool)
+    .await
+    .unwrap_or(None)
+    .unwrap_or(false);
+    
+    if !setup_completed {
+        return Ok(axum::response::Redirect::to("/setup").into_response());
+    }
     
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
@@ -219,35 +245,58 @@ pub async fn dashboard(
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
     
-    // Fetch user's communities from database
-    let communities = sqlx::query(
-        "SELECT c.id, c.name, c.description, c.created_at, COUNT(DISTINCT m.user_id) as member_count
+    // Get the single community
+    let community = sqlx::query(
+        "SELECT c.id, c.name, c.description, c.slug, c.is_public, 
+                c.logo_url, c.cover_url, c.primary_color,
+                COUNT(DISTINCT m.user_id) as member_count
          FROM communities c
          LEFT JOIN community_members m ON c.id = m.community_id
-         WHERE c.created_by = $1
-         GROUP BY c.id, c.name, c.description, c.created_at
-         ORDER BY c.created_at DESC
-         LIMIT 10"
+         GROUP BY c.id
+         ORDER BY c.created_at ASC
+         LIMIT 1"
     )
-    .bind(user_uuid)
-    .fetch_all(&state.db.pool)
+    .fetch_optional(&state.db.pool)
     .await
-    .unwrap_or_default();
+    .unwrap_or(None);
     
-    let communities_data: Vec<serde_json::Value> = communities.iter().map(|row| {
-        serde_json::json!({
-            "id": row.get::<uuid::Uuid, _>("id").to_string(),
+    if let Some(row) = community {
+        let community_id = row.get::<uuid::Uuid, _>("id");
+        let community_data = serde_json::json!({
+            "id": community_id.to_string(),
             "name": row.get::<String, _>("name"),
             "description": row.get::<Option<String>, _>("description").unwrap_or_default(),
+            "slug": row.get::<String, _>("slug"),
+            "is_public": row.get::<bool, _>("is_public"),
+            "logo_url": row.get::<Option<String>, _>("logo_url"),
+            "primary_color": row.get::<Option<String>, _>("primary_color").unwrap_or_else(|| "#2563EB".to_string()),
             "member_count": row.get::<i64, _>("member_count"),
-            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d").to_string(),
-        })
-    }).collect();
+        });
+        ctx.insert("community", &community_data);
+        
+        // Check if user is member
+        let is_member: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2)"
+        )
+        .bind(community_id)
+        .bind(user_uuid)
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(false);
+        ctx.insert("is_member", &is_member);
+        
+        // Check if user is admin
+        let is_admin: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM instance_admins WHERE user_id = $1)"
+        )
+        .bind(user_uuid)
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(false);
+        ctx.insert("is_admin", &is_admin);
+    }
     
-    ctx.insert("communities", &communities_data);
-    ctx.insert("communities_count", &communities_data.len());
-    
-    let html = state.tera.render("dashboard.html", &ctx)?;
+    let html = state.tera.render("user_dashboard.html", &ctx)?;
     tracing::info!("Dashboard page rendered successfully");
     Ok(Html(html).into_response())
 }
@@ -929,9 +978,8 @@ pub async fn post_detail(
     // Check if admin
     let is_admin = if let Some(user_id) = user_uuid {
         sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM community_members cm
-             JOIN roles r ON cm.role_id = r.id
-             WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name IN ('admin', 'owner')"
+            "SELECT COUNT(*) FROM community_members
+             WHERE community_id = $1 AND user_id = $2 AND role IN ('admin', 'owner')"
         )
         .bind(community_id)
         .bind(user_id)

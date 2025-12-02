@@ -300,42 +300,13 @@ pub async fn create_community(
         }
     };
 
-    // Get admin role ID (roles.id is BIGINT)
-    let admin_role_result: Result<i64, _> = sqlx::query_scalar(
-        "SELECT id FROM roles WHERE name = 'admin' LIMIT 1"
-    )
-    .fetch_one(&mut *tx)
-    .await;
-
-    let admin_role_id = match admin_role_result {
-        Ok(role_id) => role_id,
-        Err(_) => {
-            tracing::error!("Admin role not found in database");
-            tx.rollback().await
-                .map_err(|rollback_err| {
-                    tracing::error!("Failed to rollback transaction: {}", rollback_err);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-
-            return Ok((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiResponse {
-                    success: false,
-                    data: None,
-                    message: Some("Failed to set up community permissions".to_string()),
-                }),
-            ));
-        }
-    };
-
-    // Add creator as admin member (id is auto-generated BIGINT)
+    // Add creator as admin member (using ENUM directly)
     let membership_result = sqlx::query(
-        "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at) 
-         VALUES ($1, $2, $3, 'active', NOW())"
+        "INSERT INTO community_members (user_id, community_id, role, status, joined_at) 
+         VALUES ($1, $2, 'admin', 'active', NOW())"
     )
     .bind(creator_id)
     .bind(community_id)
-    .bind(admin_role_id)
     .execute(&mut *tx)
     .await;
 
@@ -981,26 +952,14 @@ pub async fn join_community(
         ));
     }
 
-    // Get member role ID
-    let member_role_id: i64 = sqlx::query_scalar(
-        "SELECT id FROM roles WHERE name = 'member' LIMIT 1"
-    )
-    .fetch_one(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to get member role: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    // Insert membership
+    // Insert membership (using ENUM directly)
     let result = sqlx::query(
-        "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at)
-         VALUES ($1, $2, $3, 'active', NOW())
+        "INSERT INTO community_members (user_id, community_id, role, status, joined_at)
+         VALUES ($1, $2, 'member', 'active', NOW())
          RETURNING joined_at"
     )
     .bind(user_uuid)
     .bind(community_id)
-    .bind(member_role_id)
     .fetch_one(&state.db.pool)
     .await;
 
@@ -1069,11 +1028,10 @@ pub async fn leave_community(
         ));
     }
 
-    // Check if user is the only admin
+    // Check if user is the only admin/owner
     let admin_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM community_members cm
-         JOIN roles r ON cm.role_id = r.id
-         WHERE cm.community_id = $1 AND r.name = 'admin'"
+        "SELECT COUNT(*) FROM community_members
+         WHERE community_id = $1 AND role IN ('admin', 'owner')"
     )
     .bind(community_id)
     .fetch_one(&state.db.pool)
@@ -1084,12 +1042,11 @@ pub async fn leave_community(
     })?;
 
     if admin_count == 1 {
-        // Check if this user is the admin
+        // Check if this user is the admin/owner
         let is_admin: bool = sqlx::query_scalar(
             "SELECT EXISTS(
-                SELECT 1 FROM community_members cm
-                JOIN roles r ON cm.role_id = r.id
-                WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
+                SELECT 1 FROM community_members
+                WHERE community_id = $1 AND user_id = $2 AND role IN ('admin', 'owner')
             )"
         )
         .bind(community_id)
@@ -1205,10 +1162,9 @@ pub async fn list_members(
 
     // Fetch members
     let rows = sqlx::query(
-        "SELECT cm.user_id, u.email, r.name as role, cm.joined_at
+        "SELECT cm.user_id, u.email, cm.role::text as role, cm.joined_at
          FROM community_members cm
          JOIN users u ON cm.user_id = u.id
-         JOIN roles r ON cm.role_id = r.id
          WHERE cm.community_id = $1 AND cm.status = 'active'
          ORDER BY cm.joined_at DESC"
     )
@@ -1249,12 +1205,11 @@ pub async fn update_member_role(
     let user_uuid = Uuid::parse_str(&user.user_id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Check requester is admin
+    // Check requester is admin/owner
     let is_admin: bool = sqlx::query_scalar(
         "SELECT EXISTS(
-            SELECT 1 FROM community_members cm
-            JOIN roles r ON cm.role_id = r.id
-            WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
+            SELECT 1 FROM community_members
+            WHERE community_id = $1 AND user_id = $2 AND role IN ('admin', 'owner')
         )"
     )
     .bind(community_id)
@@ -1295,34 +1250,21 @@ pub async fn update_member_role(
         }));
     }
 
-    // Get role ID
-    let role_id: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM roles WHERE name = $1 LIMIT 1"
+    // Validate role is valid ENUM value
+    let valid_roles = ["owner", "admin", "moderator", "member"];
+    if !valid_roles.contains(&payload.role.as_str()) {
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some(format!("Invalid role: {}. Valid roles: owner, admin, moderator, member", payload.role)),
+        }));
+    }
+
+    // Update role (using ENUM directly)
+    let result = sqlx::query(
+        "UPDATE community_members SET role = $1::member_role WHERE community_id = $2 AND user_id = $3"
     )
     .bind(&payload.role)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch role: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    let role_id = match role_id {
-        Some(id) => id,
-        None => {
-            return Ok(Json(ApiResponse {
-                success: false,
-                data: None,
-                message: Some(format!("Invalid role: {}", payload.role)),
-            }));
-        }
-    };
-
-    // Update role
-    let result = sqlx::query(
-        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3"
-    )
-    .bind(role_id)
     .bind(community_id)
     .bind(member_id)
     .execute(&state.db.pool)

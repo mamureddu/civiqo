@@ -43,26 +43,29 @@ pub async fn check_community_permission(
     community_id: Uuid,
     required_permission: &str,
 ) -> Result<bool> {
-    let has_permission = sqlx::query!(
-        r#"
-        SELECT 1 as has_permission
-        FROM community_members cm
-        JOIN roles r ON cm.role_id = r.id
-        WHERE cm.user_id = $1
-          AND cm.community_id = $2
-          AND cm.status = 'active'
-          AND (
-            r.permissions @> $3::jsonb
-            OR r.permissions @> '["all"]'::jsonb
-          )
-        "#,
-        user_id,
-        community_id,
-        serde_json::json!([required_permission])
+    // Permission mapping based on role ENUM
+    // owner/admin: all permissions
+    // moderator: manage_content, moderate
+    // member: read, write, vote
+    let allowed_roles = match required_permission {
+        "all" | "manage_members" | "manage_settings" => vec!["owner", "admin"],
+        "manage_content" | "moderate" => vec!["owner", "admin", "moderator"],
+        "read" | "write" | "vote" => vec!["owner", "admin", "moderator", "member"],
+        _ => vec!["owner", "admin"], // Default to admin-only for unknown permissions
+    };
+    
+    let has_permission: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM community_members
+            WHERE user_id = $1 AND community_id = $2 AND status = 'active'
+            AND role::text = ANY($3)
+        )"
     )
-    .fetch_optional(&state.db.pool)
-    .await?
-    .is_some();
+    .bind(user_id)
+    .bind(community_id)
+    .bind(&allowed_roles)
+    .fetch_one(&state.db.pool)
+    .await?;
 
     Ok(has_permission)
 }

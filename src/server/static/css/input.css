@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Civiqo Custom Colors */
+@layer base {
+  :root {
+    --civiqo-blue: #2563EB;
+    --civiqo-blue-dark: #1D4ED8;
+    --civiqo-eco-green: #57C98A;
+    --civiqo-coral: #FF6B6B;
+    --civiqo-lilac: #A78BFA;
+    --civiqo-gray-50: #F9FAFB;
+    --civiqo-gray-100: #F3F4F6;
+    --civiqo-gray-200: #E5E7EB;
+    --civiqo-gray-300: #D1D5DB;
+    --civiqo-gray-400: #9CA3AF;
+    --civiqo-gray-500: #6B7280;
+    --civiqo-gray-600: #4B5563;
+    --civiqo-gray-700: #374151;
+    --civiqo-gray-800: #1F2937;
+    --civiqo-gray-900: #111827;
+  }
+}
+
+/* Custom utility classes */
+@layer utilities {
+  .font-brand {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}

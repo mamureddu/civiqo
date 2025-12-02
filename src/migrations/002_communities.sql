@@ -41,7 +41,7 @@ CREATE TABLE community_members (
     id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
     community_id UUID NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role_id BIGINT NOT NULL REFERENCES roles(id),
+    role member_role NOT NULL DEFAULT 'member',
     status VARCHAR(50) DEFAULT 'active',  -- 'active', 'pending', 'banned'
     joined_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -51,7 +51,7 @@ CREATE TABLE community_members (
 
 CREATE INDEX idx_community_members_community ON community_members(community_id);
 CREATE INDEX idx_community_members_user ON community_members(user_id);
-CREATE INDEX idx_community_members_role ON community_members(role_id);
+CREATE INDEX idx_community_members_role ON community_members(role);
 CREATE INDEX idx_community_members_status ON community_members(status);
 
 -- ============================================================================

@@ -66,18 +66,7 @@ CREATE INDEX idx_user_keys_user_id ON user_keys(user_id);
 CREATE INDEX idx_user_keys_type ON user_keys(key_type);
 
 -- ============================================================================
--- ROLES (BIGINT - DB generates, app uses RETURNING)
+-- MEMBER ROLE ENUM (no table needed, just an enum type)
 -- ============================================================================
 
-CREATE TABLE roles (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
-    name VARCHAR(255) NOT NULL UNIQUE,
-    description TEXT,
-    permissions JSONB,
-    is_default BOOLEAN DEFAULT false,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_roles_name ON roles(name);
-CREATE INDEX idx_roles_is_default ON roles(is_default);
+CREATE TYPE member_role AS ENUM ('owner', 'admin', 'moderator', 'member');

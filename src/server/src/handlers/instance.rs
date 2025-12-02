@@ -120,9 +120,8 @@ pub async fn is_instance_admin(state: &AppState, user_id: &str) -> bool {
     
     // Also check if user is community owner/admin
     let is_community_admin: i64 = sqlx::query_scalar(
-        r#"SELECT COUNT(*) FROM community_members cm
-           JOIN roles r ON cm.role_id = r.id
-           WHERE cm.user_id = $1 AND r.name IN ('owner', 'admin')"#
+        r#"SELECT COUNT(*) FROM community_members
+           WHERE user_id = $1 AND role IN ('owner', 'admin')"#
     )
     .bind(user_uuid)
     .fetch_one(&state.db.pool)
@@ -239,23 +238,13 @@ pub async fn complete_setup(
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create community: {}", e)))?;
     
-    // Get owner role
-    let owner_role_id: i64 = sqlx::query_scalar(
-        "SELECT id FROM roles WHERE name = 'owner'"
-    )
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?
-    .unwrap_or(1); // Fallback to role 1 if owner doesn't exist
-    
-    // Add user as owner
+    // Add user as owner (using ENUM directly)
     sqlx::query(
-        r#"INSERT INTO community_members (community_id, user_id, role_id, status)
-           VALUES ($1, $2, $3, 'active')"#
+        r#"INSERT INTO community_members (community_id, user_id, role, status)
+           VALUES ($1, $2, 'owner', 'active')"#
     )
     .bind(community_id)
     .bind(user_uuid)
-    .bind(owner_role_id)
     .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to add owner: {}", e)))?;

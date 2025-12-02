@@ -252,7 +252,7 @@ pub async fn delete_comment(
 
     let is_author = author_id == user_uuid;
     let is_admin: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM community_members cm JOIN roles r ON cm.role_id = r.id WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name IN ('admin', 'owner'))"
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND role IN ('admin', 'owner'))"
     ).bind(community_id).bind(user_uuid).fetch_one(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if !is_author && !is_admin {
