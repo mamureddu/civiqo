@@ -539,6 +539,8 @@ pub async fn governance(
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
+    use sqlx::Row;
+    
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
     
@@ -550,6 +552,23 @@ pub async fn governance(
         ctx.insert("user_id", &user.user_id);
     } else {
         ctx.insert("logged_in", &false);
+    }
+    
+    // Single-community mode: fetch the community for proposal creation
+    let community = sqlx::query(
+        "SELECT id, name, slug FROM communities ORDER BY created_at ASC LIMIT 1"
+    )
+    .fetch_optional(&state.db.pool)
+    .await
+    .unwrap_or(None);
+    
+    if let Some(row) = community {
+        let community_data = serde_json::json!({
+            "id": row.get::<uuid::Uuid, _>("id").to_string(),
+            "name": row.get::<String, _>("name"),
+            "slug": row.get::<String, _>("slug"),
+        });
+        ctx.insert("community", &community_data);
     }
     
     // Fetch governance stats from database

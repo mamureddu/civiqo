@@ -109,7 +109,7 @@
                     </svg>
                     {{ t.posts_title | default(value="Post recenti") }}
                 </h2>
-                <div hx-get="/htmx/community/{{ community.id }}/posts" hx-trigger="load" hx-swap="innerHTML" class="space-y-4">
+                <div hx-get="/htmx/communities/{{ community.id }}/feed" hx-trigger="load" hx-swap="innerHTML" class="space-y-4">
                     <div class="animate-pulse space-y-3">
                         <div class="h-16 bg-civiqo-gray-100 rounded-lg"></div>
                         <div class="h-16 bg-civiqo-gray-100 rounded-lg"></div>
@@ -125,7 +125,7 @@
                     </svg>
                     {{ t.proposals_title | default(value="Proposte attive") }}
                 </h2>
-                <div hx-get="/htmx/community/{{ community.id }}/proposals" hx-trigger="load" hx-swap="innerHTML" class="space-y-4">
+                <div hx-get="/htmx/communities/{{ community.id }}/proposals" hx-trigger="load" hx-swap="innerHTML" class="space-y-4">
                     <div class="animate-pulse space-y-3">
                         <div class="h-16 bg-civiqo-gray-100 rounded-lg"></div>
                         <div class="h-16 bg-civiqo-gray-100 rounded-lg"></div>
