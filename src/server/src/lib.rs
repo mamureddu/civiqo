@@ -33,7 +33,7 @@ pub struct ApiState {
 /// Create the full application router for testing
 /// This mirrors the router in main.rs
 pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Send + Sync>> {
-    use handlers::{pages, htmx, api, posts, comments, reactions, proposals, businesses, stubs::health_check};
+    use handlers::{pages, htmx, api, posts, comments, reactions, proposals, businesses, admin, stubs::health_check};
     use auth::{login, callback, logout};
     
     // Load environment
@@ -110,7 +110,9 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/chat", get(pages::chat_list))
         .route("/chat/{room_id}", get(pages::chat_room))
         .route("/governance", get(pages::governance))
+        .route("/governance/{id}", get(pages::proposal_detail))
         .route("/poi", get(pages::poi))
+        .route("/admin", get(pages::admin_dashboard))
         .route("/test-db", get(pages::test_db))
         // User profile pages
         .route("/users/{id}", get(pages::user_profile))
@@ -164,6 +166,8 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         // Community businesses and chat HTMX fragments
         .route("/htmx/communities/{id}/businesses", get(htmx::community_businesses))
         .route("/htmx/communities/{id}/chat", get(htmx::community_chat))
+        // Admin HTMX fragments
+        .route("/htmx/admin/dashboard", get(admin::admin_dashboard_fragment))
         
         // REST API Endpoints
         .route("/api/users", get(api::get_users))
@@ -239,6 +243,15 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/api/businesses/{id}/orders", post(businesses::create_order))
         .route("/api/orders", get(businesses::list_user_orders))
         .route("/api/orders/{id}/status", put(businesses::update_order_status))
+        
+        // Admin/Analytics endpoints (Phase 7)
+        .route("/api/admin/analytics/summary", get(admin::get_analytics_summary))
+        .route("/api/admin/analytics/events", get(admin::list_analytics_events))
+        .route("/api/analytics/track", post(admin::track_event))
+        .route("/api/admin/moderation", get(admin::list_moderation_queue))
+        .route("/api/admin/moderation/{id}", put(admin::update_moderation_item))
+        .route("/api/report", post(admin::report_content))
+        .route("/api/admin/audit-logs", get(admin::list_audit_logs))
         
         // Fallback for 404
         .fallback(pages::not_found)

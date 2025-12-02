@@ -1214,7 +1214,8 @@ async fn test_view_interaction_18_chat_header() {
 #[tokio::test]
 async fn test_view_interaction_chat_page() {
     let server = create_server().await;
-    let response = server.get("/chat/test-room").await;
+    // Use a valid UUID format for room_id
+    let response = server.get("/chat/00000000-0000-0000-0000-000000000001").await;
     
     response.assert_status_success();
     let body = response.text();
