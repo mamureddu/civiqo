@@ -121,8 +121,8 @@
     {% endif %}
 </div>
 
+{% if logged_in %}
 <script>
-    {% if logged_in %}
     // Auto-generate slug from name
     document.getElementById('community-name').addEventListener('input', (e) => {
         const slugInput = document.getElementById('community-slug');
@@ -182,6 +182,6 @@
             resultDiv.innerHTML = '<div class="p-4 bg-civiqo-coral/10 text-civiqo-coral border border-civiqo-coral rounded-lg">Network error. Please try again.</div>';
         }
     });
-    {% endif %}
 </script>
+{% endif %}
 {% endblock %}
