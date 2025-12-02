@@ -1618,3 +1618,78 @@ pub async fn admin_dashboard(
     let html = state.tera.render("admin.html", &ctx)?;
     Ok(Html(html).into_response())
 }
+
+// =============================================================================
+// SETUP & INSTANCE SETTINGS PAGES
+// =============================================================================
+
+/// Setup wizard page (shown when no community exists)
+pub async fn setup_page(
+    LocaleExtractor(locale): LocaleExtractor,
+    OptionalAuthUser(user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    use crate::handlers::instance::is_setup_completed;
+    
+    // If setup already completed, redirect to home
+    if is_setup_completed(&state).await {
+        return Ok(axum::response::Redirect::to("/").into_response());
+    }
+    
+    let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
+    
+    if let Some(user) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &user.name.unwrap_or(user.email.clone()));
+        ctx.insert("picture", &user.picture);
+        ctx.insert("user_id", &user.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+    
+    let html = state.tera.render("setup.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+
+/// Instance settings page (admin only)
+pub async fn instance_settings_page(
+    LocaleExtractor(locale): LocaleExtractor,
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Response, AppError> {
+    use crate::handlers::instance::{is_instance_admin, get_community};
+    
+    // Check admin permission
+    if !is_instance_admin(&state, &user.user_id).await {
+        return Err(AppError::BadRequest("Accesso non autorizzato".to_string()));
+    }
+    
+    let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
+    ctx.insert("logged_in", &true);
+    ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
+    ctx.insert("picture", &user.picture);
+    ctx.insert("user_id", &user.user_id);
+    
+    // Get community data
+    if let Some(row) = get_community(&state).await {
+        let community = serde_json::json!({
+            "id": row.get::<uuid::Uuid, _>("id").to_string(),
+            "name": row.get::<String, _>("name"),
+            "description": row.get::<Option<String>, _>("description"),
+            "slug": row.get::<String, _>("slug"),
+            "is_public": row.get::<bool, _>("is_public"),
+            "requires_approval": row.get::<bool, _>("requires_approval"),
+            "logo_url": row.get::<Option<String>, _>("logo_url"),
+            "cover_url": row.get::<Option<String>, _>("cover_url"),
+            "primary_color": row.get::<Option<String>, _>("primary_color").unwrap_or_else(|| "#2563EB".to_string()),
+            "secondary_color": row.get::<Option<String>, _>("secondary_color").unwrap_or_else(|| "#57C98A".to_string()),
+            "accent_color": row.get::<Option<String>, _>("accent_color").unwrap_or_else(|| "#FF6B6B".to_string()),
+        });
+        ctx.insert("community", &community);
+    }
+    
+    let html = state.tera.render("admin/instance_settings.html", &ctx)?;
+    Ok(Html(html).into_response())
+}

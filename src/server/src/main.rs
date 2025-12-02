@@ -17,7 +17,7 @@ mod auth;
 mod i18n;
 mod i18n_tera;
 
-use handlers::{pages, htmx, api, posts, comments, reactions, proposals, businesses, admin, stubs::health_check};
+use handlers::{pages, htmx, api, posts, comments, reactions, proposals, businesses, admin, instance, stubs::health_check};
 use auth::{login, callback, logout}; // Auth handlers
 use i18n::{locale_middleware, get_available_languages};
 
@@ -129,6 +129,8 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/governance/{id}", get(pages::proposal_detail))
         .route("/poi", get(pages::poi))
         .route("/admin", get(pages::admin_dashboard))
+        .route("/admin/settings", get(pages::instance_settings_page))
+        .route("/setup", get(pages::setup_page))
         .route("/test-db", get(pages::test_db))
         // User profile pages
         .route("/users/{id}", get(pages::user_profile))
@@ -259,6 +261,14 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/api/admin/moderation/{id}", put(admin::update_moderation_item))
         .route("/api/report", post(admin::report_content))
         .route("/api/admin/audit-logs", get(admin::list_audit_logs))
+        
+        // Instance/Setup endpoints (Single-community)
+        .route("/api/instance", get(instance::get_instance_info))
+        .route("/api/setup", post(instance::complete_setup))
+        .route("/api/instance/settings", get(instance::get_instance_settings))
+        .route("/api/instance/settings", put(instance::update_instance_settings))
+        .route("/api/instance/federation", get(instance::get_federation_config))
+        .route("/api/instance/federation", put(instance::update_federation_config))
         
         // i18n endpoints
         .route("/api/set-language", post(set_language))

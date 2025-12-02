@@ -18,3 +18,4 @@ pub mod reactions;
 pub mod proposals;
 pub mod businesses;
 pub mod admin;
+pub mod instance;
