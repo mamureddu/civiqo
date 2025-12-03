@@ -223,8 +223,8 @@ pub async fn callback(
 
     info!("Session created successfully for user: {}", local_user_id);
     
-    // Redirect to dashboard after successful login
-    Redirect::to("/dashboard").into_response()
+    // Redirect to home after successful login
+    Redirect::to("/").into_response()
 }
 
 /// Sync Auth0 user to local database

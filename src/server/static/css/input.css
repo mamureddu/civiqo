@@ -1,25 +1,53 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* Civiqo Custom Colors */
+/* Tailwind v4 theme configuration */
+@theme {
+  /* Brand Colors */
+  --color-civiqo-blue: #2563EB;
+  --color-civiqo-blue-dark: #1D4ED8;
+  --color-civiqo-eco-green: #57C98A;
+  --color-civiqo-coral: #FF6B6B;
+  --color-civiqo-lilac: #A78BFA;
+  --color-civiqo-amber: #F59E0B;
+  --color-civiqo-yellow: #EAB308;
+  
+  /* Gray Scale */
+  --color-civiqo-gray-50: #F9FAFB;
+  --color-civiqo-gray-100: #F3F4F6;
+  --color-civiqo-gray-200: #E5E7EB;
+  --color-civiqo-gray-300: #D1D5DB;
+  --color-civiqo-gray-400: #9CA3AF;
+  --color-civiqo-gray-500: #6B7280;
+  --color-civiqo-gray-600: #4B5563;
+  --color-civiqo-gray-700: #374151;
+  --color-civiqo-gray-800: #1F2937;
+  --color-civiqo-gray-900: #111827;
+}
+
+/* Source for content scanning */
+@source "./src/server/templates/**/*.html";
+@source "./src/server/src/**/*.rs";
+
+/* CSS Variables for runtime (needed for var() references) */
 @layer base {
   :root {
-    --civiqo-blue: #2563EB;
-    --civiqo-blue-dark: #1D4ED8;
-    --civiqo-eco-green: #57C98A;
-    --civiqo-coral: #FF6B6B;
-    --civiqo-lilac: #A78BFA;
-    --civiqo-gray-50: #F9FAFB;
-    --civiqo-gray-100: #F3F4F6;
-    --civiqo-gray-200: #E5E7EB;
-    --civiqo-gray-300: #D1D5DB;
-    --civiqo-gray-400: #9CA3AF;
-    --civiqo-gray-500: #6B7280;
-    --civiqo-gray-600: #4B5563;
-    --civiqo-gray-700: #374151;
-    --civiqo-gray-800: #1F2937;
-    --civiqo-gray-900: #111827;
+    --color-civiqo-blue: #2563EB;
+    --color-civiqo-blue-dark: #1D4ED8;
+    --color-civiqo-eco-green: #57C98A;
+    --color-civiqo-coral: #FF6B6B;
+    --color-civiqo-lilac: #A78BFA;
+    --color-civiqo-amber: #F59E0B;
+    --color-civiqo-yellow: #EAB308;
+    --color-civiqo-gray-50: #F9FAFB;
+    --color-civiqo-gray-100: #F3F4F6;
+    --color-civiqo-gray-200: #E5E7EB;
+    --color-civiqo-gray-300: #D1D5DB;
+    --color-civiqo-gray-400: #9CA3AF;
+    --color-civiqo-gray-500: #6B7280;
+    --color-civiqo-gray-600: #4B5563;
+    --color-civiqo-gray-700: #374151;
+    --color-civiqo-gray-800: #1F2937;
+    --color-civiqo-gray-900: #111827;
   }
 }
 

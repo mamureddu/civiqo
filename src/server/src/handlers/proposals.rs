@@ -243,7 +243,7 @@ pub async fn create_proposal(
         .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
         .map(|dt| dt.with_timezone(&chrono::Utc));
     
-    // Insert proposal
+    // Insert proposal as draft - user must review and publish
     let proposal_id = Uuid::now_v7();
     sqlx::query(
         r#"INSERT INTO proposals (id, community_id, created_by, title, description, 

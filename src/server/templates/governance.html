@@ -155,7 +155,7 @@
 
     <!-- Create Proposal Button -->
     {% if logged_in %}
-    <div class="fixed bottom-8 right-8" x-data="{ open: false }">
+    <div class="fixed bottom-8 right-8" x-data="{ open: {{ open_create_modal | default(value='false') }} }" x-init="if(new URLSearchParams(window.location.search).get('create')) open = true">
         <button @click="open = true" 
                 class="px-6 py-3 bg-civiqo-blue text-white rounded-full shadow-lg hover:bg-civiqo-blue-dark hover:shadow-xl transition-all flex items-center space-x-2">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -171,15 +171,28 @@
             <div class="flex items-center justify-center min-h-screen px-4">
                 <div class="fixed inset-0 bg-black/50" @click="open = false"></div>
                 <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
-                    <h3 class="text-xl font-brand font-bold text-civiqo-gray-900 mb-4">{{ t.proposals_create }}</h3>
+                    <h3 class="text-xl font-brand font-bold text-civiqo-gray-900 mb-2">{{ t.proposals_create }}</h3>
                     
-                    <form hx-post="/api/proposals" 
+                    <!-- Info banner -->
+                    <div class="mb-4 p-3 bg-civiqo-amber/10 border border-civiqo-amber/30 rounded-lg">
+                        <div class="flex items-start">
+                            <svg class="w-5 h-5 text-civiqo-amber mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <p class="text-sm text-civiqo-gray-700">
+                                La proposta verrà salvata come <strong>bozza</strong>. 
+                                Potrai rivederla e pubblicarla dalla sezione "Le mie proposte".
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <form hx-post="/htmx/communities/{{ community.id }}/proposals" 
                           hx-target="#proposals-list"
-                          hx-swap="afterbegin"
+                          hx-swap="innerHTML"
                           @htmx:after-request="if(event.detail.successful) open = false">
                         
                         <div class="space-y-4">
-                            <!-- Single-community mode: community_id is passed from backend -->
+                            <!-- community_id is in the URL path -->
                             <input type="hidden" name="community_id" value="{{ community.id }}">
                             
                             <div>
