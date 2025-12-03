@@ -69,8 +69,9 @@ pub async fn index(
     }
     
     if let Some(row) = community {
+        let community_id = row.get::<uuid::Uuid, _>("id");
         let community_data = serde_json::json!({
-            "id": row.get::<uuid::Uuid, _>("id").to_string(),
+            "id": community_id.to_string(),
             "name": row.get::<String, _>("name"),
             "description": row.get::<Option<String>, _>("description").unwrap_or_default(),
             "slug": row.get::<String, _>("slug"),
@@ -84,8 +85,29 @@ pub async fn index(
         });
         ctx.insert("community", &community_data);
         ctx.insert("has_community", &true);
+        
+        // Check if user is member
+        let is_member = if let Some(ref u) = user {
+            let user_uuid = uuid::Uuid::parse_str(&u.user_id).ok();
+            if let Some(uid) = user_uuid {
+                sqlx::query_scalar::<_, bool>(
+                    "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active')"
+                )
+                .bind(community_id)
+                .bind(uid)
+                .fetch_one(&state.db.pool)
+                .await
+                .unwrap_or(false)
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        ctx.insert("is_member", &is_member);
     } else {
         ctx.insert("has_community", &false);
+        ctx.insert("is_member", &false);
     }
     
     let html = state.tera.render("community_home.html", &ctx)?;
@@ -1143,7 +1165,8 @@ pub async fn create_post_page(
     .unwrap_or(0) > 0;
     
     if !is_member {
-        return Err(AppError::Internal(anyhow::anyhow!("You must be a member to create posts")));
+        // Redirect to community page with message to join first
+        return Ok(axum::response::Redirect::to(&format!("/communities/{}?join_required=true", community_id)).into_response());
     }
     
     let community_data = serde_json::json!({

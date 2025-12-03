@@ -173,6 +173,13 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/communities/{id}/proposals", get(htmx::community_proposals))
         .route("/htmx/communities/{id}/proposals", post(htmx::create_proposal_htmx))
         .route("/htmx/communities/{id}/proposals/count", get(htmx::community_proposals_count))
+        // Community membership HTMX
+        .route("/htmx/communities/{id}/join", post(htmx::join_community_htmx))
+        .route("/htmx/communities/{id}/request", post(htmx::request_join_htmx))
+        .route("/htmx/communities/{id}/membership-button", get(htmx::membership_button_htmx))
+        .route("/htmx/communities/{id}/requests", get(htmx::membership_requests_htmx))
+        .route("/htmx/communities/{id}/requests/{user_id}/approve", post(htmx::approve_request_htmx))
+        .route("/htmx/communities/{id}/requests/{user_id}/reject", post(htmx::reject_request_htmx))
         // Community businesses and chat HTMX fragments
         .route("/htmx/communities/{id}/businesses", get(htmx::community_businesses))
         .route("/htmx/communities/{id}/chat", get(htmx::community_chat))

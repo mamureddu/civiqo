@@ -1,0 +1,64 @@
+{# Membership Button Fragment #}
+{# Variables: community, logged_in, is_member, membership_status, user_role #}
+
+{% if logged_in %}
+    {% if is_member %}
+        {# Already a member - show badge with role #}
+        <div class="flex items-center gap-2">
+            <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-eco-green/20 text-white rounded-full text-sm font-medium">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                {% if user_role == "owner" %}
+                    {{ t.role_owner | default(value="Proprietario") }}
+                {% elif user_role == "admin" %}
+                    {{ t.role_admin | default(value="Admin") }}
+                {% elif user_role == "moderator" %}
+                    {{ t.role_moderator | default(value="Moderatore") }}
+                {% else %}
+                    {{ t.community_member | default(value="Membro") }}
+                {% endif %}
+            </span>
+        </div>
+    {% elif membership_status == "pending" %}
+        {# Request pending #}
+        <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-amber/20 text-civiqo-amber rounded-full text-sm font-medium">
+            <svg class="w-4 h-4 mr-1.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {{ t.membership_pending | default(value="Richiesta in attesa") }}
+        </span>
+    {% else %}
+        {# Not a member - show join button based on community type #}
+        {% if community.is_public and not community.requires_approval %}
+            {# Public community - direct join #}
+            <button hx-post="/htmx/communities/{{ community.id }}/join"
+                    hx-swap="outerHTML"
+                    class="inline-flex items-center px-4 py-2 bg-white text-civiqo-blue rounded-lg font-medium hover:bg-civiqo-gray-50 transition-colors shadow-sm">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                </svg>
+                {{ t.community_join | default(value="Iscriviti") }}
+            </button>
+        {% else %}
+            {# Private or requires approval - request access #}
+            <button hx-post="/htmx/communities/{{ community.id }}/request"
+                    hx-swap="outerHTML"
+                    class="inline-flex items-center px-4 py-2 bg-white/90 text-civiqo-gray-700 rounded-lg font-medium hover:bg-white transition-colors shadow-sm">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+                {{ t.community_request_access | default(value="Richiedi accesso") }}
+            </button>
+        {% endif %}
+    {% endif %}
+{% else %}
+    {# Not logged in - show login prompt #}
+    <a href="/auth/login" 
+       class="inline-flex items-center px-4 py-2 bg-white text-civiqo-blue rounded-lg font-medium hover:bg-civiqo-gray-50 transition-colors shadow-sm">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+        </svg>
+        {{ t.membership_login_to_join | default(value="Accedi per iscriverti") }}
+    </a>
+{% endif %}

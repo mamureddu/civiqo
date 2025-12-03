@@ -1,0 +1,30 @@
+{# Membership Requests Fragment - Admin view #}
+{# Variables: community, requests (list of pending requests) #}
+
+<div class="bg-white rounded-xl shadow-sm border border-civiqo-gray-200 p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-civiqo-gray-900 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-civiqo-amber" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+            </svg>
+            {{ t.membership_requests_title | default(value="Richieste di iscrizione") }}
+        </h3>
+        {% if requests | length > 0 %}
+        <span class="px-2 py-1 bg-civiqo-amber/20 text-civiqo-amber rounded-full text-sm font-medium">
+            {{ requests | length }}
+        </span>
+        {% endif %}
+    </div>
+    
+    <div hx-get="/htmx/communities/{{ community.id }}/requests" 
+         hx-trigger="load"
+         hx-swap="innerHTML"
+         class="min-h-[100px]">
+        <div class="flex items-center justify-center py-8">
+            <svg class="animate-spin h-6 w-6 text-civiqo-blue" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+    </div>
+</div>

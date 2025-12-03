@@ -455,9 +455,13 @@ pub async fn community_feed(
     
     if posts.is_empty() {
         return Ok(Html(r#"
-        <div class="text-center py-12 text-gray-500">
-            <p class="text-lg">No posts yet in this community.</p>
-            <p class="text-sm mt-2">Be the first to share something!</p>
+        <div class="text-center py-8">
+            <svg class="mx-auto h-12 w-12 text-civiqo-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                      d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+            </svg>
+            <h3 class="mt-4 text-lg font-medium text-civiqo-gray-900">Nessun post</h3>
+            <p class="mt-2 text-civiqo-gray-600">Iscriviti alla community per pubblicare il primo post!</p>
         </div>
         "#.to_string()));
     }
@@ -1133,7 +1137,7 @@ pub async fn community_proposals(
                           d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 <h3 class="mt-4 text-lg font-medium text-civiqo-gray-900">Nessuna proposta</h3>
-                <p class="mt-2 text-civiqo-gray-600">Sii il primo a creare una proposta per questa community!</p>
+                <p class="mt-2 text-civiqo-gray-600">Iscriviti alla community per creare la prima proposta!</p>
             </div>
             "#.to_string())
     }
@@ -2345,4 +2349,496 @@ fn render_chat_error() -> String {
         <p class="text-civiqo-gray-600">Impossibile caricare la chat per questa community.</p>
     </div>
     "#.to_string()
+}
+
+// =============================================================================
+// MEMBERSHIP HTMX HANDLERS
+// =============================================================================
+
+/// Join community via HTMX - returns HTML fragment
+pub async fn join_community_htmx(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<uuid::Uuid>,
+) -> Result<Html<String>, AppError> {
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Check community exists and is public
+    let community: Option<(bool,)> = sqlx::query_as(
+        "SELECT is_public FROM communities WHERE id = $1"
+    )
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+    
+    let (is_public,) = match community {
+        Some(c) => c,
+        None => {
+            return Ok(Html(r#"
+                <div class="text-civiqo-coral text-sm">Community non trovata</div>
+            "#.to_string()));
+        }
+    };
+    
+    if !is_public {
+        return Ok(Html(r#"
+            <button disabled class="inline-flex items-center px-4 py-2 bg-civiqo-gray-200 text-civiqo-gray-500 rounded-lg font-medium cursor-not-allowed">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+                Community privata
+            </button>
+        "#.to_string()));
+    }
+    
+    // Check if already member
+    let existing: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2)"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(false);
+    
+    if existing {
+        return Ok(Html(r#"
+            <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-eco-green/20 text-white rounded-full text-sm font-medium">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Membro
+            </span>
+        "#.to_string()));
+    }
+    
+    // Insert membership
+    let result = sqlx::query(
+        "INSERT INTO community_members (user_id, community_id, role, status, joined_at)
+         VALUES ($1, $2, 'member', 'active', NOW())"
+    )
+    .bind(user_uuid)
+    .bind(community_id)
+    .execute(&state.db.pool)
+    .await;
+    
+    match result {
+        Ok(_) => {
+            tracing::info!("User {} joined community {} via HTMX", user.user_id, community_id);
+            Ok(Html(r#"
+                <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-eco-green/20 text-white rounded-full text-sm font-medium animate-pulse">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Iscritto!
+                </span>
+            "#.to_string()))
+        }
+        Err(e) => {
+            tracing::error!("Failed to join community: {}", e);
+            Ok(Html(r#"
+                <button disabled class="inline-flex items-center px-4 py-2 bg-civiqo-coral/20 text-civiqo-coral rounded-lg font-medium">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Errore
+                </button>
+            "#.to_string()))
+        }
+    }
+}
+
+/// Request to join a private community via HTMX
+pub async fn request_join_htmx(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<uuid::Uuid>,
+) -> Result<Html<String>, AppError> {
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Check community exists
+    let community: Option<(bool, bool)> = sqlx::query_as(
+        "SELECT is_public, requires_approval FROM communities WHERE id = $1"
+    )
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+    
+    let (is_public, requires_approval) = match community {
+        Some(c) => c,
+        None => {
+            return Ok(Html(r#"<div class="text-civiqo-coral text-sm">Community non trovata</div>"#.to_string()));
+        }
+    };
+    
+    // If public, redirect to join
+    if is_public && !requires_approval {
+        return Ok(Html(format!(r#"
+            <button hx-post="/htmx/communities/{}/join" hx-swap="outerHTML"
+                    class="inline-flex items-center px-4 py-2 bg-white text-civiqo-blue rounded-lg font-medium hover:bg-civiqo-gray-50 transition-colors shadow-sm">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                </svg>
+                Iscriviti
+            </button>
+        "#, community_id)));
+    }
+    
+    // Check if already member or pending
+    let existing: Option<String> = sqlx::query_scalar(
+        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .unwrap_or(None);
+    
+    if let Some(status) = existing {
+        if status == "active" {
+            return Ok(Html(r#"
+                <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-eco-green/20 text-white rounded-full text-sm font-medium">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Membro
+                </span>
+            "#.to_string()));
+        } else if status == "pending" {
+            return Ok(Html(r#"
+                <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-amber/20 text-civiqo-amber rounded-full text-sm font-medium">
+                    <svg class="w-4 h-4 mr-1.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Richiesta in attesa
+                </span>
+            "#.to_string()));
+        }
+    }
+    
+    // Insert pending membership request
+    let result = sqlx::query(
+        "INSERT INTO community_members (user_id, community_id, role, status, joined_at)
+         VALUES ($1, $2, 'member', 'pending', NOW())"
+    )
+    .bind(user_uuid)
+    .bind(community_id)
+    .execute(&state.db.pool)
+    .await;
+    
+    match result {
+        Ok(_) => {
+            tracing::info!("User {} requested to join community {} via HTMX", user.user_id, community_id);
+            Ok(Html(r#"
+                <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-amber/20 text-civiqo-amber rounded-full text-sm font-medium">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Richiesta inviata!
+                </span>
+            "#.to_string()))
+        }
+        Err(e) => {
+            tracing::error!("Failed to request join: {}", e);
+            Ok(Html(r#"
+                <button disabled class="inline-flex items-center px-4 py-2 bg-civiqo-coral/20 text-civiqo-coral rounded-lg font-medium">
+                    Errore nell'invio
+                </button>
+            "#.to_string()))
+        }
+    }
+}
+
+/// Get membership button based on current state
+pub async fn membership_button_htmx(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<uuid::Uuid>,
+) -> Result<Html<String>, AppError> {
+    // Check community type
+    let community: Option<(bool, bool)> = sqlx::query_as(
+        "SELECT is_public, requires_approval FROM communities WHERE id = $1"
+    )
+    .bind(community_id)
+    .fetch_optional(&state.db.pool)
+    .await
+    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+    
+    let (is_public, requires_approval) = match community {
+        Some(c) => c,
+        None => return Ok(Html(String::new())),
+    };
+    
+    // Not logged in
+    let Some(user) = user else {
+        return Ok(Html(format!(r#"
+            <a href="/auth/login" 
+               class="inline-flex items-center px-4 py-2 bg-white text-civiqo-blue rounded-lg font-medium hover:bg-civiqo-gray-50 transition-colors shadow-sm">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+                </svg>
+                Accedi per iscriverti
+            </a>
+        "#)));
+    };
+    
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Check membership status
+    let membership: Option<(String, String)> = sqlx::query_as(
+        "SELECT status, role::text FROM community_members WHERE community_id = $1 AND user_id = $2"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .unwrap_or(None);
+    
+    match membership {
+        Some((status, role)) if status == "active" => {
+            let role_badge = match role.as_str() {
+                "owner" => "Proprietario",
+                "admin" => "Admin",
+                "moderator" => "Moderatore",
+                _ => "Membro",
+            };
+            Ok(Html(format!(r#"
+                <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-eco-green/20 text-white rounded-full text-sm font-medium">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    {}
+                </span>
+            "#, role_badge)))
+        }
+        Some((status, _)) if status == "pending" => {
+            Ok(Html(r#"
+                <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-amber/20 text-civiqo-amber rounded-full text-sm font-medium">
+                    <svg class="w-4 h-4 mr-1.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Richiesta in attesa
+                </span>
+            "#.to_string()))
+        }
+        _ => {
+            // Not a member - show appropriate button
+            if is_public && !requires_approval {
+                Ok(Html(format!(r#"
+                    <button hx-post="/htmx/communities/{}/join" hx-swap="outerHTML"
+                            class="inline-flex items-center px-4 py-2 bg-white text-civiqo-blue rounded-lg font-medium hover:bg-civiqo-gray-50 transition-colors shadow-sm">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                        </svg>
+                        Iscriviti
+                    </button>
+                "#, community_id)))
+            } else {
+                Ok(Html(format!(r#"
+                    <button hx-post="/htmx/communities/{}/request" hx-swap="outerHTML"
+                            class="inline-flex items-center px-4 py-2 bg-white/90 text-civiqo-gray-700 rounded-lg font-medium hover:bg-white transition-colors shadow-sm">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        Richiedi accesso
+                    </button>
+                "#, community_id)))
+            }
+        }
+    }
+}
+
+/// List pending membership requests (admin only)
+pub async fn membership_requests_htmx(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(community_id): axum::extract::Path<uuid::Uuid>,
+) -> Result<Html<String>, AppError> {
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Check if user is admin/owner
+    let is_admin: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND role IN ('owner', 'admin') AND status = 'active')"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(false);
+    
+    if !is_admin {
+        return Ok(Html(r#"<div class="text-civiqo-coral">Accesso non autorizzato</div>"#.to_string()));
+    }
+    
+    // Get pending requests
+    let requests: Vec<(uuid::Uuid, String, Option<String>, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
+        "SELECT cm.user_id, u.email, u.display_name, cm.joined_at 
+         FROM community_members cm
+         JOIN users u ON cm.user_id = u.id
+         WHERE cm.community_id = $1 AND cm.status = 'pending'
+         ORDER BY cm.joined_at DESC"
+    )
+    .bind(community_id)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+    
+    if requests.is_empty() {
+        return Ok(Html(r#"
+            <div class="text-center py-8 text-civiqo-gray-500">
+                <svg class="w-12 h-12 mx-auto mb-3 text-civiqo-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p>Nessuna richiesta in attesa</p>
+            </div>
+        "#.to_string()));
+    }
+    
+    let mut html = String::from(r#"<div class="space-y-3">"#);
+    
+    for (req_user_id, email, display_name, requested_at) in requests {
+        let name = display_name.unwrap_or_else(|| email.clone());
+        let time_ago = requested_at.format("%d/%m/%Y %H:%M").to_string();
+        
+        html.push_str(&format!(r#"
+            <div class="flex items-center justify-between p-4 bg-white rounded-lg border border-civiqo-gray-200">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-civiqo-blue/10 flex items-center justify-center text-civiqo-blue font-medium">
+                        {}
+                    </div>
+                    <div>
+                        <p class="font-medium text-civiqo-gray-900">{}</p>
+                        <p class="text-sm text-civiqo-gray-500">{}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button hx-post="/htmx/communities/{}/requests/{}/approve" hx-swap="outerHTML" hx-target="closest div.flex"
+                            class="px-3 py-1.5 bg-civiqo-eco-green text-white rounded-lg text-sm font-medium hover:bg-civiqo-eco-green/90 transition">
+                        Approva
+                    </button>
+                    <button hx-post="/htmx/communities/{}/requests/{}/reject" hx-swap="outerHTML" hx-target="closest div.flex"
+                            class="px-3 py-1.5 bg-civiqo-coral text-white rounded-lg text-sm font-medium hover:bg-civiqo-coral/90 transition">
+                        Rifiuta
+                    </button>
+                </div>
+            </div>
+        "#, 
+            name.chars().next().unwrap_or('?').to_uppercase(),
+            name,
+            time_ago,
+            community_id,
+            req_user_id,
+            community_id,
+            req_user_id
+        ));
+    }
+    
+    html.push_str("</div>");
+    Ok(Html(html))
+}
+
+/// Approve membership request (admin only) - HTMX
+pub async fn approve_request_htmx(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path((community_id, request_user_id)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+) -> Result<Html<String>, AppError> {
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Check if user is admin/owner
+    let is_admin: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND role IN ('owner', 'admin') AND status = 'active')"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(false);
+    
+    if !is_admin {
+        return Ok(Html(r#"<div class="text-civiqo-coral p-2">Non autorizzato</div>"#.to_string()));
+    }
+    
+    // Update status to active
+    let result = sqlx::query(
+        "UPDATE community_members SET status = 'active', updated_at = NOW() WHERE community_id = $1 AND user_id = $2 AND status = 'pending'"
+    )
+    .bind(community_id)
+    .bind(request_user_id)
+    .execute(&state.db.pool)
+    .await;
+    
+    match result {
+        Ok(r) if r.rows_affected() > 0 => {
+            tracing::info!("Admin {} approved membership for {} in community {}", user.user_id, request_user_id, community_id);
+            Ok(Html(r#"
+                <div class="flex items-center gap-2 p-4 bg-civiqo-eco-green/10 rounded-lg text-civiqo-eco-green">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Richiesta approvata
+                </div>
+            "#.to_string()))
+        }
+        _ => {
+            Ok(Html(r#"<div class="text-civiqo-coral p-2">Richiesta non trovata</div>"#.to_string()))
+        }
+    }
+}
+
+/// Reject membership request (admin only) - HTMX
+pub async fn reject_request_htmx(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path((community_id, request_user_id)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+) -> Result<Html<String>, AppError> {
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+    
+    // Check if user is admin/owner
+    let is_admin: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND role IN ('owner', 'admin') AND status = 'active')"
+    )
+    .bind(community_id)
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(false);
+    
+    if !is_admin {
+        return Ok(Html(r#"<div class="text-civiqo-coral p-2">Non autorizzato</div>"#.to_string()));
+    }
+    
+    // Delete the pending request
+    let result = sqlx::query(
+        "DELETE FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'pending'"
+    )
+    .bind(community_id)
+    .bind(request_user_id)
+    .execute(&state.db.pool)
+    .await;
+    
+    match result {
+        Ok(r) if r.rows_affected() > 0 => {
+            tracing::info!("Admin {} rejected membership for {} in community {}", user.user_id, request_user_id, community_id);
+            Ok(Html(r#"
+                <div class="flex items-center gap-2 p-4 bg-civiqo-gray-100 rounded-lg text-civiqo-gray-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                    Richiesta rifiutata
+                </div>
+            "#.to_string()))
+        }
+        _ => {
+            Ok(Html(r#"<div class="text-civiqo-coral p-2">Richiesta non trovata</div>"#.to_string()))
+        }
+    }
 }

@@ -57,18 +57,12 @@ mod membership_integration_tests {
         .await
         .expect("Failed to create test community");
 
-        let admin_role_id: i64 = sqlx::query_scalar!("SELECT id FROM roles WHERE name = 'admin' LIMIT 1")
-            .fetch_one(&db.pool)
-            .await
-            .expect("Failed to get admin role");
-
-        sqlx::query!(
-            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at, created_at, updated_at)
-             VALUES ($1, $2, $3, 'active', NOW(), NOW(), NOW())",
-            creator_id,
-            community_id,
-            admin_role_id
+        sqlx::query(
+            "INSERT INTO community_members (user_id, community_id, role, status, joined_at, created_at, updated_at)
+             VALUES ($1, $2, 'owner', 'active', NOW(), NOW(), NOW())"
         )
+        .bind(creator_id)
+        .bind(community_id)
         .execute(&db.pool)
         .await
         .expect("Failed to add creator as admin");
@@ -77,22 +71,18 @@ mod membership_integration_tests {
     }
 
     async fn add_member(db: &Database, user_id: Uuid, community_id: Uuid, role: &str, status: &str) {
-        let role_id: i64 = sqlx::query_scalar!("SELECT id FROM roles WHERE name = $1 LIMIT 1", role)
-            .fetch_one(&db.pool)
-            .await
-            .expect("Failed to get role");
-
-        let _ = sqlx::query!(
-            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, NOW(), NOW(), NOW())
+        let query = format!(
+            "INSERT INTO community_members (user_id, community_id, role, status, joined_at, created_at, updated_at)
+             VALUES ($1, $2, '{}', $3, NOW(), NOW(), NOW())
              ON CONFLICT DO NOTHING",
-            user_id,
-            community_id,
-            role_id,
-            status
-        )
-        .execute(&db.pool)
-        .await;
+            role
+        );
+        let _ = sqlx::query(&query)
+            .bind(user_id)
+            .bind(community_id)
+            .bind(status)
+            .execute(&db.pool)
+            .await;
     }
 
     async fn is_member(db: &Database, user_id: Uuid, community_id: Uuid) -> bool {
@@ -109,16 +99,16 @@ mod membership_integration_tests {
     }
 
     async fn get_member_role(db: &Database, user_id: Uuid, community_id: Uuid) -> Option<String> {
-        sqlx::query_scalar!(
-            "SELECT r.name FROM community_members cm
-             JOIN roles r ON cm.role_id = r.id
-             WHERE cm.user_id = $1 AND cm.community_id = $2 AND cm.status = 'active'",
-            user_id,
-            community_id
+        let result: Option<(String,)> = sqlx::query_as(
+            "SELECT role::text FROM community_members
+             WHERE user_id = $1 AND community_id = $2 AND status = 'active'"
         )
+        .bind(user_id)
+        .bind(community_id)
         .fetch_optional(&db.pool)
         .await
-        .expect("Failed to get member role")
+        .expect("Failed to get member role");
+        result.map(|(r,)| r)
     }
 
     async fn cleanup(db: &Database, community_id: Uuid, user_ids: Vec<Uuid>) {
@@ -149,18 +139,12 @@ mod membership_integration_tests {
 
         assert!(!is_member(&db, member_id, community_id).await);
 
-        let member_role_id: i64 = sqlx::query_scalar!("SELECT id FROM roles WHERE name = 'member' LIMIT 1")
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
-
-        sqlx::query!(
-            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at, created_at, updated_at)
-             VALUES ($1, $2, $3, 'active', NOW(), NOW(), NOW())",
-            member_id,
-            community_id,
-            member_role_id
+        sqlx::query(
+            "INSERT INTO community_members (user_id, community_id, role, status, joined_at, created_at, updated_at)
+             VALUES ($1, $2, 'member', 'active', NOW(), NOW(), NOW())"
         )
+        .bind(member_id)
+        .bind(community_id)
         .execute(&db.pool)
         .await
         .unwrap();
@@ -197,14 +181,14 @@ mod membership_integration_tests {
 
         add_member(&db, member_id, community_id, "member", "active").await;
 
-        let result = sqlx::query!(
-            "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at, created_at, updated_at)
-             VALUES ($1, $2, (SELECT id FROM roles WHERE name = 'member'), 'active', NOW(), NOW(), NOW())
+        let result: Option<(i64,)> = sqlx::query_as(
+            "INSERT INTO community_members (user_id, community_id, role, status, joined_at, created_at, updated_at)
+             VALUES ($1, $2, 'member', 'active', NOW(), NOW(), NOW())
              ON CONFLICT DO NOTHING
-             RETURNING id",
-            member_id,
-            community_id
+             RETURNING id"
         )
+        .bind(member_id)
+        .bind(community_id)
         .fetch_optional(&db.pool)
         .await
         .unwrap();
@@ -244,19 +228,18 @@ mod membership_integration_tests {
         let slug = format!("test-only-admin-{}", Uuid::new_v4().to_string().split('-').next().unwrap());
         let community_id = create_test_community(&db, owner_id, &slug, true, false).await;
 
-        let admin_count: Option<i64> = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM community_members cm
-             JOIN roles r ON cm.role_id = r.id
-             WHERE cm.community_id = $1 AND r.name = 'admin'",
-            community_id
+        let admin_count: Option<i64> = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM community_members
+             WHERE community_id = $1 AND role IN ('admin', 'owner')"
         )
+        .bind(community_id)
         .fetch_one(&db.pool)
         .await
         .unwrap();
 
         assert_eq!(admin_count.unwrap_or(0), 1);
         let is_admin = get_member_role(&db, owner_id, community_id).await;
-        assert_eq!(is_admin, Some("admin".to_string()));
+        assert_eq!(is_admin, Some("owner".to_string()));
 
         cleanup(&db, community_id, vec![owner_id]).await;
     }
@@ -326,17 +309,11 @@ mod membership_integration_tests {
         add_member(&db, member_id, community_id, "member", "active").await;
         assert_eq!(get_member_role(&db, member_id, community_id).await, Some("member".to_string()));
 
-        let admin_role_id: i64 = sqlx::query_scalar!("SELECT id FROM roles WHERE name = 'admin' LIMIT 1")
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
-
-        sqlx::query!(
-            "UPDATE community_members SET role_id = $1 WHERE user_id = $2 AND community_id = $3",
-            admin_role_id,
-            member_id,
-            community_id
+        sqlx::query(
+            "UPDATE community_members SET role = 'admin' WHERE user_id = $1 AND community_id = $2"
         )
+        .bind(member_id)
+        .bind(community_id)
         .execute(&db.pool)
         .await
         .unwrap();
@@ -356,17 +333,11 @@ mod membership_integration_tests {
         add_member(&db, admin_id, community_id, "admin", "active").await;
         assert_eq!(get_member_role(&db, admin_id, community_id).await, Some("admin".to_string()));
 
-        let member_role_id: i64 = sqlx::query_scalar!("SELECT id FROM roles WHERE name = 'member' LIMIT 1")
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
-
-        sqlx::query!(
-            "UPDATE community_members SET role_id = $1 WHERE user_id = $2 AND community_id = $3",
-            member_role_id,
-            admin_id,
-            community_id
+        sqlx::query(
+            "UPDATE community_members SET role = 'member' WHERE user_id = $1 AND community_id = $2"
         )
+        .bind(admin_id)
+        .bind(community_id)
         .execute(&db.pool)
         .await
         .unwrap();
