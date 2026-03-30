@@ -105,7 +105,7 @@ async fn test_websocket_connection_lifecycle() {
 
     // Create test user and get mock token
     let user = create_test_user(app_state.database(), None).await.unwrap();
-    let claims = create_mock_jwt_claims(user.id, user.auth0_id.clone(), user.email.clone());
+    let claims = create_mock_jwt_claims(user.id, user.email.clone());
 
     // In a real test, we'd generate a proper JWT token
     // For this test, we'll simulate the authentication check
@@ -205,7 +205,7 @@ async fn test_websocket_authentication_flow() {
 
     // Test authentication components
     let user = create_test_user(app_state.database(), None).await.unwrap();
-    let claims = create_mock_jwt_claims(user.id, user.auth0_id.clone(), user.email.clone());
+    let claims = create_mock_jwt_claims(user.id, user.email.clone());
 
     // Test token extraction
     let mock_token = "mock_jwt_token";

@@ -7,7 +7,7 @@
 -- - users.id: UUID (Auth0 requirement, app generates via Uuid::now_v7())
 -- - user_profiles: UUID FK to users (no separate id)
 -- - user_keys.id: BIGINT (DB generates, not used in app code)
--- - roles.id: BIGINT (DB generates via unique_rowid(), app uses RETURNING)
+-- - user_keys.id: BIGINT (DB generates via IDENTITY, app uses RETURNING)
 -- ============================================================================
 
 -- ============================================================================
@@ -55,7 +55,7 @@ CREATE INDEX idx_user_profiles_is_public ON user_profiles(is_public);
 -- ============================================================================
 
 CREATE TABLE user_keys (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     key_type VARCHAR(100) NOT NULL,
     key_value TEXT NOT NULL,

@@ -1,0 +1,27 @@
+{DOMAIN} {
+    # WebSocket chat — must be before the catch-all
+    reverse_proxy /ws localhost:8080
+
+    # Main API + HTMX pages
+    reverse_proxy * localhost:9001
+
+    # Serve uploaded files from local filesystem
+    handle_path /uploads/* {
+        root * /opt/community-manager/data/uploads
+        file_server
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        X-XSS-Protection "1; mode=block"
+    }
+
+    # Access log
+    log {
+        output file /var/log/caddy/community-manager.log
+        format json
+    }
+}

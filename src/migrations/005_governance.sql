@@ -46,7 +46,7 @@ CREATE INDEX idx_proposals_voting_dates ON proposals(voting_starts_at, voting_en
 -- ============================================================================
 
 CREATE TABLE proposal_options (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     proposal_id UUID NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
     option_text VARCHAR(255) NOT NULL,
     vote_count INT DEFAULT 0,
@@ -61,7 +61,7 @@ CREATE INDEX idx_proposal_options_proposal ON proposal_options(proposal_id);
 -- ============================================================================
 
 CREATE TABLE proposal_comments (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     proposal_id UUID NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     parent_id BIGINT REFERENCES proposal_comments(id) ON DELETE CASCADE,
@@ -148,7 +148,7 @@ CREATE INDEX idx_polls_created_by_status ON polls(created_by, status);
 -- ============================================================================
 
 CREATE TABLE votes (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     poll_id UUID REFERENCES polls(id) ON DELETE CASCADE,
     proposal_id UUID REFERENCES proposals(id) ON DELETE CASCADE,
     option_id BIGINT REFERENCES proposal_options(id) ON DELETE SET NULL,

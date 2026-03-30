@@ -18,14 +18,14 @@ mod posts_integration_tests {
     async fn create_test_user(db: &Database) -> Uuid {
         let user_id = Uuid::new_v4();
         let email = format!("test-{}@example.com", user_id);
-        let auth0_id = format!("auth0|{}", user_id);
-        
+        let password_hash = "$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash";
+
         sqlx::query!(
-            "INSERT INTO users (id, email, auth0_id, created_at, updated_at) 
-             VALUES ($1, $2, $3, NOW(), NOW()) ON CONFLICT (id) DO NOTHING",
-            user_id, email, auth0_id
+            "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+             VALUES ($1, $2, $3, 'local', NOW(), NOW()) ON CONFLICT (id) DO NOTHING",
+            user_id, email, password_hash
         ).execute(&db.pool).await.expect("Failed to create test user");
-        
+
         user_id
     }
 

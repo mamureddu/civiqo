@@ -119,15 +119,13 @@ impl ComprehensiveTestContext {
             .await.expect("Failed to create test community");
 
         let claims = Claims {
-            sub: user.auth0_id.clone(),
+            sub: user.id.to_string(),
             aud: self.auth_config.audience.clone(),
             iss: format!("https://{}/", self.auth_config.domain),
             exp: (Utc::now() + chrono::Duration::hours(24)).timestamp(),
             iat: Utc::now().timestamp(),
             email: Some(user.email.clone()),
-            email_verified: Some(true),
             name: Some("Test User".to_string()),
-            picture: None,
             community_roles: vec![],
         };
 

@@ -53,15 +53,15 @@ pub async fn cleanup_test_db(db: &Database) -> Result<()> {
 }
 
 /// Create a test user
-pub async fn create_test_user(db: &Database, auth0_id: Option<String>) -> Result<User> {
-    let auth0_id = auth0_id.unwrap_or_else(|| format!("auth0|{}", Uuid::new_v4()));
-    let email = format!("test-{}@example.com", Uuid::new_v4());
+pub async fn create_test_user(db: &Database, email: Option<String>) -> Result<User> {
+    let email = email.unwrap_or_else(|| format!("test-{}@example.com", Uuid::new_v4()));
+    let password_hash = "$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash";
 
     let user = sqlx::query_as::<_, User>(
-        "INSERT INTO users (auth0_id, email) VALUES ($1, $2) RETURNING id, auth0_id, email, created_at, updated_at"
+        "INSERT INTO users (email, password_hash, provider) VALUES ($1, $2, 'local') RETURNING id, email, password_hash, provider, provider_id, email_verified, created_at, updated_at"
     )
-    .bind(&auth0_id)
     .bind(&email)
+    .bind(password_hash)
     .fetch_one(&db.pool)
     .await?;
 
@@ -107,18 +107,16 @@ pub async fn create_test_role(db: &Database, name: String, permissions: Vec<Stri
     Ok(role)
 }
 
-/// Mock Auth0 JWT for testing
-pub fn create_mock_jwt_claims(_user_id: Uuid, auth0_id: String, email: String) -> Claims {
+/// Mock JWT claims for testing
+pub fn create_mock_jwt_claims(user_id: Uuid, email: String) -> Claims {
     Claims {
-        sub: auth0_id.clone(),
-        aud: "test-audience".to_string(),
-        iss: "https://test.auth0.com/".to_string(),
+        sub: user_id.to_string(),
+        aud: "civiqo-api".to_string(),
+        iss: "civiqo".to_string(),
         exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp(),
         iat: chrono::Utc::now().timestamp(),
         email: Some(email),
-        email_verified: Some(true),
         name: Some("Test User".to_string()),
-        picture: None,
         community_roles: vec![],
     }
 }

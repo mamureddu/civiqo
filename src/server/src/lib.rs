@@ -6,7 +6,7 @@ use axum::{
 use std::sync::Arc;
 use tower_sessions::{SessionManagerLayer, MemoryStore};
 use tera::Tera;
-use shared::{database::Database, auth::Auth0Config};
+use shared::database::Database;
 
 // Re-export modules
 pub mod config;
@@ -27,14 +27,13 @@ pub type AppState = Arc<ApiState>;
 pub struct ApiState {
     pub db: Database,
     pub config: Config,
-    pub auth_config: Auth0Config,
 }
 
 /// Create the full application router for testing
 /// This mirrors the router in main.rs
 pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Send + Sync>> {
     use handlers::{pages, htmx, api, posts, comments, reactions, proposals, businesses, admin, instance, stubs::health_check};
-    use auth::{login, callback, logout};
+    use auth::{login_page, login_handler, register_page, register_handler, api_login, api_register, refresh_token, logout};
     
     // Load environment
     dotenvy::dotenv().ok();
@@ -92,9 +91,14 @@ pub async fn create_test_app() -> Result<Router, Box<dyn std::error::Error + Sen
         .route("/health", get(health_check))
         
         // Auth routes
-        .route("/auth/login", get(login))
-        .route("/auth/callback", get(callback))
+        .route("/login", get(login_page))
+        .route("/login", post(login_handler))
+        .route("/register", get(register_page))
+        .route("/register", post(register_handler))
         .route("/auth/logout", post(logout))
+        .route("/api/auth/login", post(api_login))
+        .route("/api/auth/register", post(api_register))
+        .route("/api/auth/refresh", post(refresh_token))
         
         // HTMX Pages
         .route("/", get(pages::index))

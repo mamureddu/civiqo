@@ -26,16 +26,10 @@ validator = { workspace = true }
 md5 = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-# Lambda and HTTP
-lambda_runtime = { workspace = true, optional = true }
-lambda_http = { workspace = true, optional = true }
+# HTTP framework
 axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true, features = ["fs"] }
-
-# AWS SDK
-aws-config = { workspace = true }
-aws-sdk-s3 = { workspace = true }
 
 # Shared library
 shared = { path = "../shared", features = ["testing"] }
@@ -43,13 +37,16 @@ shared = { path = "../shared", features = ["testing"] }
 # HTTP client for external APIs
 reqwest = { workspace = true }
 
-# Auth0 and Sessions
+# Auth and Sessions
 tower-sessions = { workspace = true }
 http = { workspace = true }
 cookie = { workspace = true }
-openidconnect = { workspace = true }
 jsonwebtoken = { workspace = true }
 urlencoding = { workspace = true }
+argon2 = { workspace = true }
+
+# Form parsing
+serde_urlencoded = "0.7"
 
 # Validation (already included via workspace)
 lazy_static = "1.4"
@@ -65,10 +62,6 @@ tera = "1.20"
 fluent-templates = { workspace = true }
 unic-langid = { workspace = true }
 accept-language = { workspace = true }
-
-[features]
-default = ["lambda"]
-lambda = ["lambda_runtime", "lambda_http"]
 
 [dev-dependencies]
 tokio-test = { workspace = true }

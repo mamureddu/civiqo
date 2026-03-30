@@ -1,7 +1,7 @@
 use axum::{
-    extract::{Request, FromRequestParts, State},
+    extract::{Request, FromRequestParts, State, Form},
     http::{StatusCode, request::Parts},
-    response::{IntoResponse, Redirect},
+    response::{IntoResponse, Redirect, Html},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -9,74 +9,11 @@ use tower_sessions::Session;
 use tracing::info;
 use std::sync::Arc;
 use uuid::Uuid;
-
-/// Request to sync user from Auth0
-#[derive(Debug, Deserialize, Serialize)]
-pub struct SyncUserRequest {
-    pub auth0_id: String,
-    pub email: String,
-    pub name: Option<String>,
-    pub picture: Option<String>,
-}
-
-
-/// Auth0 configuration
-#[derive(Clone, Debug)]
-pub struct Auth0Config {
-    pub domain: String,
-    pub client_id: String,
-    pub client_secret: String,
-    pub callback_url: String,
-}
-
-impl Auth0Config {
-    pub fn from_env() -> Result<Self, String> {
-        Ok(Self {
-            domain: std::env::var("AUTH0_DOMAIN")
-                .map_err(|_| "AUTH0_DOMAIN not set".to_string())?,
-            client_id: std::env::var("AUTH0_CLIENT_ID")
-                .map_err(|_| "AUTH0_CLIENT_ID not set".to_string())?,
-            client_secret: std::env::var("AUTH0_CLIENT_SECRET")
-                .map_err(|_| "AUTH0_CLIENT_SECRET not set".to_string())?,
-            callback_url: std::env::var("AUTH0_CALLBACK_URL")
-                .map_err(|_| "AUTH0_CALLBACK_URL not set".to_string())?,
-        })
-    }
-
-    pub fn authorization_url(&self, state: &str) -> String {
-        format!(
-            "https://{}/authorize?client_id={}&response_type=code&redirect_uri={}&scope=openid%20profile%20email&state={}",
-            self.domain, self.client_id, urlencoding::encode(&self.callback_url), state
-        )
-    }
-}
-
-/// User info from Auth0 token response
-#[derive(Debug, Deserialize)]
-pub struct TokenResponse {
-    pub access_token: String,
-    // ==========================================================
-    // COMMENTED FIELDS - KEPT FOR FUTURE REFERENCE
-    // ==========================================================
-    // pub id_token: Option<String>,      // May be needed for JWT validation or user info extraction
-    // pub token_type: String,            // Typically "Bearer" - may be needed for token validation
-    // pub expires_in: Option<u64>,       // Token expiration in seconds - may be needed for refresh logic
-}
-
-/// Auth0 user info response
-#[derive(Debug, Deserialize)]
-pub struct Auth0UserInfo {
-    pub sub: String,           // User ID
-    pub email: String,
-    pub name: Option<String>,
-    pub picture: Option<String>,
-    // ==========================================================
-    // COMMENTED FIELDS - KEPT FOR FUTURE REFERENCE
-    // ==========================================================
-    // pub email_verified: Option<bool>,  // Critical for security - may prevent unverified email access
-    // pub updated_at: Option<String>,    // Last profile update - may be needed for sync logic
-    // pub created_at: Option<String>,    // Account creation date - may be needed for user analytics
-}
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
+use shared::auth::JwtService;
 
 /// Session data stored in tower-sessions
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,220 +24,379 @@ pub struct SessionData {
     pub picture: Option<String>,
 }
 
-/// Login endpoint - redirect to Auth0
-pub async fn login() -> impl IntoResponse {
-    let auth0_config = match Auth0Config::from_env() {
-        Ok(config) => config,
-        Err(e) => {
-            tracing::error!("Auth0 config error: {}", e);
-            return Redirect::to("/").into_response();
-        }
-    };
-
-    let state = uuid::Uuid::new_v4().to_string();
-    let auth_url = auth0_config.authorization_url(&state);
-
-    info!("Redirecting to Auth0: {}", auth_url);
-    
-    // Redirect direttamente a Auth0
-    Redirect::temporary(&auth_url).into_response()
+/// Login form data
+#[derive(Debug, Deserialize)]
+pub struct LoginForm {
+    pub email: String,
+    pub password: String,
 }
 
-/// Callback from Auth0 - Complete OAuth2 flow with code exchange and user sync
-pub async fn callback(
+/// Registration form data
+#[derive(Debug, Deserialize)]
+pub struct RegisterForm {
+    pub email: String,
+    pub password: String,
+    pub name: Option<String>,
+}
+
+/// API token response
+#[derive(Debug, Serialize)]
+pub struct TokenResponse {
+    pub token: String,
+    pub token_type: String,
+    pub expires_in: u64,
+}
+
+// ── Page Handlers (render HTML) ──────────────────────────────
+
+/// GET /login — render login page
+pub async fn login_page(
+    State(state): State<Arc<crate::handlers::pages::AppState>>,
+) -> impl IntoResponse {
+    let mut ctx = tera::Context::new();
+    ctx.insert("error", &Option::<String>::None);
+    match state.tera.render("login.html", &ctx) {
+        Ok(html) => Html(html).into_response(),
+        Err(e) => {
+            tracing::error!("Template error: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Template error").into_response()
+        }
+    }
+}
+
+/// GET /register — render registration page
+pub async fn register_page(
+    State(state): State<Arc<crate::handlers::pages::AppState>>,
+) -> impl IntoResponse {
+    let mut ctx = tera::Context::new();
+    ctx.insert("error", &Option::<String>::None);
+    match state.tera.render("register.html", &ctx) {
+        Ok(html) => Html(html).into_response(),
+        Err(e) => {
+            tracing::error!("Template error: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Template error").into_response()
+        }
+    }
+}
+
+// ── Form Handlers (HTMX / browser forms) ─────────────────────
+
+/// POST /login — process login form
+pub async fn login_handler(
     State(state): State<Arc<crate::handlers::pages::AppState>>,
     req: Request,
 ) -> impl IntoResponse {
-    // Parse query params manually
-    let query = req.uri().query().unwrap_or("");
-    let code = match query.split('&')
-        .find(|p| p.starts_with("code="))
-        .and_then(|p| p.strip_prefix("code="))
-    {
-        Some(c) => c,
-        None => {
-            tracing::error!("No code in callback");
-            return Redirect::to("/?error=no_code").into_response();
-        }
-    };
-    
-    info!("Auth0 callback received, exchanging code for token");
-
-    // Get session from request extensions
+    // Extract session
     let session = match req.extensions().get::<Session>() {
         Some(s) => s.clone(),
-        None => {
-            tracing::error!("No session found in request");
-            return Redirect::to("/?error=no_session").into_response();
-        }
+        None => return Redirect::to("/login?error=session").into_response(),
     };
 
-    // Get Auth0 config
-    let auth0_config = match Auth0Config::from_env() {
-        Ok(config) => config,
+    // Parse form body
+    let body = match axum::body::to_bytes(req.into_body(), 1024 * 16).await {
+        Ok(b) => b,
+        Err(_) => return Redirect::to("/login?error=invalid_form").into_response(),
+    };
+    let form: LoginForm = match serde_urlencoded::from_bytes(&body) {
+        Ok(f) => f,
+        Err(_) => return Redirect::to("/login?error=invalid_form").into_response(),
+    };
+
+    // Look up user by email
+    let user = match sqlx::query_as::<_, (Uuid, String, Option<String>, Option<String>)>(
+        "SELECT u.id, u.email, u.password_hash, p.name
+         FROM users u
+         LEFT JOIN user_profiles p ON p.user_id = u.id
+         WHERE u.email = $1 AND u.provider = 'local'"
+    )
+    .bind(&form.email)
+    .fetch_optional(&state.db.pool)
+    .await {
+        Ok(Some(u)) => u,
+        Ok(None) => return Redirect::to("/login?error=invalid_credentials").into_response(),
         Err(e) => {
-            tracing::error!("Auth0 config error: {}", e);
-            return Redirect::to("/?error=config").into_response();
+            tracing::error!("DB error during login: {}", e);
+            return Redirect::to("/login?error=server").into_response();
         }
     };
 
-    // 1. Exchange code for tokens
-    let client = reqwest::Client::new();
-    let token_response = match client
-        .post(format!("https://{}/oauth/token", auth0_config.domain))
-        .json(&serde_json::json!({
-            "grant_type": "authorization_code",
-            "client_id": auth0_config.client_id,
-            "client_secret": auth0_config.client_secret,
-            "code": code,
-            "redirect_uri": auth0_config.callback_url,
-        }))
-        .send()
-        .await
-    {
-        Ok(resp) => resp,
-        Err(e) => {
-            tracing::error!("Failed to exchange code: {}", e);
-            return Redirect::to("/?error=token_exchange").into_response();
-        }
+    let (user_id, email, password_hash, name) = user;
+
+    // Verify password
+    let password_hash = match password_hash {
+        Some(h) => h,
+        None => return Redirect::to("/login?error=invalid_credentials").into_response(),
     };
 
-    let tokens: TokenResponse = match token_response.json().await {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::error!("Failed to parse token response: {}", e);
-            return Redirect::to("/?error=token_parse").into_response();
-        }
+    let parsed_hash = match PasswordHash::new(&password_hash) {
+        Ok(h) => h,
+        Err(_) => return Redirect::to("/login?error=server").into_response(),
     };
 
-    info!("Successfully exchanged code for access token");
+    if Argon2::default().verify_password(form.password.as_bytes(), &parsed_hash).is_err() {
+        return Redirect::to("/login?error=invalid_credentials").into_response();
+    }
 
-    // 2. Get user info from Auth0
-    let user_info: Auth0UserInfo = match client
-        .get(format!("https://{}/userinfo", auth0_config.domain))
-        .bearer_auth(&tokens.access_token)
-        .send()
-        .await
-    {
-        Ok(resp) => match resp.json().await {
-            Ok(info) => info,
-            Err(e) => {
-                tracing::error!("Failed to parse user info: {}", e);
-                return Redirect::to("/?error=userinfo_parse").into_response();
-            }
-        },
-        Err(e) => {
-            tracing::error!("Failed to get user info: {}", e);
-            return Redirect::to("/?error=userinfo").into_response();
-        }
-    };
-
-    info!("Got user info for: {}", user_info.email);
-
-    // 3. Sync user to database
-    let local_user_id = match sync_user_to_database(&state.db, &user_info).await {
-        Ok(id) => id,
-        Err(e) => {
-            tracing::error!("Failed to sync user to database: {}", e);
-            return Redirect::to("/?error=db_sync").into_response();
-        }
-    };
-
-    info!("User synced to database with ID: {}", local_user_id);
-
-    // 4. Create session
+    // Create session
     let session_data = SessionData {
-        user_id: local_user_id.to_string(),
-        email: user_info.email,
-        name: user_info.name,
-        picture: user_info.picture,
+        user_id: user_id.to_string(),
+        email,
+        name,
+        picture: None,
     };
 
     if let Err(e) = session.insert("user", session_data).await {
         tracing::error!("Failed to create session: {}", e);
-        return Redirect::to("/?error=session_failed").into_response();
+        return Redirect::to("/login?error=session").into_response();
     }
 
-    info!("Session created successfully for user: {}", local_user_id);
-    
-    // Redirect to home after successful login
+    info!("User logged in: {}", user_id);
     Redirect::to("/").into_response()
 }
 
-/// Sync Auth0 user to local database
-async fn sync_user_to_database(
-    db: &shared::database::Database,
-    user_info: &Auth0UserInfo,
-) -> Result<Uuid, Box<dyn std::error::Error>> {
-    // 1. Insert or update user in users table
-    let user_id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO users (id, auth0_id, email, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
-         ON CONFLICT (auth0_id) DO UPDATE SET
-            email = EXCLUDED.email,
-            updated_at = NOW()
+/// POST /register — process registration form
+pub async fn register_handler(
+    State(state): State<Arc<crate::handlers::pages::AppState>>,
+    req: Request,
+) -> impl IntoResponse {
+    // Extract session
+    let session = match req.extensions().get::<Session>() {
+        Some(s) => s.clone(),
+        None => return Redirect::to("/register?error=session").into_response(),
+    };
+
+    // Parse form body
+    let body = match axum::body::to_bytes(req.into_body(), 1024 * 16).await {
+        Ok(b) => b,
+        Err(_) => return Redirect::to("/register?error=invalid_form").into_response(),
+    };
+    let form: RegisterForm = match serde_urlencoded::from_bytes(&body) {
+        Ok(f) => f,
+        Err(_) => return Redirect::to("/register?error=invalid_form").into_response(),
+    };
+
+    // Validate
+    if form.password.len() < 8 {
+        return Redirect::to("/register?error=password_too_short").into_response();
+    }
+
+    // Hash password
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = match Argon2::default().hash_password(form.password.as_bytes(), &salt) {
+        Ok(h) => h.to_string(),
+        Err(e) => {
+            tracing::error!("Password hash error: {}", e);
+            return Redirect::to("/register?error=server").into_response();
+        }
+    };
+
+    // Insert user + profile
+    let user_id = Uuid::new_v4();
+    let result = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO users (id, email, password_hash, provider, email_verified, created_at, updated_at)
+         VALUES ($1, $2, $3, 'local', false, NOW(), NOW())
          RETURNING id"
     )
-    .bind(Uuid::new_v4())
-    .bind(&user_info.sub)
-    .bind(&user_info.email)
-    .fetch_one(&db.pool)
-    .await?;
+    .bind(user_id)
+    .bind(&form.email)
+    .bind(&password_hash)
+    .fetch_one(&state.db.pool)
+    .await;
 
-    // 2. Insert or update user profile (user_id is PK, no separate id column)
-    sqlx::query(
-        "INSERT INTO user_profiles (user_id, name, picture, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
-         ON CONFLICT (user_id) DO UPDATE SET
-            name = EXCLUDED.name,
-            picture = EXCLUDED.picture,
-            updated_at = NOW()"
+    let user_id = match result {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("Registration DB error: {}", e);
+            if e.to_string().contains("duplicate") || e.to_string().contains("unique") {
+                return Redirect::to("/register?error=email_taken").into_response();
+            }
+            return Redirect::to("/register?error=server").into_response();
+        }
+    };
+
+    // Create profile
+    let _ = sqlx::query(
+        "INSERT INTO user_profiles (user_id, name, created_at, updated_at)
+         VALUES ($1, $2, NOW(), NOW())"
     )
     .bind(user_id)
-    .bind(&user_info.name)
-    .bind(&user_info.picture)
-    .execute(&db.pool)
-    .await?;
+    .bind(&form.name)
+    .execute(&state.db.pool)
+    .await;
 
-    Ok(user_id)
+    // Create session
+    let session_data = SessionData {
+        user_id: user_id.to_string(),
+        email: form.email,
+        name: form.name,
+        picture: None,
+    };
+
+    if let Err(e) = session.insert("user", session_data).await {
+        tracing::error!("Failed to create session: {}", e);
+        return Redirect::to("/login").into_response();
+    }
+
+    info!("New user registered: {}", user_id);
+    Redirect::to("/").into_response()
 }
 
-// ==========================================================
-// COMMENTED ENDPOINT - KEPT FOR FUTURE REFERENCE
-// ==========================================================
-// /// Get current user from session - Frontend API endpoint
-// /// USAGE: Add to router as GET /auth/me for JavaScript frontend calls
-// /// PURPOSE: Provides user authentication status and profile data to frontend
-// pub async fn get_current_user(session: Session) -> Json<serde_json::Value> {
-//     match session.get::<SessionData>("user").await {
-//         Ok(Some(user)) => Json(serde_json::json!({
-//             "authenticated": true,
-//             "user_id": user.user_id,
-//             "email": user.email,
-//             "name": user.name,
-//             "picture": user.picture,
-//         })),
-//         Ok(None) => Json(serde_json::json!({
-//             "authenticated": false,
-//             "error": "Not logged in"
-//         })),
-//         Err(e) => {
-//             tracing::error!("Session error: {}", e);
-//             Json(serde_json::json!({
-//                 "authenticated": false,
-//                 "error": "Session error"
-//             }))
-//         }
-//     }
-// }
+// ── API Handlers (return JSON + JWT) ─────────────────────────
 
-/// Logout endpoint
+/// POST /api/auth/login — returns JWT token
+pub async fn api_login(
+    State(state): State<Arc<crate::handlers::pages::AppState>>,
+    Json(form): Json<LoginForm>,
+) -> impl IntoResponse {
+    // Look up user
+    let user = match sqlx::query_as::<_, (Uuid, String, Option<String>, Option<String>)>(
+        "SELECT u.id, u.email, u.password_hash, p.name
+         FROM users u
+         LEFT JOIN user_profiles p ON p.user_id = u.id
+         WHERE u.email = $1 AND u.provider = 'local'"
+    )
+    .bind(&form.email)
+    .fetch_optional(&state.db.pool)
+    .await {
+        Ok(Some(u)) => u,
+        Ok(None) => return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid credentials"}))).into_response(),
+        Err(e) => {
+            tracing::error!("DB error: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server error"}))).into_response();
+        }
+    };
+
+    let (user_id, email, password_hash, name) = user;
+
+    // Verify password
+    let password_hash = match password_hash {
+        Some(h) => h,
+        None => return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid credentials"}))).into_response(),
+    };
+
+    let parsed_hash = match PasswordHash::new(&password_hash) {
+        Ok(h) => h,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server error"}))).into_response(),
+    };
+
+    if Argon2::default().verify_password(form.password.as_bytes(), &parsed_hash).is_err() {
+        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid credentials"}))).into_response();
+    }
+
+    // Issue JWT
+    let jwt_config = match shared::auth::JwtConfig::from_env() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server config error"}))).into_response(),
+    };
+    let jwt_service = JwtService::new(jwt_config);
+
+    let token = match jwt_service.issue_token(user_id, &email, name.as_deref(), vec![]) {
+        Ok(t) => t,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Token generation failed"}))).into_response(),
+    };
+
+    Json(TokenResponse {
+        token,
+        token_type: "Bearer".to_string(),
+        expires_in: jwt_service.expiry_seconds(),
+    }).into_response()
+}
+
+/// POST /api/auth/register — returns JWT token
+pub async fn api_register(
+    State(state): State<Arc<crate::handlers::pages::AppState>>,
+    Json(form): Json<RegisterForm>,
+) -> impl IntoResponse {
+    if form.password.len() < 8 {
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "Password must be at least 8 characters"}))).into_response();
+    }
+
+    // Hash password
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = match Argon2::default().hash_password(form.password.as_bytes(), &salt) {
+        Ok(h) => h.to_string(),
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server error"}))).into_response(),
+    };
+
+    // Insert user
+    let user_id = Uuid::new_v4();
+    if let Err(e) = sqlx::query(
+        "INSERT INTO users (id, email, password_hash, provider, email_verified, created_at, updated_at)
+         VALUES ($1, $2, $3, 'local', false, NOW(), NOW())"
+    )
+    .bind(user_id)
+    .bind(&form.email)
+    .bind(&password_hash)
+    .execute(&state.db.pool)
+    .await {
+        if e.to_string().contains("duplicate") || e.to_string().contains("unique") {
+            return (StatusCode::CONFLICT, Json(serde_json::json!({"error": "Email already registered"}))).into_response();
+        }
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server error"}))).into_response();
+    }
+
+    // Create profile
+    let _ = sqlx::query(
+        "INSERT INTO user_profiles (user_id, name, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())"
+    )
+    .bind(user_id)
+    .bind(&form.name)
+    .execute(&state.db.pool)
+    .await;
+
+    // Issue JWT
+    let jwt_config = match shared::auth::JwtConfig::from_env() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server config error"}))).into_response(),
+    };
+    let jwt_service = JwtService::new(jwt_config);
+
+    let token = match jwt_service.issue_token(user_id, &form.email, form.name.as_deref(), vec![]) {
+        Ok(t) => t,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Token generation failed"}))).into_response(),
+    };
+
+    (StatusCode::CREATED, Json(TokenResponse {
+        token,
+        token_type: "Bearer".to_string(),
+        expires_in: jwt_service.expiry_seconds(),
+    })).into_response()
+}
+
+/// POST /api/auth/refresh — refresh JWT token (requires valid token via session)
+pub async fn refresh_token(
+    AuthUser(user): AuthUser,
+) -> impl IntoResponse {
+    let jwt_config = match shared::auth::JwtConfig::from_env() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server config error"}))).into_response(),
+    };
+    let jwt_service = JwtService::new(jwt_config);
+
+    let user_id = match Uuid::parse_str(&user.user_id) {
+        Ok(id) => id,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Invalid user ID"}))).into_response(),
+    };
+
+    let token = match jwt_service.issue_token(user_id, &user.email, user.name.as_deref(), vec![]) {
+        Ok(t) => t,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Token generation failed"}))).into_response(),
+    };
+
+    Json(TokenResponse {
+        token,
+        token_type: "Bearer".to_string(),
+        expires_in: jwt_service.expiry_seconds(),
+    }).into_response()
+}
+
+// ── Logout ───────────────────────────────────────────────────
+
+/// POST /auth/logout — delete session
 pub async fn logout(req: Request) -> impl IntoResponse {
-    // Get session from request extensions
     let session = match req.extensions().get::<Session>() {
         Some(s) => s.clone(),
         None => {
-            tracing::error!("No session found in logout request");
             return Json(serde_json::json!({
                 "success": false,
                 "error": "No session found"
@@ -308,7 +404,6 @@ pub async fn logout(req: Request) -> impl IntoResponse {
         }
     };
 
-    // Delete session
     if let Err(e) = session.delete().await {
         tracing::error!("Failed to delete session: {}", e);
         return Json(serde_json::json!({
@@ -325,8 +420,9 @@ pub async fn logout(req: Request) -> impl IntoResponse {
     })).into_response()
 }
 
-/// Extractor for authenticated user - use this in route handlers
-/// Example: `async fn protected_route(AuthUser(user): AuthUser) -> impl IntoResponse`
+// ── Extractors (unchanged interface) ─────────────────────────
+
+/// Extractor for authenticated user — use in route handlers
 pub struct AuthUser(pub SessionData);
 
 impl<S> FromRequestParts<S> for AuthUser
@@ -336,13 +432,11 @@ where
     type Rejection = (StatusCode, &'static str);
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // Extract session from request extensions
         let session = parts
             .extensions
             .get::<Session>()
             .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Session not found"))?;
 
-        // Get user from session
         match session.get::<SessionData>("user").await {
             Ok(Some(user)) => Ok(AuthUser(user)),
             Ok(None) => Err((StatusCode::UNAUTHORIZED, "Not authenticated")),
@@ -351,8 +445,7 @@ where
     }
 }
 
-/// Optional auth - returns None if not authenticated instead of error
-/// This extractor never fails - it returns None if no session or no user
+/// Optional auth — returns None if not authenticated instead of error
 pub struct OptionalAuthUser(pub Option<SessionData>);
 
 impl<S> FromRequestParts<S> for OptionalAuthUser
@@ -362,13 +455,11 @@ where
     type Rejection = std::convert::Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // Try to get session, return None if not found
         let session = match parts.extensions.get::<Session>() {
             Some(s) => s,
             None => return Ok(OptionalAuthUser(None)),
         };
 
-        // Try to get user from session, return None on any error
         match session.get::<SessionData>("user").await {
             Ok(user) => Ok(OptionalAuthUser(user)),
             Err(_) => Ok(OptionalAuthUser(None)),

@@ -60,7 +60,7 @@ CREATE INDEX idx_comments_post_created ON comments(post_id, created_at ASC);
 -- ============================================================================
 
 CREATE TABLE reactions (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     reaction_type VARCHAR(20) NOT NULL,  -- 'like', 'heart', 'celebrate', etc.

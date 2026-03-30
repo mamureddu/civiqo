@@ -127,13 +127,14 @@ async fn get_or_create_test_community(db: &Database) -> (Uuid, String) {
         None => {
             // Create a test user if none exists
             let test_user_id = Uuid::now_v7();
+            let password_hash = "$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash";
             sqlx::query!(
-                "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
-                 VALUES ($1, $2, $3, NOW(), NOW())
+                "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+                 VALUES ($1, $2, $3, 'local', NOW(), NOW())
                  ON CONFLICT (email) DO NOTHING",
                 test_user_id,
                 test_email.clone(),
-                format!("auth0|{}", *TEST_RUN_ID)
+                password_hash
             )
             .execute(&db.pool)
             .await
@@ -321,12 +322,11 @@ async fn test_view_interaction_06b_community_dynamic_stats() {
     let user_id = Uuid::now_v7();
     
     sqlx::query!(
-        "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
+        "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+         VALUES ($1, $2, '$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash', 'local', NOW(), NOW())
          ON CONFLICT (email) DO NOTHING",
         user_id,
-        test_email,
-        format!("auth0|{}", *TEST_RUN_ID)
+        test_email
     )
     .execute(&db.pool)
     .await
@@ -365,15 +365,14 @@ async fn test_view_interaction_06b_community_dynamic_stats() {
         let member_email = format!("{}_stats_member{}@test.local", *TEST_RUN_ID, i);
         
         // Insert user with RETURNING to get the actual ID
-        // Use unique auth0_id per test run to avoid conflicts
+        // Use unique email per test run to avoid conflicts
         let insert_result = sqlx::query!(
-            "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
-             VALUES ($1, $2, $3, NOW(), NOW())
+            "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+             VALUES ($1, $2, '$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash', 'local', NOW(), NOW())
              ON CONFLICT (email) DO UPDATE SET updated_at = NOW()
              RETURNING id",
             member_id,
-            member_email,
-            format!("auth0|{}_stats_member{}", *TEST_RUN_ID, i)
+            member_email
         )
         .fetch_one(&db.pool)
         .await;
@@ -457,12 +456,11 @@ async fn test_view_interaction_06c_community_feed_shows_posts() {
     let user_id = Uuid::now_v7();
     
     sqlx::query!(
-        "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
+        "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+         VALUES ($1, $2, '$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash', 'local', NOW(), NOW())
          ON CONFLICT (email) DO NOTHING",
         user_id,
-        test_email,
-        format!("auth0|{}", *TEST_RUN_ID)
+        test_email
     )
     .execute(&db.pool)
     .await
@@ -541,13 +539,12 @@ async fn test_view_interaction_06d_communities_list_shows_data() {
     let user_id = Uuid::now_v7();
     
     sqlx::query!(
-        "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
+        "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+         VALUES ($1, $2, '$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash', 'local', NOW(), NOW())
          ON CONFLICT (email) DO UPDATE SET updated_at = NOW()
          RETURNING id",
         user_id,
-        test_email,
-        format!("auth0|{}", *TEST_RUN_ID)
+        test_email
     )
     .fetch_one(&db.pool)
     .await
@@ -603,13 +600,12 @@ async fn test_view_interaction_06e_index_recent_communities() {
     let user_id = Uuid::now_v7();
     
     sqlx::query!(
-        "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
+        "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+         VALUES ($1, $2, '$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash', 'local', NOW(), NOW())
          ON CONFLICT (email) DO UPDATE SET updated_at = NOW()
          RETURNING id",
         user_id,
-        test_email,
-        format!("auth0|{}", *TEST_RUN_ID)
+        test_email
     )
     .fetch_one(&db.pool)
     .await
@@ -664,13 +660,12 @@ async fn test_view_interaction_06f_members_list_shows_data() {
     let user_id = Uuid::now_v7();
     
     sqlx::query!(
-        "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
+        "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+         VALUES ($1, $2, '$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash', 'local', NOW(), NOW())
          ON CONFLICT (email) DO UPDATE SET updated_at = NOW()
          RETURNING id",
         user_id,
-        test_email,
-        format!("auth0|{}", *TEST_RUN_ID)
+        test_email
     )
     .fetch_one(&db.pool)
     .await
@@ -705,13 +700,12 @@ async fn test_view_interaction_06f_members_list_shows_data() {
         let member_email = format!("{}_members_member{}@test.local", *TEST_RUN_ID, i);
         
         let insert_result = sqlx::query!(
-            "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
-             VALUES ($1, $2, $3, NOW(), NOW())
+            "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+             VALUES ($1, $2, '$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash', 'local', NOW(), NOW())
              ON CONFLICT (email) DO UPDATE SET updated_at = NOW()
              RETURNING id",
             member_id,
-            member_email,
-            format!("auth0|{}_members_member{}", *TEST_RUN_ID, i)
+            member_email
         )
         .fetch_one(&db.pool)
         .await;
@@ -771,13 +765,12 @@ async fn test_view_interaction_06g_post_detail_shows_data() {
     let user_id = Uuid::now_v7();
     
     sqlx::query!(
-        "INSERT INTO users (id, email, auth0_id, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())
+        "INSERT INTO users (id, email, password_hash, provider, created_at, updated_at)
+         VALUES ($1, $2, '$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash', 'local', NOW(), NOW())
          ON CONFLICT (email) DO UPDATE SET updated_at = NOW()
          RETURNING id",
         user_id,
-        test_email,
-        format!("auth0|{}", *TEST_RUN_ID)
+        test_email
     )
     .fetch_one(&db.pool)
     .await

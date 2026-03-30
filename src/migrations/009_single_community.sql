@@ -36,7 +36,7 @@ ON CONFLICT (key) DO NOTHING;
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS federation_config (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     hub_url VARCHAR(500),
     api_key VARCHAR(255),
     instance_id VARCHAR(100),  -- Unique ID for this instance in the network

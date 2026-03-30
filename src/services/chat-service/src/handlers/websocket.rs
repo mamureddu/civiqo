@@ -38,7 +38,7 @@ pub async fn websocket_handler(
         }
     };
 
-    let claims = match state.auth_state().validate_token(&token).await {
+    let claims = match state.jwt_service().validate_token(&token) {
         Ok(claims) => claims,
         Err(e) => {
             warn!("WebSocket authentication failed: {}", e);
@@ -54,7 +54,7 @@ pub async fn websocket_handler(
 
 /// Handle WebSocket connection lifecycle
 async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
-    let user_id = match parse_auth0_user_id(&claims.sub) {
+    let user_id = match Uuid::parse_str(&claims.sub) {
         Ok(id) => id,
         Err(e) => {
             error!("Invalid user ID in JWT claims '{}': {}", claims.sub, e);

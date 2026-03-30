@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use shared::{
-    auth::AuthState,
+    auth::JwtService,
     database::Database,
 };
 
@@ -24,8 +24,8 @@ pub struct AppState {
     /// Service configuration
     pub config: Config,
 
-    /// Auth0 authentication state
-    pub auth_state: AuthState,
+    /// JWT authentication service
+    pub jwt_service: JwtService,
 
     /// WebSocket connection manager
     pub connection_manager: Arc<ConnectionManager>,
@@ -45,14 +45,10 @@ impl AppState {
     pub fn new(
         database: Database,
         config: Config,
-        auth_state: AuthState,
-        sqs_client: aws_sdk_sqs::Client,
-        sns_client: aws_sdk_sns::Client,
+        jwt_service: JwtService,
     ) -> Self {
-        // Create message router
+        // Create message router (without AWS clients — local mode)
         let message_router = Arc::new(MessageRouter::new(
-            sqs_client,
-            sns_client,
             config.sqs_queue_url.clone(),
             config.sns_topic_arn.clone(),
             config.message_ttl_seconds,
@@ -69,7 +65,6 @@ impl AppState {
 
         // Create connection manager
         let connection_manager = Arc::new(ConnectionManager::new(
-            // database.clone(),  // Uncomment when implementing persistent storage
             message_router.clone(),
             config.max_connections,
             config.heartbeat_interval_seconds,
@@ -78,7 +73,7 @@ impl AppState {
         Self {
             database,
             config,
-            auth_state,
+            jwt_service,
             connection_manager,
             message_router,
             message_validator,
@@ -86,56 +81,31 @@ impl AppState {
         }
     }
 
-    /// Get database reference
     pub fn database(&self) -> &Database {
         &self.database
     }
 
-    /// Get configuration reference
     pub fn config(&self) -> &Config {
         &self.config
     }
 
-    /// Get auth state reference
-    pub fn auth_state(&self) -> &AuthState {
-        &self.auth_state
+    pub fn jwt_service(&self) -> &JwtService {
+        &self.jwt_service
     }
 
-    /// Get connection manager reference
     pub fn connection_manager(&self) -> &Arc<ConnectionManager> {
         &self.connection_manager
     }
 
-    /// Get message router reference
     pub fn message_router(&self) -> &Arc<MessageRouter> {
         &self.message_router
     }
 
-    /// Get message validator reference
     pub fn message_validator(&self) -> &Arc<MessageValidator> {
         &self.message_validator
     }
 
-    /// Get rate limiter reference
     pub fn rate_limiter(&self) -> &Arc<RateLimiter> {
         &self.rate_limiter
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_app_state_getters() {
-        // Test that getter methods exist and have correct return types
-        // This is a compile-time test to ensure the interface is correct
-
-        // Mock values for testing compilation
-        let _database_ref: fn(&AppState) -> &Database = AppState::database;
-        let _config_ref: fn(&AppState) -> &Config = AppState::config;
-        let _auth_ref: fn(&AppState) -> &AuthState = AppState::auth_state;
-        let _conn_ref: fn(&AppState) -> &Arc<ConnectionManager> = AppState::connection_manager;
-        let _router_ref: fn(&AppState) -> &Arc<MessageRouter> = AppState::message_router;
     }
 }

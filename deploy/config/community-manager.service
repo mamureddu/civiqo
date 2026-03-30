@@ -1,0 +1,28 @@
+[Unit]
+Description=Civiqo Community Manager API
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=community-manager
+Group=community-manager
+WorkingDirectory=/opt/community-manager
+ExecStart=/opt/community-manager/bin/server
+EnvironmentFile=/opt/community-manager/config/.env
+Restart=on-failure
+RestartSec=5
+WatchdogSec=60
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=community-manager-api
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/community-manager/data
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

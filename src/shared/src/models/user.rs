@@ -6,8 +6,11 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: Uuid,
-    pub auth0_id: String,
     pub email: String,
+    pub password_hash: Option<String>,
+    pub provider: String,              // "local", "google", "github", etc.
+    pub provider_id: Option<String>,   // NULL for local users, provider-specific ID for SSO
+    pub email_verified: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -27,8 +30,8 @@ pub struct UserProfile {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateUserRequest {
-    pub auth0_id: String,
     pub email: String,
+    pub password: String,
     pub name: Option<String>,
 }
 
@@ -43,8 +46,9 @@ pub struct UpdateUserProfileRequest {
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct UserWithProfile {
     pub id: Uuid,
-    pub auth0_id: String,
     pub email: String,
+    pub provider: String,
+    pub provider_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     // Profile fields (optional)
@@ -58,19 +62,16 @@ pub struct UserWithProfile {
     pub profile_updated_at: Option<DateTime<Utc>>,
 }
 
-// Auth0 JWT Claims
+// JWT Claims (self-issued, SSO-ready)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,
-    pub aud: String,
-    pub iss: String,
+    pub sub: String,    // User UUID
+    pub aud: String,    // "civiqo-api"
+    pub iss: String,    // "civiqo" (or configured issuer)
     pub exp: i64,
     pub iat: i64,
     pub email: Option<String>,
-    pub email_verified: Option<bool>,
     pub name: Option<String>,
-    pub picture: Option<String>,
-    // Custom claims for community roles
     #[serde(default)]
     pub community_roles: Vec<CommunityRole>,
 }
@@ -93,8 +94,11 @@ mod tests {
     fn sample_user() -> User {
         User {
             id: Uuid::new_v4(),
-            auth0_id: "auth0|123456789".to_string(),
             email: "test@example.com".to_string(),
+            password_hash: Some("$argon2id$v=19$m=19456,t=2,p=1$test".to_string()),
+            provider: "local".to_string(),
+            provider_id: None,
+            email_verified: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -118,15 +122,13 @@ mod tests {
     #[fixture]
     fn sample_claims() -> Claims {
         Claims {
-            sub: "auth0|123456789".to_string(),
-            aud: "test-audience".to_string(),
-            iss: "https://test.auth0.com/".to_string(),
+            sub: Uuid::new_v4().to_string(),
+            aud: "civiqo-api".to_string(),
+            iss: "civiqo".to_string(),
             exp: (Utc::now() + chrono::Duration::hours(24)).timestamp(),
             iat: Utc::now().timestamp(),
             email: Some("test@example.com".to_string()),
-            email_verified: Some(true),
             name: Some("Test User".to_string()),
-            picture: Some("https://example.com/avatar.jpg".to_string()),
             community_roles: vec![
                 CommunityRole {
                     community_id: Uuid::new_v4(),
@@ -149,8 +151,8 @@ mod tests {
         let deserialized: User = serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.id, sample_user.id);
-        assert_eq!(deserialized.auth0_id, sample_user.auth0_id);
         assert_eq!(deserialized.email, sample_user.email);
+        assert_eq!(deserialized.provider, sample_user.provider);
     }
 
     #[test]
@@ -158,8 +160,9 @@ mod tests {
         let now = Utc::now();
         let user_with_profile = UserWithProfile {
             id: Uuid::new_v4(),
-            auth0_id: "auth0|123456".to_string(),
             email: "test@example.com".to_string(),
+            provider: "local".to_string(),
+            provider_id: None,
             created_at: now,
             updated_at: now,
             profile_id: Some(Uuid::new_v4()),
@@ -185,8 +188,9 @@ mod tests {
         let now = Utc::now();
         let user_without_profile = UserWithProfile {
             id: Uuid::new_v4(),
-            auth0_id: "auth0|123456".to_string(),
             email: "test@example.com".to_string(),
+            provider: "local".to_string(),
+            provider_id: None,
             created_at: now,
             updated_at: now,
             profile_id: None,
@@ -246,15 +250,14 @@ mod tests {
     #[test]
     fn test_create_user_request() {
         let request = CreateUserRequest {
-            auth0_id: "auth0|123456".to_string(),
             email: "test@example.com".to_string(),
+            password: "securepassword123".to_string(),
             name: Some("Test User".to_string()),
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
         let deserialized: CreateUserRequest = serde_json::from_str(&json).expect("Should deserialize");
 
-        assert_eq!(deserialized.auth0_id, request.auth0_id);
         assert_eq!(deserialized.email, request.email);
         assert_eq!(deserialized.name, request.name);
     }
@@ -262,15 +265,15 @@ mod tests {
     #[test]
     fn test_create_user_request_no_name() {
         let request = CreateUserRequest {
-            auth0_id: "auth0|123456".to_string(),
             email: "test@example.com".to_string(),
+            password: "securepassword123".to_string(),
             name: None,
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
         let deserialized: CreateUserRequest = serde_json::from_str(&json).expect("Should deserialize");
 
-        assert_eq!(deserialized.auth0_id, request.auth0_id);
+        assert_eq!(deserialized.email, request.email);
         assert!(deserialized.name.is_none());
     }
 
@@ -326,15 +329,13 @@ mod tests {
     #[test]
     fn test_claims_with_minimal_fields() {
         let minimal_claims = Claims {
-            sub: "auth0|123456".to_string(),
-            aud: "test-audience".to_string(),
-            iss: "https://test.auth0.com/".to_string(),
+            sub: Uuid::new_v4().to_string(),
+            aud: "civiqo-api".to_string(),
+            iss: "civiqo".to_string(),
             exp: Utc::now().timestamp(),
             iat: Utc::now().timestamp(),
             email: None,
-            email_verified: None,
             name: None,
-            picture: None,
             community_roles: vec![],
         };
 
@@ -351,15 +352,13 @@ mod tests {
     fn test_claims_timestamps() {
         let now = Utc::now();
         let claims = Claims {
-            sub: "auth0|123456".to_string(),
-            aud: "test-audience".to_string(),
-            iss: "https://test.auth0.com/".to_string(),
+            sub: Uuid::new_v4().to_string(),
+            aud: "civiqo-api".to_string(),
+            iss: "civiqo".to_string(),
             exp: (now + chrono::Duration::hours(1)).timestamp(),
             iat: now.timestamp(),
             email: Some("test@example.com".to_string()),
-            email_verified: Some(true),
             name: None,
-            picture: None,
             community_roles: vec![],
         };
 
@@ -437,38 +436,40 @@ mod tests {
     fn test_user_id_uniqueness() {
         let user1 = User {
             id: Uuid::new_v4(),
-            auth0_id: "auth0|123456".to_string(),
             email: "test@example.com".to_string(),
+            password_hash: Some("hash1".to_string()),
+            provider: "local".to_string(),
+            provider_id: None,
+            email_verified: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
 
         let user2 = User {
             id: Uuid::new_v4(),
-            auth0_id: "auth0|654321".to_string(),
             email: "different@example.com".to_string(),
+            password_hash: Some("hash2".to_string()),
+            provider: "local".to_string(),
+            provider_id: None,
+            email_verified: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
 
         assert_ne!(user1.id, user2.id);
-        assert_ne!(user1.auth0_id, user2.auth0_id);
         assert_ne!(user1.email, user2.email);
     }
 
     #[test]
-    fn test_claims_deserialization_from_real_jwt_payload() {
-        // This simulates what we might receive from Auth0
+    fn test_claims_deserialization_from_jwt_payload() {
         let jwt_payload = r#"{
-            "sub": "auth0|507f1f77bcf86cd799439011",
-            "aud": "community-manager-app",
-            "iss": "https://community-manager.auth0.com/",
+            "sub": "550e8400-e29b-41d4-a716-446655440000",
+            "aud": "civiqo-api",
+            "iss": "civiqo",
             "exp": 1234567890,
             "iat": 1234564290,
             "email": "user@example.com",
-            "email_verified": true,
             "name": "John Doe",
-            "picture": "https://example.com/picture.jpg",
             "community_roles": [
                 {
                     "community_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -478,11 +479,11 @@ mod tests {
             ]
         }"#;
 
-        let claims: Claims = serde_json::from_str(jwt_payload).expect("Should parse real JWT payload");
+        let claims: Claims = serde_json::from_str(jwt_payload).expect("Should parse JWT payload");
 
-        assert_eq!(claims.sub, "auth0|507f1f77bcf86cd799439011");
-        assert_eq!(claims.aud, "community-manager-app");
-        assert!(claims.email_verified.unwrap());
+        assert_eq!(claims.sub, "550e8400-e29b-41d4-a716-446655440000");
+        assert_eq!(claims.aud, "civiqo-api");
+        assert_eq!(claims.iss, "civiqo");
         assert_eq!(claims.community_roles.len(), 1);
         assert_eq!(claims.community_roles[0].role, "admin");
     }
@@ -538,15 +539,13 @@ mod tests {
         }
 
         let claims = Claims {
-            sub: "auth0|123456".to_string(),
-            aud: "test-audience".to_string(),
-            iss: "https://test.auth0.com/".to_string(),
+            sub: Uuid::new_v4().to_string(),
+            aud: "civiqo-api".to_string(),
+            iss: "civiqo".to_string(),
             exp: Utc::now().timestamp(),
             iat: Utc::now().timestamp(),
             email: Some("test@example.com".to_string()),
-            email_verified: Some(true),
             name: Some("Test User".to_string()),
-            picture: None,
             community_roles: large_roles,
         };
 

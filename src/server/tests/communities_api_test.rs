@@ -35,13 +35,14 @@ mod communities_api_tests {
         let slug = format!("{}_community", unique_prefix);
         
         // Create test user
+        let password_hash = "$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash";
         sqlx::query!(
-            "INSERT INTO users (id, auth0_id, email) VALUES ($1, $2, $3)
-             ON CONFLICT (auth0_id) DO UPDATE SET email = EXCLUDED.email
+            "INSERT INTO users (id, email, password_hash, provider) VALUES ($1, $2, $3, 'local')
+             ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
              RETURNING id",
             user_id,
-            format!("auth0|{}", user_id),
-            format!("{}@test.local", user_id)
+            format!("{}@test.local", user_id),
+            password_hash
         )
         .fetch_one(&db.pool)
         .await
@@ -294,11 +295,12 @@ mod communities_api_tests {
         if private_communities.is_none() {
             // Create a test user first (required for foreign key)
             let test_user_id = Uuid::new_v4();
+            let password_hash = "$argon2id$v=19$m=19456,t=2,p=1$dummy$dummyhash";
             sqlx::query!(
-                "INSERT INTO users (id, auth0_id, email) VALUES ($1, $2, $3)",
+                "INSERT INTO users (id, email, password_hash, provider) VALUES ($1, $2, $3, 'local')",
                 test_user_id,
-                format!("test-{}", test_user_id),
-                format!("test-{}@example.com", test_user_id)
+                format!("test-{}@example.com", test_user_id),
+                password_hash
             )
             .execute(&db.pool)
             .await

@@ -1,6 +1,6 @@
 use axum::http::HeaderMap;
 use shared::{
-    auth::{extract_bearer_token, JwtValidator, AuthenticatedUser},
+    auth::{extract_bearer_token, JwtService, JwtConfig, AuthenticatedUser},
     error::{AppError, Result},
 };
 use crate::AppState;
@@ -15,13 +15,18 @@ pub async fn extract_user(state: &AppState, headers: &HeaderMap) -> Result<Authe
 
     let token = extract_bearer_token(auth_header)?;
 
-    let validator = JwtValidator::new(&state.auth_config);
-    let claims = validator.validate_token(token).await?;
+    let jwt_config = JwtConfig::from_env()?;
+    let jwt_service = JwtService::new(jwt_config);
+    let claims = jwt_service.validate_token(token)?;
 
-    // Look up user in database to get UUID
+    // Parse UUID from claims.sub (now contains user UUID directly)
+    let user_id = uuid::Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::Auth("Invalid user ID in token".to_string()))?;
+
+    // Look up user in database by UUID
     let user = sqlx::query!(
-        "SELECT id FROM users WHERE auth0_id = $1",
-        claims.sub
+        "SELECT id FROM users WHERE id = $1",
+        user_id
     )
     .fetch_optional(&state.db.pool)
     .await?
@@ -29,7 +34,6 @@ pub async fn extract_user(state: &AppState, headers: &HeaderMap) -> Result<Authe
 
     Ok(AuthenticatedUser {
         user_id: user.id,
-        auth0_id: claims.sub.clone(),
         email: claims.email.clone(),
         name: claims.name.clone(),
         claims,

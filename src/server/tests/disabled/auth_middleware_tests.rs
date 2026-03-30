@@ -93,15 +93,13 @@ impl AuthTestContext {
     /// Create a JWT with invalid signature
     fn create_invalid_signature_jwt(&self) -> String {
         let claims = Claims {
-            sub: "test|123456".to_string(),
+            sub: Uuid::new_v4().to_string(),
             aud: self.auth_config.audience.clone(),
             iss: format!("https://{}/", self.auth_config.domain),
             exp: (Utc::now() + Duration::hours(24)).timestamp(),
             iat: Utc::now().timestamp(),
             email: Some("test@example.com".to_string()),
-            email_verified: Some(true),
             name: Some("Test User".to_string()),
-            picture: None,
             community_roles: vec![],
         };
 
@@ -147,15 +145,13 @@ impl AuthTestContext {
         let user = create_test_user(&self.db, None).await.expect("Failed to create test user");
 
         let claims = Claims {
-            sub: user.auth0_id.clone(),
+            sub: user.id.to_string(),
             aud: self.auth_config.audience.clone(),
             iss: format!("https://{}/", self.auth_config.domain),
             exp: (Utc::now() + Duration::hours(24)).timestamp(),
             iat: Utc::now().timestamp(),
             email: Some(user.email.clone()),
-            email_verified: Some(true),
             name: Some("Test User".to_string()),
-            picture: None,
             community_roles: vec![],
         };
 
@@ -186,7 +182,7 @@ async fn test_valid_jwt_token() {
 
     let returned_user = body.data.unwrap();
     assert_eq!(returned_user.id, user.id);
-    assert_eq!(returned_user.auth0_id, user.auth0_id);
+    assert_eq!(returned_user.email, user.email);
 
     ctx.cleanup().await;
 }
@@ -349,9 +345,7 @@ async fn test_jwt_missing_required_claims() {
         exp: (Utc::now() + Duration::hours(24)).timestamp(),
         iat: Utc::now().timestamp(),
         email: None, // Missing email
-        email_verified: Some(false),
         name: None,
-        picture: None,
         community_roles: vec![],
     };
 
@@ -610,15 +604,13 @@ async fn test_user_not_found_in_database() {
 
     // Create claims for a user that doesn't exist in the database
     let claims = Claims {
-        sub: "auth0|nonexistent-user".to_string(),
+        sub: Uuid::new_v4().to_string(),
         aud: ctx.auth_config.audience.clone(),
         iss: format!("https://{}/", ctx.auth_config.domain),
         exp: (Utc::now() + Duration::hours(24)).timestamp(),
         iat: Utc::now().timestamp(),
         email: Some("nonexistent@example.com".to_string()),
-        email_verified: Some(true),
         name: Some("Nonexistent User".to_string()),
-        picture: None,
         community_roles: vec![],
     };
 
@@ -641,7 +633,7 @@ async fn test_user_email_verification_required() {
     ctx.setup_jwks_mock().await;
 
     let (user, mut claims) = ctx.create_test_user_with_claims().await;
-    claims.email_verified = Some(false); // Unverified email
+    // Note: email_verified is now tracked in the users table, not in JWT claims
     let token = ctx.create_test_jwt(&claims);
 
     let response = ctx.server

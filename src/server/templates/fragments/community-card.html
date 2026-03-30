@@ -74,7 +74,7 @@
       {% endif %}
     {% else %}
       {# User not authenticated #}
-      <a href="/auth/login?redirect=/communities/{{ community.slug }}"
+      <a href="/login?redirect=/communities/{{ community.slug }}"
          class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-civiqo-gray-200 text-civiqo-gray-600 hover:bg-civiqo-gray-200/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue focus-visible:ring-offset-2">
         {{ t.header_login | default(value='Accedi') }}
       </a>

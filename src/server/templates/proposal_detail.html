@@ -191,7 +191,7 @@
                 </button>
             </div>
             {% elif not logged_in %}
-            <a href="/auth/login?redirect=/governance/{{ proposal_id }}" 
+            <a href="/login?redirect=/governance/{{ proposal_id }}" 
                class="inline-block px-4 py-2 bg-civiqo-blue text-white rounded-lg font-medium hover:bg-civiqo-blue-dark transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-civiqo-blue focus-visible:ring-offset-2">
                 {{ t.header_login | default(value='Accedi per votare') }}
             </a>

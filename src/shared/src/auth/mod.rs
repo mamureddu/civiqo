@@ -1,160 +1,118 @@
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
-use serde::{Deserialize, Serialize};
-use reqwest;
-use crate::models::Claims;
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation, Algorithm};
+use crate::models::{Claims, CommunityRole};
 use crate::error::{AppError, Result};
 
-// pub mod middleware;
-
+/// JWT configuration for self-issued tokens
 #[derive(Debug, Clone)]
-pub struct Auth0Config {
-    pub domain: String,
-    pub audience: String,
-    pub client_id: String,
-    pub client_secret: String,
+pub struct JwtConfig {
+    pub secret: String,
+    pub issuer: String,
+    pub expiry_hours: u64,
 }
 
-impl Auth0Config {
+impl JwtConfig {
     pub fn from_env() -> Result<Self> {
         Ok(Self {
-            domain: std::env::var("AUTH0_DOMAIN")
-                .map_err(|_| AppError::Config("AUTH0_DOMAIN not set".to_string()))?,
-            audience: std::env::var("AUTH0_AUDIENCE")
-                .map_err(|_| AppError::Config("AUTH0_AUDIENCE not set".to_string()))?,
-            client_id: std::env::var("AUTH0_CLIENT_ID")
-                .map_err(|_| AppError::Config("AUTH0_CLIENT_ID not set".to_string()))?,
-            client_secret: std::env::var("AUTH0_CLIENT_SECRET")
-                .map_err(|_| AppError::Config("AUTH0_CLIENT_SECRET not set".to_string()))?,
+            secret: std::env::var("JWT_SECRET")
+                .map_err(|_| AppError::Config("JWT_SECRET not set (min 32 bytes)".to_string()))?,
+            issuer: std::env::var("JWT_ISSUER")
+                .unwrap_or_else(|_| "civiqo".to_string()),
+            expiry_hours: std::env::var("JWT_EXPIRY_HOURS")
+                .unwrap_or_else(|_| "24".to_string())
+                .parse()
+                .unwrap_or(24),
         })
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Jwks {
-    pub keys: Vec<Jwk>,
+/// JWT service for issuing and validating tokens (HS256)
+#[derive(Clone)]
+pub struct JwtService {
+    config: JwtConfig,
+    encoding_key: EncodingKey,
+    decoding_key: DecodingKey,
+    validation: Validation,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Jwk {
-    pub kty: String,
-    pub kid: String,
-    pub r#use: Option<String>,
-    pub n: String,
-    pub e: String,
-    pub x5c: Option<Vec<String>>,
+impl std::fmt::Debug for JwtService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JwtService")
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
-#[derive(Debug, Clone)]
-pub struct JwtValidator {
-    pub auth0_domain: String,
-    pub audience: String,
-    pub validation: Validation,
-}
+impl JwtService {
+    pub fn new(config: JwtConfig) -> Self {
+        let encoding_key = EncodingKey::from_secret(config.secret.as_bytes());
+        let decoding_key = DecodingKey::from_secret(config.secret.as_bytes());
 
-impl JwtValidator {
-    pub fn new(config: &Auth0Config) -> Self {
-        let mut validation = Validation::new(Algorithm::RS256);
-        validation.set_audience(&[&config.audience]);
-        validation.set_issuer(&[&format!("https://{}/", config.domain)]);
+        let mut validation = Validation::new(Algorithm::HS256);
+        validation.set_issuer(&[&config.issuer]);
+        validation.set_audience(&["civiqo-api"]);
 
         Self {
-            auth0_domain: config.domain.clone(),
-            audience: config.audience.clone(),
+            config,
+            encoding_key,
+            decoding_key,
             validation,
         }
     }
 
-    pub async fn validate_token(&self, token: &str) -> Result<Claims> {
-        // Get the key ID from the token header
-        let header = jsonwebtoken::decode_header(token)
-            .map_err(|e| AppError::Auth(format!("Invalid JWT header: {}", e)))?;
+    /// Issue a new JWT token for a user
+    pub fn issue_token(
+        &self,
+        user_id: uuid::Uuid,
+        email: &str,
+        name: Option<&str>,
+        community_roles: Vec<CommunityRole>,
+    ) -> Result<String> {
+        let now = chrono::Utc::now();
+        let exp = now + chrono::Duration::hours(self.config.expiry_hours as i64);
 
-        let kid = header.kid.ok_or_else(|| {
-            AppError::Auth("JWT header missing key ID".to_string())
-        })?;
+        let claims = Claims {
+            sub: user_id.to_string(),
+            aud: "civiqo-api".to_string(),
+            iss: self.config.issuer.clone(),
+            exp: exp.timestamp(),
+            iat: now.timestamp(),
+            email: Some(email.to_string()),
+            name: name.map(|n| n.to_string()),
+            community_roles,
+        };
 
-        // Fetch JWKS from Auth0
-        let jwks = self.fetch_jwks().await?;
+        let header = Header::new(Algorithm::HS256);
+        encode(&header, &claims, &self.encoding_key)
+            .map_err(|e| AppError::Auth(format!("Failed to issue JWT: {}", e)))
+    }
 
-        // Find the key with matching kid
-        let jwk = jwks.keys
-            .iter()
-            .find(|key| key.kid == kid)
-            .ok_or_else(|| AppError::Auth("Key not found in JWKS".to_string()))?;
-
-        // Create decoding key from the JWK
-        let decoding_key = self.jwk_to_decoding_key(jwk)?;
-
-        // Validate the token
-        let token_data = decode::<Claims>(token, &decoding_key, &self.validation)
+    /// Validate a JWT token and return its claims
+    pub fn validate_token(&self, token: &str) -> Result<Claims> {
+        let token_data = decode::<Claims>(token, &self.decoding_key, &self.validation)
             .map_err(|e| AppError::Auth(format!("Invalid JWT: {}", e)))?;
-
         Ok(token_data.claims)
     }
 
-    async fn fetch_jwks(&self) -> Result<Jwks> {
-        let jwks_url = format!("https://{}/.well-known/jwks.json", self.auth0_domain);
+    /// Refresh a token — issue a new one with updated expiry
+    pub fn refresh_token(&self, claims: &Claims) -> Result<String> {
+        let user_id = uuid::Uuid::parse_str(&claims.sub)
+            .map_err(|_| AppError::Auth("Invalid user ID in token".to_string()))?;
 
-        let response = reqwest::get(&jwks_url)
-            .await
-            .map_err(|e| AppError::ExternalService(format!("Failed to fetch JWKS: {}", e)))?;
-
-        if !response.status().is_success() {
-            return Err(AppError::ExternalService(
-                "Failed to fetch JWKS from Auth0".to_string()
-            ));
-        }
-
-        let jwks: Jwks = response
-            .json()
-            .await
-            .map_err(|e| AppError::ExternalService(format!("Invalid JWKS response: {}", e)))?;
-
-        Ok(jwks)
+        self.issue_token(
+            user_id,
+            claims.email.as_deref().unwrap_or(""),
+            claims.name.as_deref(),
+            claims.community_roles.clone(),
+        )
     }
 
-    fn jwk_to_decoding_key(&self, jwk: &Jwk) -> Result<DecodingKey> {
-        // For RSA keys, we need to construct the public key from n and e
-        use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-
-        if jwk.kty != "RSA" {
-            return Err(AppError::Auth("Only RSA keys are supported".to_string()));
-        }
-
-        // If x5c is present, use the first certificate
-        if let Some(ref x5c) = jwk.x5c {
-            if let Some(cert) = x5c.first() {
-                let cert_der = URL_SAFE_NO_PAD.decode(cert)
-                    .map_err(|e| AppError::Auth(format!("Invalid certificate encoding: {}", e)))?;
-
-                let decoding_key = DecodingKey::from_rsa_der(&cert_der);
-                return Ok(decoding_key);
-            }
-        }
-
-        // Fallback: construct RSA public key from n and e parameters
-        // This is more complex and requires additional cryptographic libraries
-        // For now, return an error suggesting using x5c
-        Err(AppError::Auth(
-            "RSA key construction from n/e not implemented. Please use x5c in JWKS.".to_string()
-        ))
-    }
-
-    // Development-only: simplified validation for testing
-    #[cfg(feature = "development")]
-    pub fn validate_token_dev(&self, token: &str, secret: &str) -> Result<Claims> {
-        let decoding_key = DecodingKey::from_secret(secret.as_ref());
-        let mut validation = Validation::new(Algorithm::HS256);
-        validation.set_audience(&[&self.audience]);
-
-        let token_data = decode::<Claims>(token, &decoding_key, &validation)
-            .map_err(|e| AppError::Auth(format!("Invalid JWT: {}", e)))?;
-
-        Ok(token_data.claims)
+    /// Get the configured expiry in seconds (for API responses)
+    pub fn expiry_seconds(&self) -> u64 {
+        self.config.expiry_hours * 3600
     }
 }
 
-// Extract token from Authorization header
+/// Extract token from Authorization header
 pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
     if auth_header.starts_with("Bearer ") {
         Ok(&auth_header[7..])
@@ -163,27 +121,24 @@ pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
     }
 }
 
-// Check if user has required role in community
+/// Check if user has required role in community
 pub fn has_community_role(claims: &Claims, community_id: uuid::Uuid, required_role: &str) -> bool {
     claims.community_roles.iter().any(|role| {
         role.community_id == community_id && role.role == required_role
     })
 }
 
-// Check if user has any of the required permissions
+/// Check if user has any of the required permissions
 pub fn has_permission(claims: &Claims, community_id: uuid::Uuid, permission: &str) -> bool {
     claims.community_roles.iter().any(|role| {
         role.community_id == community_id && role.permissions.contains(&permission.to_string())
     })
 }
 
-// Type alias for backwards compatibility with chat service
-pub type AuthState = JwtValidator;
-
-#[derive(Debug, Serialize, Deserialize)]
+/// Authenticated user extracted from JWT
+#[derive(Debug)]
 pub struct AuthenticatedUser {
     pub user_id: uuid::Uuid,
-    pub auth0_id: String,
     pub email: Option<String>,
     pub name: Option<String>,
     pub claims: Claims,
@@ -192,316 +147,148 @@ pub struct AuthenticatedUser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::{matchers::{method, path}, Mock, MockServer, ResponseTemplate};
+    use crate::models::CommunityRole;
     use rstest::*;
-    use crate::models::{Claims, CommunityRole};
 
     #[fixture]
-    fn test_config() -> Auth0Config {
-        Auth0Config {
-            domain: "test.auth0.com".to_string(),
-            audience: "test-audience".to_string(),
-            client_id: "test-client-id".to_string(),
-            client_secret: "test-client-secret".to_string(),
+    fn jwt_config() -> JwtConfig {
+        JwtConfig {
+            secret: "test-secret-that-is-at-least-32-bytes-long".to_string(),
+            issuer: "civiqo".to_string(),
+            expiry_hours: 24,
         }
     }
 
     #[fixture]
-    fn mock_claims() -> Claims {
-        Claims {
-            sub: "auth0|123456789".to_string(),
-            aud: "test-audience".to_string(),
-            iss: "https://test.auth0.com/".to_string(),
-            exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp(),
-            iat: chrono::Utc::now().timestamp(),
-            email: Some("test@example.com".to_string()),
-            email_verified: Some(true),
-            name: Some("Test User".to_string()),
-            picture: Some("https://example.com/avatar.jpg".to_string()),
-            community_roles: vec![
-                CommunityRole {
-                    community_id: uuid::Uuid::new_v4(),
-                    role: "admin".to_string(),
-                    permissions: vec!["read".to_string(), "write".to_string()],
-                }
-            ],
-        }
-    }
-
-    #[test]
-    fn test_auth0_config_direct_construction() {
-        // Test direct configuration creation without environment variables
-        let config = Auth0Config {
-            domain: "test-domain.auth0.com".to_string(),
-            audience: "test-audience".to_string(),
-            client_id: "test-client-id".to_string(),
-            client_secret: "test-client-secret".to_string(),
-        };
-
-        assert_eq!(config.domain, "test-domain.auth0.com");
-        assert_eq!(config.audience, "test-audience");
-        assert_eq!(config.client_id, "test-client-id");
-        assert_eq!(config.client_secret, "test-client-secret");
-    }
-
-    #[test]
-    fn test_auth0_config_validation() {
-        // Test configuration validation without modifying environment
-
-        // Test that empty strings would be invalid (simulating missing env vars)
-        let invalid_config = Auth0Config {
-            domain: "".to_string(),
-            audience: "test-audience".to_string(),
-            client_id: "test-client-id".to_string(),
-            client_secret: "test-client-secret".to_string(),
-        };
-
-        // Instead of testing env reading, test config validation logic
-        assert!(invalid_config.domain.is_empty(), "Should detect empty domain");
+    fn jwt_service(jwt_config: JwtConfig) -> JwtService {
+        JwtService::new(jwt_config)
     }
 
     #[rstest]
-    fn test_jwt_validator_creation(test_config: Auth0Config) {
-        let validator = JwtValidator::new(&test_config);
+    fn test_issue_and_validate_token(jwt_service: JwtService) {
+        let user_id = uuid::Uuid::new_v4();
+        let email = "test@example.com";
+        let name = Some("Test User");
+        let roles = vec![CommunityRole {
+            community_id: uuid::Uuid::new_v4(),
+            role: "admin".to_string(),
+            permissions: vec!["read".to_string(), "write".to_string()],
+        }];
 
-        assert_eq!(validator.auth0_domain, "test.auth0.com");
-        assert_eq!(validator.audience, "test-audience");
-        assert_eq!(validator.validation.algorithms, vec![Algorithm::RS256]);
+        let token = jwt_service.issue_token(user_id, email, name, roles.clone())
+            .expect("Should issue token");
+
+        let claims = jwt_service.validate_token(&token)
+            .expect("Should validate token");
+
+        assert_eq!(claims.sub, user_id.to_string());
+        assert_eq!(claims.email, Some(email.to_string()));
+        assert_eq!(claims.name, Some("Test User".to_string()));
+        assert_eq!(claims.iss, "civiqo");
+        assert_eq!(claims.aud, "civiqo-api");
+        assert_eq!(claims.community_roles.len(), 1);
+        assert_eq!(claims.community_roles[0].role, "admin");
     }
 
-    #[tokio::test]
-    async fn test_fetch_jwks_success() {
-        let mock_server = MockServer::start().await;
-
-        let jwks_response = serde_json::json!({
-            "keys": [
-                {
-                    "kty": "RSA",
-                    "kid": "test-key-id",
-                    "use": "sig",
-                    "n": "test-n-value",
-                    "e": "AQAB",
-                    "x5c": ["LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t"]
-                }
-            ]
-        });
-
-        Mock::given(method("GET"))
-            .and(path("/.well-known/jwks.json"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_response))
-            .mount(&mock_server)
-            .await;
-
-        let config = Auth0Config {
-            domain: mock_server.uri().trim_start_matches("http://").to_string(),
-            audience: "test-audience".to_string(),
-            client_id: "test-client-id".to_string(),
-            client_secret: "test-client-secret".to_string(),
-        };
-
-        let validator = JwtValidator::new(&config);
-        let result = validator.fetch_jwks().await;
-
-        // Network tests may fail in some environments, so we check either success or expected failure
-        match result {
-            Ok(jwks) => {
-                assert_eq!(jwks.keys.len(), 1);
-                assert_eq!(jwks.keys[0].kid, "test-key-id");
-                assert_eq!(jwks.keys[0].kty, "RSA");
-            }
-            Err(_) => {
-                // Network/mock server failures are acceptable in test environments
-                println!("JWKS fetch test skipped due to network/mock server issues");
-            }
-        }
+    #[rstest]
+    fn test_validate_invalid_token(jwt_service: JwtService) {
+        let result = jwt_service.validate_token("invalid-token");
+        assert!(result.is_err());
     }
 
-    #[tokio::test]
-    async fn test_fetch_jwks_failure() {
-        let mock_server = MockServer::start().await;
+    #[rstest]
+    fn test_validate_token_wrong_secret(jwt_service: JwtService) {
+        let user_id = uuid::Uuid::new_v4();
+        let token = jwt_service.issue_token(user_id, "test@example.com", None, vec![])
+            .expect("Should issue token");
 
-        Mock::given(method("GET"))
-            .and(path("/.well-known/jwks.json"))
-            .respond_with(ResponseTemplate::new(404))
-            .mount(&mock_server)
-            .await;
-
-        let config = Auth0Config {
-            domain: mock_server.uri().trim_start_matches("http://").to_string(),
-            audience: "test-audience".to_string(),
-            client_id: "test-client-id".to_string(),
-            client_secret: "test-client-secret".to_string(),
+        let wrong_config = JwtConfig {
+            secret: "completely-different-secret-that-is-32-bytes".to_string(),
+            issuer: "civiqo".to_string(),
+            expiry_hours: 24,
         };
+        let wrong_service = JwtService::new(wrong_config);
 
-        let validator = JwtValidator::new(&config);
-        let result = validator.fetch_jwks().await;
+        let result = wrong_service.validate_token(&token);
+        assert!(result.is_err());
+    }
 
-        assert!(result.is_err());
-        // Should be an error, but the specific error message may vary
-        assert!(result.is_err());
+    #[rstest]
+    fn test_refresh_token(jwt_service: JwtService) {
+        let user_id = uuid::Uuid::new_v4();
+        let token = jwt_service.issue_token(user_id, "test@example.com", Some("Test"), vec![])
+            .expect("Should issue token");
+
+        let claims = jwt_service.validate_token(&token).expect("Should validate");
+        let refreshed = jwt_service.refresh_token(&claims).expect("Should refresh");
+
+        let new_claims = jwt_service.validate_token(&refreshed).expect("Should validate refreshed");
+        assert_eq!(new_claims.sub, user_id.to_string());
+        assert!(new_claims.iat >= claims.iat);
+    }
+
+    #[rstest]
+    fn test_expiry_seconds(jwt_service: JwtService) {
+        assert_eq!(jwt_service.expiry_seconds(), 24 * 3600);
     }
 
     #[test]
     fn test_extract_bearer_token_success() {
-        // Test valid bearer token
         let result = extract_bearer_token("Bearer token123").expect("Should extract token");
         assert_eq!(result, "token123");
-
-        // Test token with extra spaces
-        let result = extract_bearer_token("Bearer  token456").expect("Should extract token");
-        assert_eq!(result, " token456");
     }
 
     #[test]
     fn test_extract_bearer_token_failure() {
-        // Test missing bearer prefix
-        let result = extract_bearer_token("Invalid token123");
-        assert!(result.is_err());
-
-        // Test incorrect prefix
-        let result = extract_bearer_token("Bear token123");
-        assert!(result.is_err());
-
-        // Test empty string
-        let result = extract_bearer_token("");
-        assert!(result.is_err());
-    }
-
-    #[rstest]
-    fn test_has_community_role(mock_claims: Claims) {
-        let community_id = mock_claims.community_roles[0].community_id;
-
-        // Test existing role
-        assert!(has_community_role(&mock_claims, community_id, "admin"));
-
-        // Test non-existing role
-        assert!(!has_community_role(&mock_claims, community_id, "member"));
-
-        // Test different community
-        let different_community = uuid::Uuid::new_v4();
-        assert!(!has_community_role(&mock_claims, different_community, "admin"));
-    }
-
-    #[rstest]
-    fn test_has_permission(mock_claims: Claims) {
-        let community_id = mock_claims.community_roles[0].community_id;
-
-        // Test existing permission
-        assert!(has_permission(&mock_claims, community_id, "read"));
-        assert!(has_permission(&mock_claims, community_id, "write"));
-
-        // Test non-existing permission
-        assert!(!has_permission(&mock_claims, community_id, "delete"));
-
-        // Test different community
-        let different_community = uuid::Uuid::new_v4();
-        assert!(!has_permission(&mock_claims, different_community, "read"));
+        assert!(extract_bearer_token("Invalid token123").is_err());
+        assert!(extract_bearer_token("Bear token123").is_err());
+        assert!(extract_bearer_token("").is_err());
     }
 
     #[test]
-    fn test_jwk_to_decoding_key_unsupported_type() {
-        let config = Auth0Config {
-            domain: "test.auth0.com".to_string(),
-            audience: "test-audience".to_string(),
-            client_id: "test-client-id".to_string(),
-            client_secret: "test-client-secret".to_string(),
-        };
-
-        let validator = JwtValidator::new(&config);
-
-        let ec_jwk = Jwk {
-            kty: "EC".to_string(),
-            kid: "test-key".to_string(),
-            r#use: Some("sig".to_string()),
-            n: "".to_string(),
-            e: "".to_string(),
-            x5c: None,
-        };
-
-        let result = validator.jwk_to_decoding_key(&ec_jwk);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_jwk_to_decoding_key_no_x5c() {
-        let config = Auth0Config {
-            domain: "test.auth0.com".to_string(),
-            audience: "test-audience".to_string(),
-            client_id: "test-client-id".to_string(),
-            client_secret: "test-client-secret".to_string(),
-        };
-
-        let validator = JwtValidator::new(&config);
-
-        let rsa_jwk = Jwk {
-            kty: "RSA".to_string(),
-            kid: "test-key".to_string(),
-            r#use: Some("sig".to_string()),
-            n: "test-n".to_string(),
-            e: "AQAB".to_string(),
-            x5c: None,
-        };
-
-        let result = validator.jwk_to_decoding_key(&rsa_jwk);
-        assert!(result.is_err());
-
-        if let Err(AppError::Auth(msg)) = result {
-            assert!(msg.contains("RSA key construction from n/e not implemented"));
-        } else {
-            panic!("Expected Auth error");
-        }
-    }
-
-    #[cfg(feature = "development")]
-    #[rstest]
-    fn test_validate_token_dev(test_config: Auth0Config, mock_claims: Claims) {
-        let validator = JwtValidator::new(&test_config);
-
-        // Create a simple HS256 token for testing
-        let secret = "test-secret";
-        let header = jsonwebtoken::Header::new(Algorithm::HS256);
-        let token = jsonwebtoken::encode(&header, &mock_claims, &jsonwebtoken::EncodingKey::from_secret(secret.as_ref()))
-            .expect("Should encode token");
-
-        let result = validator.validate_token_dev(&token, secret);
-        assert!(result.is_ok());
-
-        let claims = result.unwrap();
-        assert_eq!(claims.sub, mock_claims.sub);
-        assert_eq!(claims.email, mock_claims.email);
-    }
-
-    #[test]
-    fn test_authenticated_user_creation() {
-        let user_id = uuid::Uuid::new_v4();
-        let auth0_id = "auth0|123456".to_string();
-        let email = "test@example.com".to_string();
-        let name = "Test User".to_string();
+    fn test_has_community_role() {
+        let community_id = uuid::Uuid::new_v4();
         let claims = Claims {
-            sub: auth0_id.clone(),
-            aud: "test-audience".to_string(),
-            iss: "https://test.auth0.com/".to_string(),
-            exp: chrono::Utc::now().timestamp(),
+            sub: uuid::Uuid::new_v4().to_string(),
+            aud: "civiqo-api".to_string(),
+            iss: "civiqo".to_string(),
+            exp: chrono::Utc::now().timestamp() + 3600,
             iat: chrono::Utc::now().timestamp(),
-            email: Some(email.clone()),
-            email_verified: Some(true),
-            name: Some(name.clone()),
-            picture: None,
-            community_roles: vec![],
+            email: Some("test@example.com".to_string()),
+            name: None,
+            community_roles: vec![CommunityRole {
+                community_id,
+                role: "admin".to_string(),
+                permissions: vec!["read".to_string(), "write".to_string()],
+            }],
         };
 
-        let auth_user = AuthenticatedUser {
-            user_id,
-            auth0_id: auth0_id.clone(),
-            email: Some(email.clone()),
-            name: Some(name.clone()),
-            claims: claims.clone(),
+        assert!(has_community_role(&claims, community_id, "admin"));
+        assert!(!has_community_role(&claims, community_id, "member"));
+        assert!(!has_community_role(&claims, uuid::Uuid::new_v4(), "admin"));
+    }
+
+    #[test]
+    fn test_has_permission() {
+        let community_id = uuid::Uuid::new_v4();
+        let claims = Claims {
+            sub: uuid::Uuid::new_v4().to_string(),
+            aud: "civiqo-api".to_string(),
+            iss: "civiqo".to_string(),
+            exp: chrono::Utc::now().timestamp() + 3600,
+            iat: chrono::Utc::now().timestamp(),
+            email: None,
+            name: None,
+            community_roles: vec![CommunityRole {
+                community_id,
+                role: "admin".to_string(),
+                permissions: vec!["read".to_string(), "write".to_string()],
+            }],
         };
 
-        assert_eq!(auth_user.user_id, user_id);
-        assert_eq!(auth_user.auth0_id, auth0_id);
-        assert_eq!(auth_user.email, Some(email));
-        assert_eq!(auth_user.name, Some(name));
-        assert_eq!(auth_user.claims.sub, claims.sub);
+        assert!(has_permission(&claims, community_id, "read"));
+        assert!(has_permission(&claims, community_id, "write"));
+        assert!(!has_permission(&claims, community_id, "delete"));
+        assert!(!has_permission(&claims, uuid::Uuid::new_v4(), "read"));
     }
 }

@@ -40,7 +40,6 @@ impl Database {
 
     pub async fn migrate(&self) -> Result<()> {
         sqlx::migrate!("../migrations")
-            .set_locking(false) // CockroachDB doesn't support pg_advisory_lock
             .run(&self.pool)
             .await
             .map_err(|e| AppError::Database(e.into()))?;

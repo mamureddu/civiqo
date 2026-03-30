@@ -15,17 +15,10 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-# Lambda and WebSocket
-lambda_runtime = { workspace = true }
-lambda_http = { workspace = true }
+# WebSocket
 tokio-tungstenite = { workspace = true }
 axum = { workspace = true, features = ["ws"] }
 tower = { workspace = true }
-
-# AWS SDK for SQS/SNS
-aws-config = { workspace = true }
-aws-sdk-sqs = { workspace = true }
-aws-sdk-sns = { workspace = true }
 
 # Shared library
 shared = { path = "../../shared", features = ["testing"] }
@@ -47,8 +40,3 @@ insta = { workspace = true }
 test-case = { workspace = true }
 axum-test = "14.0" # For integration testing
 
-# For potential EC2 deployment
-[features]
-default = ["lambda"]
-lambda = []
-ec2 = []

@@ -115,15 +115,13 @@ impl ValidationTestContext {
             .await.expect("Failed to create test community");
 
         let claims = Claims {
-            sub: user.auth0_id.clone(),
+            sub: user.id.to_string(),
             aud: self.auth_config.audience.clone(),
             iss: format!("https://{}/", self.auth_config.domain),
             exp: (Utc::now() + chrono::Duration::hours(24)).timestamp(),
             iat: Utc::now().timestamp(),
             email: Some(user.email.clone()),
-            email_verified: Some(true),
             name: Some("Test User".to_string()),
-            picture: None,
             community_roles: vec![],
         };
 
@@ -712,15 +710,13 @@ async fn test_authorization_enforcement() {
         .await.expect("Failed to create other user");
 
     let other_claims = Claims {
-        sub: other_user.auth0_id.clone(),
+        sub: other_user.id.to_string(),
         aud: ctx.auth_config.audience.clone(),
         iss: format!("https://{}/", ctx.auth_config.domain),
         exp: (Utc::now() + chrono::Duration::hours(24)).timestamp(),
         iat: Utc::now().timestamp(),
         email: Some(other_user.email.clone()),
-        email_verified: Some(true),
         name: Some("Other User".to_string()),
-        picture: None,
         community_roles: vec![],
     };
     let other_token = ctx.create_test_jwt(&other_claims);

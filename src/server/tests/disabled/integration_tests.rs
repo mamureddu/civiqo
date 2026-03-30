@@ -111,15 +111,13 @@ impl TestContext {
         let user = create_test_user(&self.db, None).await.expect("Failed to create test user");
 
         let claims = Claims {
-            sub: user.auth0_id.clone(),
+            sub: user.id.to_string(),
             aud: self.auth_config.audience.clone(),
             iss: format!("https://{}/", self.auth_config.domain),
             exp: (Utc::now() + chrono::Duration::hours(24)).timestamp(),
             iat: Utc::now().timestamp(),
             email: Some(user.email.clone()),
-            email_verified: Some(true),
             name: Some("Test User".to_string()),
-            picture: None,
             community_roles: vec![],
         };
 
@@ -153,14 +151,13 @@ async fn test_sync_user_from_auth0() {
     let ctx = TestContext::new().await;
 
     let sync_request = server::auth::SyncUserRequest {
-        auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
+        password: "TestPassword123!".to_string(),
         name: Some("Test User".to_string()),
-        picture: Some("https://example.com/avatar.jpg".to_string()),
     };
 
     let response = ctx.server
-        .post("/api/auth/sync")
+        .post("/api/auth/register")
         .json(&sync_request)
         .await;
 
@@ -171,7 +168,6 @@ async fn test_sync_user_from_auth0() {
     assert!(body.data.is_some());
 
     let user = body.data.unwrap();
-    assert_eq!(user.auth0_id, sync_request.auth0_id);
     assert_eq!(user.email, sync_request.email);
     assert_eq!(user.profile_name, sync_request.name);
 
@@ -184,25 +180,23 @@ async fn test_sync_user_duplicate() {
     let ctx = TestContext::new().await;
 
     let sync_request = server::auth::SyncUserRequest {
-        auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
+        password: "TestPassword123!".to_string(),
         name: Some("Test User".to_string()),
-        picture: None,
     };
 
-    // First sync should succeed
+    // First registration should succeed
     let response = ctx.server
-        .post("/api/auth/sync")
+        .post("/api/auth/register")
         .json(&sync_request)
         .await;
     response.assert_status(StatusCode::CREATED);
 
-    // Second sync should update (not create new)
+    // Second registration with same email should update (not create new)
     let updated_request = server::auth::SyncUserRequest {
-        auth0_id: sync_request.auth0_id.clone(),
         email: "updated@example.com".to_string(),
+        password: "TestPassword123!".to_string(),
         name: Some("Updated User".to_string()),
-        picture: None,
     };
 
     let response = ctx.server
@@ -240,7 +234,7 @@ async fn test_get_current_user_authenticated() {
 
     let returned_user = body.data.unwrap();
     assert_eq!(returned_user.id, user.id);
-    assert_eq!(returned_user.auth0_id, user.auth0_id);
+    assert_eq!(returned_user.email, user.email);
 
     ctx.cleanup().await;
 }
@@ -451,10 +445,9 @@ async fn test_sync_user_invalid_email() {
     let ctx = TestContext::new().await;
 
     let invalid_request = server::auth::SyncUserRequest {
-        auth0_id: "auth0|123456789".to_string(),
         email: "invalid-email".to_string(), // Invalid email format
+        password: "TestPassword123!".to_string(),
         name: Some("Test User".to_string()),
-        picture: None,
     };
 
     let response = ctx.server
@@ -518,14 +511,13 @@ async fn test_missing_content_type() {
     let ctx = TestContext::new().await;
 
     let sync_request = server::auth::SyncUserRequest {
-        auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
+        password: "TestPassword123!".to_string(),
         name: Some("Test User".to_string()),
-        picture: None,
     };
 
     let response = ctx.server
-        .post("/api/auth/sync")
+        .post("/api/auth/register")
         .text(&serde_json::to_string(&sync_request).unwrap())
         .await;
 
@@ -649,14 +641,13 @@ async fn test_large_request_body() {
     let large_description = "x".repeat(10000);
 
     let sync_request = server::auth::SyncUserRequest {
-        auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
+        password: "TestPassword123!".to_string(),
         name: Some(large_description), // Very long name
-        picture: None,
     };
 
     let response = ctx.server
-        .post("/api/auth/sync")
+        .post("/api/auth/register")
         .json(&sync_request)
         .await;
 
@@ -672,16 +663,15 @@ async fn test_large_request_body() {
 async fn test_sql_injection_prevention() {
     let ctx = TestContext::new().await;
 
-    // Try to inject SQL in the sync request
+    // Try to inject SQL in the registration request
     let malicious_request = server::auth::SyncUserRequest {
-        auth0_id: "auth0|123'; DROP TABLE users; --".to_string(),
         email: "test@example.com".to_string(),
+        password: "auth0|123'; DROP TABLE users; --".to_string(),
         name: Some("Test User".to_string()),
-        picture: None,
     };
 
     let response = ctx.server
-        .post("/api/auth/sync")
+        .post("/api/auth/register")
         .json(&malicious_request)
         .await;
 
@@ -701,14 +691,13 @@ async fn test_xss_prevention() {
     let ctx = TestContext::new().await;
 
     let xss_request = server::auth::SyncUserRequest {
-        auth0_id: "auth0|123456789".to_string(),
         email: "test@example.com".to_string(),
+        password: "TestPassword123!".to_string(),
         name: Some("<script>alert('xss')</script>".to_string()),
-        picture: None,
     };
 
     let response = ctx.server
-        .post("/api/auth/sync")
+        .post("/api/auth/register")
         .json(&xss_request)
         .await;
 

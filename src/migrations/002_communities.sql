@@ -38,7 +38,7 @@ CREATE INDEX idx_communities_name_lower ON communities(lower(name));
 -- ============================================================================
 
 CREATE TABLE community_members (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     community_id UUID NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role member_role NOT NULL DEFAULT 'member',
@@ -59,7 +59,7 @@ CREATE INDEX idx_community_members_status ON community_members(status);
 -- ============================================================================
 
 CREATE TABLE community_boundaries (
-    id BIGINT PRIMARY KEY DEFAULT unique_rowid(),
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     community_id UUID NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
     boundary_type VARCHAR(50) NOT NULL,  -- 'polygon', 'circle', etc.
     geojson TEXT NOT NULL,

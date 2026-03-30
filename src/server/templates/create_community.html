@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (evt.detail.xhr.status === 401) {
                 showErrorMessage('Devi effettuare il login per creare una community');
                 setTimeout(() => {
-                    window.location.href = '/auth/login';
+                    window.location.href = '/login';
                 }, 2000);
             } else if (evt.detail.xhr.status === 400) {
                 showErrorMessage('Formato richiesta non valido');

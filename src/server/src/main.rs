@@ -18,7 +18,7 @@ mod i18n;
 mod i18n_tera;
 
 use handlers::{pages, htmx, api, posts, comments, reactions, proposals, businesses, admin, instance, stubs::health_check};
-use auth::{login, callback, logout}; // Auth handlers
+use auth::{login_page, login_handler, register_page, register_handler, api_login, api_register, refresh_token, logout};
 use i18n::{locale_middleware, get_available_languages};
 
 pub struct AppState {
@@ -107,9 +107,14 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/health", get(health_check))
         
         // Auth routes
-        .route("/auth/login", get(login))
-        .route("/auth/callback", get(callback))
+        .route("/login", get(login_page))
+        .route("/login", post(login_handler))
+        .route("/register", get(register_page))
+        .route("/register", post(register_handler))
         .route("/auth/logout", axum::routing::post(logout))
+        .route("/api/auth/login", post(api_login))
+        .route("/api/auth/register", post(api_register))
+        .route("/api/auth/refresh", post(refresh_token))
         
         // HTMX Pages
         .route("/", get(pages::index))

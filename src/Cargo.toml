@@ -32,9 +32,7 @@ md5 = "0.7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# HTTP and Lambda
-lambda_runtime = "1.0"
-lambda_http = "1.0"
+# HTTP
 axum = { version = "0.8", features = ["macros"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace"] }
@@ -45,17 +43,11 @@ tower-sessions = { version = "0.14", features = ["memory-store"] }
 http = "1.2"
 cookie = "0.18"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
-openidconnect = "4.0"
 urlencoding = "2.1"
+argon2 = "0.5"
 
 # WebSocket
 tokio-tungstenite = "0.28"
-
-# AWS SDK
-aws-config = "1.0"
-aws-sdk-sqs = "1.0"
-aws-sdk-sns = "1.0"
-aws-sdk-s3 = "1.0"
 
 # Cryptography
 ring = "0.17"

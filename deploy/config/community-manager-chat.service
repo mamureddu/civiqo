@@ -1,0 +1,27 @@
+[Unit]
+Description=Civiqo Community Manager Chat Service
+After=network.target postgresql.service community-manager.service
+
+[Service]
+Type=simple
+User=community-manager
+Group=community-manager
+WorkingDirectory=/opt/community-manager
+ExecStart=/opt/community-manager/bin/chat-service
+EnvironmentFile=/opt/community-manager/config/.env
+Restart=on-failure
+RestartSec=5
+WatchdogSec=60
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=community-manager-chat
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/community-manager/data
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
