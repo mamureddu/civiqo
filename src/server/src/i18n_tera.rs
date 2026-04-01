@@ -51,7 +51,7 @@ fn get_translations_for_locale(locale: &Locale) -> HashMap<String, String> {
         "communities-filter-my", "communities-empty", "communities-empty-subtitle",
         "community-public", "community-private", "community-verified",
         "community-join", "community-leave", "community-request-join", "community-joined",
-        "community-members",
+        "community-members-label",
         
         // Create Community
         "community-create-title", "community-create-subtitle",

@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
-    response::Json,
+    http::{StatusCode, HeaderMap},
+    response::{Json, IntoResponse, Html},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -61,15 +61,24 @@ pub async fn create_comment(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
     Path(post_id): Path<Uuid>,
-    Json(payload): Json<CreateCommentRequest>,
-) -> Result<(StatusCode, Json<ApiResponse<CommentResponse>>), StatusCode> {
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<axum::response::Response, StatusCode> {
+    let payload: CreateCommentRequest = {
+        let ct = headers.get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("");
+        if ct.contains("application/json") {
+            serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST)?
+        } else {
+            serde_urlencoded::from_bytes(&body).map_err(|_| StatusCode::BAD_REQUEST)?
+        }
+    };
     let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let content = payload.content.trim();
     if content.is_empty() {
-        return Ok((StatusCode::BAD_REQUEST, Json(ApiResponse {
+        return Ok((StatusCode::BAD_REQUEST, Json(ApiResponse::<CommentResponse> {
             success: false, data: None, message: Some("Content cannot be empty".to_string()),
-        })));
+        })).into_response());
     }
 
     // Get post and check if locked
@@ -81,15 +90,15 @@ pub async fn create_comment(
 
     let (community_id, is_locked) = match post {
         Some(p) => p,
-        None => return Ok((StatusCode::NOT_FOUND, Json(ApiResponse {
+        None => return Ok((StatusCode::NOT_FOUND, Json(ApiResponse::<CommentResponse> {
             success: false, data: None, message: Some("Post not found".to_string()),
-        }))),
+        })).into_response()),
     };
 
     if is_locked {
-        return Ok((StatusCode::FORBIDDEN, Json(ApiResponse {
+        return Ok((StatusCode::FORBIDDEN, Json(ApiResponse::<CommentResponse> {
             success: false, data: None, message: Some("Post is locked".to_string()),
-        })));
+        })).into_response());
     }
 
     // Check membership
@@ -98,9 +107,9 @@ pub async fn create_comment(
     ).bind(community_id).bind(user_uuid).fetch_one(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if !is_member {
-        return Ok((StatusCode::FORBIDDEN, Json(ApiResponse {
+        return Ok((StatusCode::FORBIDDEN, Json(ApiResponse::<CommentResponse> {
             success: false, data: None, message: Some("Must be a member to comment".to_string()),
-        })));
+        })).into_response());
     }
 
     // Validate parent_id
@@ -109,9 +118,9 @@ pub async fn create_comment(
             let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM comments WHERE id = $1 AND post_id = $2)")
                 .bind(p).bind(post_id).fetch_one(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             if !exists {
-                return Ok((StatusCode::NOT_FOUND, Json(ApiResponse {
+                return Ok((StatusCode::NOT_FOUND, Json(ApiResponse::<CommentResponse> {
                     success: false, data: None, message: Some("Parent comment not found".to_string()),
-                })));
+                })).into_response());
             }
             Some(p)
         } else { None }
@@ -130,7 +139,32 @@ pub async fn create_comment(
             let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
             let updated_at: chrono::DateTime<chrono::Utc> = row.get("updated_at");
             tracing::info!("User {} created comment {} on post {}", user.user_id, comment_id, post_id);
-            
+
+            // If HTMX request, return HTML fragment
+            let is_htmx = headers.get("hx-request").is_some();
+            if is_htmx {
+                let mut ctx = tera::Context::new();
+                let mut comment_map = std::collections::HashMap::new();
+                comment_map.insert("id", comment_id.to_string());
+                comment_map.insert("post_id", post_id.to_string());
+                comment_map.insert("content", content.to_string());
+                comment_map.insert("author_email", user.email.clone());
+                comment_map.insert("author_name", user.name.clone().unwrap_or(user.email.clone()));
+                comment_map.insert("created_at", created_at.format("%Y-%m-%d %H:%M").to_string());
+                comment_map.insert("is_edited", "false".to_string());
+                ctx.insert("comment", &comment_map);
+                ctx.insert("is_author", &true);
+                ctx.insert("is_member", &true);
+                ctx.insert("depth", &0);
+
+                let html = state.tera.render("fragments/comment-item.html", &ctx)
+                    .map_err(|e| {
+                        tracing::error!("Failed to render comment item: {}", e);
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    })?;
+                return Ok(Html(html).into_response());
+            }
+
             Ok((StatusCode::CREATED, Json(ApiResponse {
                 success: true,
                 data: Some(CommentResponse {
@@ -145,13 +179,13 @@ pub async fn create_comment(
                     updated_at: updated_at.format("%Y-%m-%d %H:%M").to_string(),
                 }),
                 message: Some("Comment created".to_string()),
-            })))
+            })).into_response())
         }
         Err(e) => {
             tracing::error!("Failed to create comment: {}", e);
-            Ok((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse {
+            Ok((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::<CommentResponse> {
                 success: false, data: None, message: Some("Failed to create comment".to_string()),
-            })))
+            })).into_response())
         }
     }
 }

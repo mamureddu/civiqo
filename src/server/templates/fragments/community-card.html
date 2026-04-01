@@ -40,7 +40,7 @@
         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
           <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM9 10a9 9 0 11-18 0 9 9 0 0118 0zm-9 4a4 4 0 014-4h2a4 4 0 014 4v2H0v-2z"></path>
         </svg>
-        {{ community.member_count }} {{ t.community_members | default(value='membri') }}
+        {{ community.member_count }} {{ t.community_members_label | default(value='membri') }}
       </span>
       <span class="text-xs text-civiqo-gray-600/70">{{ community.created_at }}</span>
     </div>

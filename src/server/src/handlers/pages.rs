@@ -233,11 +233,16 @@ pub async fn create_community(
 /// Single-community mode: shows user's activity in the single community
 pub async fn dashboard(
     LocaleExtractor(locale): LocaleExtractor,
-    AuthUser(user): AuthUser, // Requires authentication
+    OptionalAuthUser(maybe_user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
+    let user = match maybe_user {
+        Some(u) => u,
+        None => return Ok(axum::response::Redirect::to("/login").into_response()),
+    };
+
     tracing::info!("Rendering dashboard page for user: {}", user.user_id);
     
     // Check if setup is completed
@@ -1398,8 +1403,8 @@ pub async fn user_profile(
     ctx.insert("bio", &row.get::<Option<String>, _>("bio"));
     ctx.insert("location", &row.get::<Option<String>, _>("location"));
     ctx.insert("website", &row.get::<Option<String>, _>("website"));
-    ctx.insert("follower_count", &row.get::<i64, _>("follower_count"));
-    ctx.insert("following_count", &row.get::<i64, _>("following_count"));
+    ctx.insert("follower_count", &row.get::<i32, _>("follower_count"));
+    ctx.insert("following_count", &row.get::<i32, _>("following_count"));
     
     let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
     ctx.insert("joined_at", &created_at.format("%B %Y").to_string());
@@ -1563,7 +1568,6 @@ pub struct SearchPageQuery {
 }
 
 /// Search results page
-#[allow(dead_code)]
 pub async fn search_page(
     LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,

@@ -22,6 +22,7 @@ communities-empty-subtitle = Create the first community in your area!
 # COMMUNITY CARD
 # =============================================================================
 
+community-members-label = Members
 community-members = { $count ->
     [one] { $count } member
    *[other] { $count } members

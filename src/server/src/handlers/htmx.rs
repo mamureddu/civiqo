@@ -3199,3 +3199,34 @@ pub async fn reject_request_htmx(
         }
     }
 }
+
+/// Stats: proposal count for the current user's communities (PROTECTED)
+pub async fn stats_proposals(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+) -> Result<Html<String>, AppError> {
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
+
+    let row = sqlx::query_scalar::<_, i64>(
+        r#"SELECT COUNT(*)
+           FROM proposals p
+           JOIN communities c ON p.community_id = c.id
+           JOIN community_members cm ON c.id = cm.community_id AND cm.user_id = $1 AND cm.status = 'active'
+           WHERE p.status = 'active'"#
+    )
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+
+    Ok(Html(row.to_string()))
+}
+
+/// Stats: message/chat count placeholder (PROTECTED)
+pub async fn stats_messages(
+    AuthUser(_user): AuthUser,
+) -> Html<String> {
+    // Chat message count is not yet tracked; return a dash for now
+    Html("-".to_string())
+}

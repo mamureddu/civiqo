@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
-    response::Json,
+    http::{StatusCode, HeaderMap},
+    response::{Json, IntoResponse, Html},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -41,28 +41,39 @@ pub struct ApiResponse<T> {
 }
 
 // Valid reaction types
-const VALID_REACTIONS: &[&str] = &["like", "upvote", "heart", "celebrate", "laugh", "sad"];
+const VALID_REACTIONS: &[&str] = &["like", "upvote", "heart", "celebrate", "laugh", "sad", "thinking"];
 
 // ============================================================================
 // Reactions Endpoints
 // ============================================================================
 
-/// Add or update a reaction to a post
+/// Add or update a reaction to a post (accepts JSON or form-encoded from HTMX)
 pub async fn add_reaction(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
     Path(post_id): Path<Uuid>,
-    Json(payload): Json<AddReactionRequest>,
-) -> Result<Json<ApiResponse<ReactionsListResponse>>, StatusCode> {
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<axum::response::Response, StatusCode> {
+    let payload: AddReactionRequest = {
+        let content_type = headers.get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        if content_type.contains("application/json") {
+            serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST)?
+        } else {
+            serde_urlencoded::from_bytes(&body).map_err(|_| StatusCode::BAD_REQUEST)?
+        }
+    };
     let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let reaction_type = payload.reaction_type.trim().to_lowercase();
-    
+
     if !VALID_REACTIONS.contains(&reaction_type.as_str()) {
-        return Ok(Json(ApiResponse {
+        return Ok(Json(ApiResponse::<ReactionsListResponse> {
             success: false, data: None,
             message: Some(format!("Invalid reaction type. Valid types: {:?}", VALID_REACTIONS)),
-        }));
+        }).into_response());
     }
 
     // Check post exists
@@ -70,7 +81,7 @@ pub async fn add_reaction(
         .bind(post_id).fetch_one(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if !exists {
-        return Ok(Json(ApiResponse { success: false, data: None, message: Some("Post not found".to_string()) }));
+        return Ok(Json(ApiResponse::<ReactionsListResponse> { success: false, data: None, message: Some("Post not found".to_string()) }).into_response());
     }
 
     // Upsert reaction (insert or update)
@@ -85,8 +96,17 @@ pub async fn add_reaction(
 
     tracing::info!("User {} reacted {} to post {}", user.user_id, reaction_type, post_id);
 
-    // Return updated reaction counts
-    get_reactions_internal(&state, post_id, Some(user_uuid)).await
+    // If HTMX request, return HTML fragment
+    let is_htmx = headers.get("hx-request").is_some();
+    if is_htmx {
+        let html = render_reaction_buttons_html(&state, post_id, Some(user_uuid)).await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        return Ok(Html(html).into_response());
+    }
+
+    // Otherwise return JSON
+    let result = get_reactions_internal(&state, post_id, Some(user_uuid)).await?;
+    Ok(result.into_response())
 }
 
 /// Remove a reaction from a post
@@ -94,20 +114,23 @@ pub async fn remove_reaction(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
     Path(post_id): Path<Uuid>,
-) -> Result<Json<ApiResponse<ReactionsListResponse>>, StatusCode> {
+    headers: HeaderMap,
+) -> Result<axum::response::Response, StatusCode> {
     let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let result = sqlx::query("DELETE FROM reactions WHERE post_id = $1 AND user_id = $2")
+    sqlx::query("DELETE FROM reactions WHERE post_id = $1 AND user_id = $2")
         .bind(post_id).bind(user_uuid).execute(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if result.rows_affected() == 0 {
-        return Ok(Json(ApiResponse { success: false, data: None, message: Some("No reaction to remove".to_string()) }));
-    }
 
     tracing::info!("User {} removed reaction from post {}", user.user_id, post_id);
 
-    // Return updated reaction counts
-    get_reactions_internal(&state, post_id, Some(user_uuid)).await
+    if headers.get("hx-request").is_some() {
+        let html = render_reaction_buttons_html(&state, post_id, Some(user_uuid)).await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        return Ok(Html(html).into_response());
+    }
+
+    let result = get_reactions_internal(&state, post_id, Some(user_uuid)).await?;
+    Ok(result.into_response())
 }
 
 /// List reactions on a post
@@ -159,4 +182,40 @@ async fn get_reactions_internal(
         data: Some(ReactionsListResponse { reactions, user_reaction, total }),
         message: None,
     }))
+}
+
+/// Render reaction buttons as HTML fragment for HTMX swap
+async fn render_reaction_buttons_html(
+    state: &Arc<AppState>,
+    post_id: Uuid,
+    user_uuid: Option<Uuid>,
+) -> Result<String, StatusCode> {
+    let rows = sqlx::query(
+        "SELECT reaction_type, COUNT(*) as count FROM reactions WHERE post_id = $1 GROUP BY reaction_type"
+    ).bind(post_id).fetch_all(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut reactions = std::collections::HashMap::new();
+    for row in &rows {
+        let rt: String = row.get("reaction_type");
+        let count: i64 = row.get("count");
+        reactions.insert(rt, count);
+    }
+
+    let user_reaction: Option<String> = if let Some(uid) = user_uuid {
+        sqlx::query_scalar("SELECT reaction_type FROM reactions WHERE post_id = $1 AND user_id = $2")
+            .bind(post_id).bind(uid).fetch_optional(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    } else {
+        None
+    };
+
+    let mut ctx = tera::Context::new();
+    ctx.insert("post_id", &post_id.to_string());
+    ctx.insert("reactions", &reactions);
+    ctx.insert("user_reaction", &user_reaction);
+
+    state.tera.render("fragments/reaction-buttons.html", &ctx)
+        .map_err(|e| {
+            tracing::error!("Failed to render reaction buttons: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })
 }

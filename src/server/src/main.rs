@@ -66,20 +66,28 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
     info!("Database connected and migrations complete");
 
     // Initialize Tera templates
-    // Get current directory and build paths
+    // Paths configurable via env vars (for VPS deploy), with smart fallback for local dev
     let current_dir = std::env::current_dir()?;
     info!("Current directory: {:?}", current_dir);
-    
-    let (template_path, static_path) = if current_dir.ends_with("src") {
-        ("server/templates/**/*", "server/static")
+
+    let default_templates = if current_dir.ends_with("src") {
+        "server/templates/**/*"
     } else {
-        ("src/server/templates/**/*", "src/server/static")
+        "src/server/templates/**/*"
     };
-    
+    let default_static = if current_dir.ends_with("src") {
+        "server/static"
+    } else {
+        "src/server/static"
+    };
+
+    let template_path = std::env::var("TEMPLATE_PATH").unwrap_or_else(|_| default_templates.to_string());
+    let static_path = std::env::var("STATIC_PATH").unwrap_or_else(|_| default_static.to_string());
+
     info!("Loading templates from: {}", template_path);
     info!("Static files from: {}", static_path);
     
-    let mut tera = Tera::new(template_path)
+    let mut tera = Tera::new(&template_path)
         .map_err(|e| {
             eprintln!("Template loading error: {}", e);
             format!("Failed to load templates from {}: {}", template_path, e)
@@ -135,6 +143,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/poi", get(pages::poi))
         .route("/admin", get(pages::admin_dashboard))
         .route("/admin/settings", get(pages::instance_settings_page))
+        .route("/search", get(pages::search_page))
         .route("/setup", get(pages::setup_page))
         .route("/test-db", get(pages::test_db))
         // User profile pages
@@ -153,6 +162,8 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/user/communities", get(htmx::user_communities))
         .route("/htmx/user/activity", get(htmx::user_activity))
         .route("/htmx/dashboard/active-proposals", get(htmx::dashboard_active_proposals))
+        .route("/htmx/stats/proposals", get(htmx::stats_proposals))
+        .route("/htmx/stats/messages", get(htmx::stats_messages))
         // Business HTMX fragments
         .route("/htmx/businesses/list", get(htmx::businesses_list))
         .route("/htmx/businesses/search", get(htmx::businesses_search))
@@ -292,7 +303,10 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         
         // Static files
         .nest_service("/static", ServeDir::new(static_path))
-        
+
+        // Fallback for 404
+        .fallback(pages::not_found)
+
         .with_state(page_state.clone())
         .layer(axum::middleware::from_fn(locale_middleware))
         .layer(session_layer)

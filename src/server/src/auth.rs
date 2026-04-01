@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Request, FromRequestParts, State, Form},
+    extract::{Request, FromRequestParts, State, Form, Query},
     http::{StatusCode, request::Parts},
     response::{IntoResponse, Redirect, Html},
     Json,
@@ -47,14 +47,37 @@ pub struct TokenResponse {
     pub expires_in: u64,
 }
 
+/// Query params for error display on auth pages
+#[derive(Debug, Deserialize)]
+pub struct AuthErrorParams {
+    pub error: Option<String>,
+}
+
+fn error_message(code: &str) -> &str {
+    match code {
+        "invalid_credentials" => "Email o password non corretti.",
+        "email_taken" => "Questa email è già registrata.",
+        "password_too_short" => "La password deve essere di almeno 8 caratteri.",
+        "invalid_form" => "Dati del form non validi.",
+        "session" => "Errore di sessione. Riprova.",
+        "server" => "Errore del server. Riprova più tardi.",
+        _ => "Si è verificato un errore.",
+    }
+}
+
 // ── Page Handlers (render HTML) ──────────────────────────────
 
 /// GET /login — render login page
 pub async fn login_page(
+    crate::i18n_tera::LocaleExtractor(locale): crate::i18n_tera::LocaleExtractor,
+    Query(params): Query<AuthErrorParams>,
     State(state): State<Arc<crate::handlers::pages::AppState>>,
 ) -> impl IntoResponse {
     let mut ctx = tera::Context::new();
-    ctx.insert("error", &Option::<String>::None);
+    crate::i18n_tera::add_i18n_context(&mut ctx, &locale);
+    ctx.insert("logged_in", &false);
+    let error_msg = params.error.as_deref().map(error_message);
+    ctx.insert("error", &error_msg);
     match state.tera.render("login.html", &ctx) {
         Ok(html) => Html(html).into_response(),
         Err(e) => {
@@ -66,10 +89,15 @@ pub async fn login_page(
 
 /// GET /register — render registration page
 pub async fn register_page(
+    crate::i18n_tera::LocaleExtractor(locale): crate::i18n_tera::LocaleExtractor,
+    Query(params): Query<AuthErrorParams>,
     State(state): State<Arc<crate::handlers::pages::AppState>>,
 ) -> impl IntoResponse {
     let mut ctx = tera::Context::new();
-    ctx.insert("error", &Option::<String>::None);
+    crate::i18n_tera::add_i18n_context(&mut ctx, &locale);
+    ctx.insert("logged_in", &false);
+    let error_msg = params.error.as_deref().map(error_message);
+    ctx.insert("error", &error_msg);
     match state.tera.render("register.html", &ctx) {
         Ok(html) => Html(html).into_response(),
         Err(e) => {

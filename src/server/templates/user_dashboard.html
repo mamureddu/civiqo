@@ -39,7 +39,7 @@
                     </svg>
                 </div>
                 <div class="ml-4">
-                    <p class="text-sm font-medium text-civiqo-gray-600">{{ t.community_members | default(value="Membri") }}</p>
+                    <p class="text-sm font-medium text-civiqo-gray-600">{{ t.community_members_label | default(value="Membri") }}</p>
                     <p class="text-2xl font-semibold text-civiqo-gray-900">{{ community.member_count | default(value=0) }}</p>
                 </div>
             </div>
@@ -180,7 +180,7 @@
                     {% endif %}
                     <div>
                         <h3 class="font-semibold">{{ community.name | default(value="Community") }}</h3>
-                        <p class="text-sm text-white/80">{{ community.member_count | default(value=0) }} {{ t.community_members | default(value="membri") }}</p>
+                        <p class="text-sm text-white/80">{{ community.member_count | default(value=0) }} {{ t.community_members_label | default(value="membri") }}</p>
                     </div>
                 </div>
                 <p class="text-sm text-white/90 mb-4">{{ community.description | default(value="") | truncate(length=100) }}</p>

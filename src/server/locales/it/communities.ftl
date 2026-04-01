@@ -22,6 +22,7 @@ communities-empty-subtitle = Crea la prima community della tua zona!
 # CARD COMMUNITY
 # =============================================================================
 
+community-members-label = Membri
 community-members = { $count ->
     [one] { $count } membro
    *[other] { $count } membri
