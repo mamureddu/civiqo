@@ -179,23 +179,39 @@ pub async fn communities_search(
 }
 
 /// Chat room header fragment
-pub async fn chat_header(State(_state): State<Arc<AppState>>) -> Html<String> {
-    Html(r#"
+pub async fn chat_header(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(room_id): axum::extract::Path<String>,
+) -> Html<String> {
+    use sqlx::Row;
+    let room_uuid = uuid::Uuid::parse_str(&room_id).unwrap_or_default();
+
+    let community = sqlx::query(
+        "SELECT c.name, (SELECT COUNT(*) FROM community_members WHERE community_id = c.id AND status = 'active') as member_count
+         FROM communities c WHERE c.id = $1"
+    )
+    .bind(room_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .ok()
+    .flatten();
+
+    let (name, members) = match community {
+        Some(row) => (
+            row.get::<String, _>("name"),
+            row.get::<i64, _>("member_count"),
+        ),
+        None => ("Chat".to_string(), 0),
+    };
+
+    Html(format!(r#"
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="text-xl font-bold">Tech Community Chat</h2>
-            <p class="text-sm text-gray-500">👥 12 members online</p>
-        </div>
-        <div class="flex gap-2">
-            <button class="px-3 py-1 text-sm text-gray-600 hover:text-gray-900">
-                ℹ️ Info
-            </button>
-            <button class="px-3 py-1 text-sm text-gray-600 hover:text-gray-900">
-                ⚙️ Settings
-            </button>
+            <h2 class="text-xl font-bold text-civiqo-gray-900">{name}</h2>
+            <p class="text-sm text-civiqo-gray-500">👥 {members} membri</p>
         </div>
     </div>
-    "#.to_string())
+    "#))
 }
 
 /// User communities fragment (PROTECTED - requires authentication)
@@ -541,8 +557,8 @@ pub async fn community_feed(
 /// Businesses list fragment - fetches from database
 pub async fn businesses_list(State(state): State<Arc<AppState>>) -> Html<String> {
     let businesses = sqlx::query(
-        r#"SELECT b.id, b.name, b.description, b.category, b.address, 
-                  b.rating_avg, b.review_count, b.cover_url, b.is_verified
+        r#"SELECT b.id, b.name, b.description, b.category, b.address,
+                  b.rating_avg, b.review_count, b.is_verified
            FROM businesses b
            WHERE b.is_active = true
            ORDER BY b.rating_avg DESC NULLS LAST, b.created_at DESC
@@ -571,11 +587,11 @@ pub async fn businesses_list(State(state): State<Arc<AppState>>) -> Html<String>
         let description: Option<String> = row.get("description");
         let category: Option<String> = row.get("category");
         let address: Option<String> = row.get("address");
-        let rating_avg: Option<f64> = row.get("rating_avg");
+        let rating_avg: Option<rust_decimal::Decimal> = row.get("rating_avg");
         let review_count: i32 = row.get::<Option<i32>, _>("review_count").unwrap_or(0);
         let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
 
-        let rating = rating_avg.unwrap_or(0.0);
+        let rating = rating_avg.map(|d| d.to_string().parse::<f64>().unwrap_or(0.0)).unwrap_or(0.0);
         let stars = render_stars(rating);
         let verified_badge = if is_verified {
             r#"<span class="inline-flex items-center px-2 py-0.5 bg-civiqo-eco-green/10 text-civiqo-eco-green text-xs rounded-full ml-2">
@@ -711,11 +727,11 @@ pub async fn businesses_search(
         let description: Option<String> = row.get("description");
         let category: Option<String> = row.get("category");
         let _address: Option<String> = row.get("address");
-        let rating_avg: Option<f64> = row.get("rating_avg");
+        let rating_avg: Option<rust_decimal::Decimal> = row.get("rating_avg");
         let review_count: i32 = row.get::<Option<i32>, _>("review_count").unwrap_or(0);
         let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
 
-        let rating = rating_avg.unwrap_or(0.0);
+        let rating = rating_avg.map(|d| d.to_string().parse::<f64>().unwrap_or(0.0)).unwrap_or(0.0);
         let stars = render_stars(rating);
         let verified_badge = if is_verified {
             r#"<span class="inline-flex items-center px-2 py-0.5 bg-civiqo-eco-green/10 text-civiqo-eco-green text-xs rounded-full ml-2">✓</span>"#
@@ -1449,11 +1465,16 @@ pub async fn vote_proposal_htmx(
         _ => return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg">Valore di voto non valido.</div>"#.to_string())),
     };
     
-    // Upsert vote (insert or update)
+    // Upsert vote: delete existing + insert (since IDENTITY column can't use ON CONFLICT easily)
+    sqlx::query("DELETE FROM votes WHERE proposal_id = $1 AND user_id = $2")
+        .bind(proposal_id)
+        .bind(user_uuid)
+        .execute(&state.db.pool)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+
     sqlx::query(
-        r#"INSERT INTO votes (id, proposal_id, user_id, vote_value, created_at)
-           VALUES (gen_random_uuid(), $1, $2, $3, NOW())
-           ON CONFLICT (proposal_id, user_id) DO UPDATE SET vote_value = $3, created_at = NOW()"#
+        "INSERT INTO votes (proposal_id, user_id, vote_value, created_at) VALUES ($1, $2, $3, NOW())"
     )
     .bind(proposal_id)
     .bind(user_uuid)
@@ -1606,19 +1627,9 @@ pub async fn delete_proposal_htmx(
 
 /// POI nearby places fragment
 pub async fn poi_nearby(State(_state): State<Arc<AppState>>) -> Html<String> {
-    // TODO: Fetch from database/external API when POI feature is implemented
     Html(r#"
-    <div class="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 cursor-pointer transition">
-        <h4 class="font-medium text-gray-900">Central Park</h4>
-        <p class="text-sm text-gray-600">0.5 km away</p>
-    </div>
-    <div class="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 cursor-pointer transition">
-        <h4 class="font-medium text-gray-900">City Library</h4>
-        <p class="text-sm text-gray-600">0.8 km away</p>
-    </div>
-    <div class="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 cursor-pointer transition">
-        <h4 class="font-medium text-gray-900">Community Center</h4>
-        <p class="text-sm text-gray-600">1.2 km away</p>
+    <div class="text-center py-4 text-gray-500 text-sm">
+        <p>Nessun punto di interesse nelle vicinanze.</p>
     </div>
     "#.to_string())
 }
@@ -1635,11 +1646,11 @@ pub async fn comment_reply_form(
     <form hx-post="/api/comments/{}/replies" hx-swap="outerHTML" class="mt-2">
         <textarea name="content" rows="2" 
                   class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#57C98A] text-sm"
-                  placeholder="Write a reply..."></textarea>
+                  placeholder="Scrivi una risposta..."></textarea>
         <div class="flex justify-end mt-2 space-x-2">
             <button type="button" hx-get="/htmx/empty" hx-target="closest form" hx-swap="outerHTML"
-                    class="px-3 py-1 text-gray-500 text-sm">Cancel</button>
-            <button type="submit" class="px-3 py-1 bg-[#57C98A] text-white text-sm rounded">Reply</button>
+                    class="px-3 py-1 text-gray-500 text-sm">Annulla</button>
+            <button type="submit" class="px-3 py-1 bg-[#57C98A] text-white text-sm rounded">Rispondi</button>
         </div>
     </form>
     "#, comment_id))
@@ -1647,21 +1658,42 @@ pub async fn comment_reply_form(
 
 /// Comment edit form fragment
 pub async fn comment_edit_form(
+    State(state): State<Arc<AppState>>,
     axum::extract::Path(comment_id): axum::extract::Path<String>,
 ) -> Html<String> {
-    // TODO: Fetch actual comment content from database
+    // Fetch actual comment content from database
+    let content = if let Ok(comment_uuid) = uuid::Uuid::parse_str(&comment_id) {
+        sqlx::query_scalar::<_, String>(
+            "SELECT content FROM comments WHERE id = $1"
+        )
+        .bind(comment_uuid)
+        .fetch_optional(&state.db.pool)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    let escaped_content = content
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;");
+
     Html(format!(r#"
     <form hx-put="/api/comments/{}" hx-swap="outerHTML" class="mt-2">
-        <textarea name="content" rows="3" 
+        <textarea name="content" rows="3"
                   class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#57C98A] text-sm"
-                  placeholder="Edit your comment..."></textarea>
+                  placeholder="Modifica il commento...">{}</textarea>
         <div class="flex justify-end mt-2 space-x-2">
             <button type="button" hx-get="/htmx/empty" hx-target="closest form" hx-swap="outerHTML"
-                    class="px-3 py-1 text-gray-500 text-sm">Cancel</button>
-            <button type="submit" class="px-3 py-1 bg-[#57C98A] text-white text-sm rounded">Save</button>
+                    class="px-3 py-1 text-gray-500 text-sm">Annulla</button>
+            <button type="submit" class="px-3 py-1 bg-[#57C98A] text-white text-sm rounded">Salva</button>
         </div>
     </form>
-    "#, comment_id))
+    "#, comment_id, escaped_content))
 }
 
 /// Empty fragment - used for clearing content
@@ -2552,14 +2584,14 @@ pub async fn community_businesses(
         let description: Option<String> = row.get("description");
         let category: Option<String> = row.get("category");
         let address: Option<String> = row.get("address");
-        let rating_avg: Option<f64> = row.get("rating_avg");
+        let rating_avg: Option<rust_decimal::Decimal> = row.get("rating_avg");
         let review_count: Option<i32> = row.get("review_count");
         let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
         
         let desc = description.unwrap_or_default();
         let cat = category.unwrap_or_else(|| "Attività".to_string());
         let addr = address.unwrap_or_default();
-        let rating = rating_avg.unwrap_or(0.0);
+        let rating = rating_avg.map(|d| d.to_string().parse::<f64>().unwrap_or(0.0)).unwrap_or(0.0);
         let reviews = review_count.unwrap_or(0);
         
         let verified_badge = if is_verified {
@@ -3223,10 +3255,24 @@ pub async fn stats_proposals(
     Ok(Html(row.to_string()))
 }
 
-/// Stats: message/chat count placeholder (PROTECTED)
+/// Stats: message/chat count (PROTECTED)
 pub async fn stats_messages(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
 ) -> Html<String> {
-    // Chat message count is not yet tracked; return a dash for now
-    Html("-".to_string())
+    let user_uuid = match uuid::Uuid::parse_str(&user.user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("0".to_string()),
+    };
+
+    // Count chat messages sent by the user
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM chat_messages WHERE sender_id = $1"
+    )
+    .bind(user_uuid)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+
+    Html(count.to_string())
 }

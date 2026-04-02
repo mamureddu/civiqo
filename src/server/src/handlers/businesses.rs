@@ -9,8 +9,8 @@
 #![allow(dead_code)]
 
 use axum::{
-    extract::{Path, Query, State},
-    response::Json,
+    extract::{Path, Query, State, Form},
+    response::{Json, Html, IntoResponse, Response},
 };
 use sqlx::Row;
 use std::sync::Arc;
@@ -90,7 +90,7 @@ pub struct CreateOrderRequest {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct OrderItemRequest {
-    pub product_id: i64,
+    pub product_id: uuid::Uuid,
     pub quantity: i32,
     pub notes: Option<String>,
 }
@@ -167,7 +167,7 @@ pub async fn list_businesses(
         Ok(rows) => {
             let data: Vec<serde_json::Value> = rows.iter().map(|row| {
                 serde_json::json!({
-                    "id": row.get::<i64, _>("id"),
+                    "id": row.get::<uuid::Uuid, _>("id").to_string(),
                     "name": row.get::<String, _>("name"),
                     "description": row.get::<Option<String>, _>("description"),
                     "category": row.get::<Option<String>, _>("category"),
@@ -196,7 +196,7 @@ pub async fn list_businesses(
 /// Get business details by ID
 pub async fn get_business(
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<i64>,
+    Path(business_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let business = sqlx::query(
         r#"SELECT b.*, 
@@ -240,7 +240,7 @@ pub async fn get_business(
             
             let products_json: Vec<serde_json::Value> = products.iter().map(|p| {
                 serde_json::json!({
-                    "id": p.get::<i64, _>("id"),
+                    "id": p.get::<uuid::Uuid, _>("id").to_string(),
                     "name": p.get::<String, _>("product_name"),
                     "description": p.get::<Option<String>, _>("description"),
                     "price": p.get::<Option<rust_decimal::Decimal>, _>("price"),
@@ -248,7 +248,7 @@ pub async fn get_business(
                     "is_available": p.get::<Option<bool>, _>("is_available").unwrap_or(true)
                 })
             }).collect();
-            
+
             let hours_json: Vec<serde_json::Value> = hours.iter().map(|h| {
                 serde_json::json!({
                     "day_of_week": h.get::<Option<String>, _>("day_of_week"),
@@ -261,7 +261,7 @@ pub async fn get_business(
             Ok(Json(serde_json::json!({
                 "success": true,
                 "data": {
-                    "id": row.get::<i64, _>("id"),
+                    "id": row.get::<uuid::Uuid, _>("id").to_string(),
                     "name": row.get::<String, _>("name"),
                     "description": row.get::<Option<String>, _>("description"),
                     "category": row.get::<Option<String>, _>("category"),
@@ -283,7 +283,7 @@ pub async fn get_business(
     }
 }
 
-/// Create a new business
+/// Create a new business (JSON API)
 pub async fn create_business(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
@@ -291,23 +291,25 @@ pub async fn create_business(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     // Get user's first community (or require community_id in request)
-    let community = sqlx::query_scalar::<_, i64>(
+    let community = sqlx::query_scalar::<_, uuid::Uuid>(
         "SELECT community_id FROM community_members WHERE user_id = $1 LIMIT 1"
     )
     .bind(user_uuid)
     .fetch_optional(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+
     let community_id = community.ok_or_else(|| AppError::Internal(anyhow::anyhow!("User must be member of a community")))?;
-    
-    let result = sqlx::query_scalar::<_, i64>(
-        r#"INSERT INTO businesses (community_id, owner_id, name, description, category, address, phone, email, website, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
-           RETURNING id"#
+
+    let business_id = uuid::Uuid::now_v7();
+
+    sqlx::query(
+        r#"INSERT INTO businesses (id, community_id, owner_id, name, description, category, address, phone, email, website, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)"#
     )
+    .bind(business_id)
     .bind(community_id)
     .bind(user_uuid)
     .bind(&req.name)
@@ -317,25 +319,95 @@ pub async fn create_business(
     .bind(&req.phone)
     .bind(&req.email)
     .bind(&req.website)
-    .fetch_one(&state.db.pool)
+    .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create business: {}", e)))?;
-    
+
     Ok(Json(serde_json::json!({
         "success": true,
         "data": {
-            "id": result,
+            "id": business_id.to_string(),
             "name": req.name
         },
         "message": "Attività creata con successo"
     })))
 }
 
+/// Create a new business (HTMX form handler)
+pub async fn create_business_htmx(
+    AuthUser(user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Form(req): Form<CreateBusinessRequest>,
+) -> Response {
+    let user_uuid = match uuid::Uuid::parse_str(&user.user_id) {
+        Ok(u) => u,
+        Err(_) => return Html("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">ID utente non valido</div>").into_response(),
+    };
+
+    let name = req.name.trim();
+    if name.is_empty() {
+        return Html("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">Il nome dell'attività è obbligatorio</div>").into_response();
+    }
+
+    // Get user's first community
+    let community = sqlx::query_scalar::<_, uuid::Uuid>(
+        "SELECT community_id FROM community_members WHERE user_id = $1 LIMIT 1"
+    )
+    .bind(user_uuid)
+    .fetch_optional(&state.db.pool)
+    .await;
+
+    let community_id = match community {
+        Ok(Some(id)) => id,
+        Ok(None) => return Html("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">Devi essere membro di una community per creare un'attività</div>").into_response(),
+        Err(e) => {
+            tracing::error!("DB error looking up community membership: {}", e);
+            return Html("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">Errore del database</div>").into_response();
+        }
+    };
+
+    let business_id = uuid::Uuid::now_v7();
+
+    let result = sqlx::query(
+        r#"INSERT INTO businesses (id, community_id, owner_id, name, description, category, address, phone, email, website, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)"#
+    )
+    .bind(business_id)
+    .bind(community_id)
+    .bind(user_uuid)
+    .bind(name)
+    .bind(&req.description)
+    .bind(&req.category)
+    .bind(&req.address)
+    .bind(&req.phone)
+    .bind(&req.email)
+    .bind(&req.website)
+    .execute(&state.db.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            // Return HX-Redirect header to navigate to the new business page
+            let redirect_url = format!("/businesses/{}", business_id);
+            Response::builder()
+                .status(200)
+                .header("HX-Redirect", &redirect_url)
+                .body(axum::body::Body::empty())
+                .unwrap()
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to create business: {}", e);
+            Html(format!("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">Errore nella creazione dell'attività: {}</div>", e)).into_response()
+        }
+    }
+}
+
 /// Update business (owner only)
 pub async fn update_business(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<i64>,
+    Path(business_id): Path<uuid::Uuid>,
     Json(req): Json<UpdateBusinessRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
@@ -395,7 +467,7 @@ pub async fn update_business(
 pub async fn delete_business(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<i64>,
+    Path(business_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
@@ -426,7 +498,7 @@ pub async fn delete_business(
 /// List products for a business
 pub async fn list_products(
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<i64>,
+    Path(business_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let products = sqlx::query(
         r#"SELECT id, product_name, description, price, currency, is_available
@@ -441,7 +513,7 @@ pub async fn list_products(
     
     let data: Vec<serde_json::Value> = products.iter().map(|p| {
         serde_json::json!({
-            "id": p.get::<i64, _>("id"),
+            "id": p.get::<uuid::Uuid, _>("id").to_string(),
             "name": p.get::<String, _>("product_name"),
             "description": p.get::<Option<String>, _>("description"),
             "price": p.get::<Option<rust_decimal::Decimal>, _>("price"),
@@ -449,7 +521,7 @@ pub async fn list_products(
             "is_available": p.get::<Option<bool>, _>("is_available").unwrap_or(true)
         })
     }).collect();
-    
+
     Ok(Json(serde_json::json!({
         "success": true,
         "data": data
@@ -460,7 +532,7 @@ pub async fn list_products(
 pub async fn create_product(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<i64>,
+    Path(business_id): Path<uuid::Uuid>,
     Json(req): Json<CreateProductRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
@@ -481,24 +553,26 @@ pub async fn create_product(
         None => return Err(AppError::Internal(anyhow::anyhow!("Attività non trovata"))),
     }
     
-    let result = sqlx::query_scalar::<_, i64>(
-        r#"INSERT INTO business_products (business_id, product_name, description, price, currency, is_available)
-           VALUES ($1, $2, $3, $4, $5, true)
-           RETURNING id"#
+    let product_id = uuid::Uuid::now_v7();
+
+    sqlx::query(
+        r#"INSERT INTO business_products (id, business_id, product_name, description, price, currency, is_available)
+           VALUES ($1, $2, $3, $4, $5, $6, true)"#
     )
+    .bind(product_id)
     .bind(business_id)
     .bind(&req.product_name)
     .bind(&req.description)
     .bind(req.price.map(rust_decimal::Decimal::from_f64_retain).flatten())
     .bind(req.currency.as_deref().unwrap_or("EUR"))
-    .fetch_one(&state.db.pool)
+    .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create product: {}", e)))?;
-    
+
     Ok(Json(serde_json::json!({
         "success": true,
         "data": {
-            "id": result,
+            "id": product_id.to_string(),
             "name": req.product_name
         },
         "message": "Prodotto creato con successo"
@@ -512,7 +586,7 @@ pub async fn create_product(
 /// List reviews for a business
 pub async fn list_reviews(
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<i64>,
+    Path(business_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let reviews = sqlx::query(
         r#"SELECT r.id, r.rating, r.title, r.content, r.helpful_count, r.created_at,
@@ -532,7 +606,7 @@ pub async fn list_reviews(
     
     let data: Vec<serde_json::Value> = reviews.iter().map(|r| {
         serde_json::json!({
-            "id": r.get::<i64, _>("id"),
+            "id": r.get::<uuid::Uuid, _>("id").to_string(),
             "rating": r.get::<i32, _>("rating"),
             "title": r.get::<Option<String>, _>("title"),
             "content": r.get::<Option<String>, _>("content"),
@@ -553,7 +627,7 @@ pub async fn list_reviews(
 pub async fn create_review(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<i64>,
+    Path(business_id): Path<uuid::Uuid>,
     Json(req): Json<CreateReviewRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
@@ -565,7 +639,7 @@ pub async fn create_review(
     }
     
     // Check if user already reviewed
-    let existing: Option<i64> = sqlx::query_scalar(
+    let existing: Option<uuid::Uuid> = sqlx::query_scalar(
         "SELECT id FROM business_reviews WHERE business_id = $1 AND user_id = $2"
     )
     .bind(business_id)
@@ -573,23 +647,25 @@ pub async fn create_review(
     .fetch_optional(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+
     if existing.is_some() {
         return Err(AppError::Internal(anyhow::anyhow!("Hai già recensito questa attività")));
     }
-    
+
     // Create review
-    let result = sqlx::query_scalar::<_, i64>(
-        r#"INSERT INTO business_reviews (business_id, user_id, rating, title, content)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING id"#
+    let review_id = uuid::Uuid::now_v7();
+
+    sqlx::query(
+        r#"INSERT INTO business_reviews (id, business_id, user_id, rating, title, content)
+           VALUES ($1, $2, $3, $4, $5, $6)"#
     )
+    .bind(review_id)
     .bind(business_id)
     .bind(user_uuid)
     .bind(req.rating)
     .bind(&req.title)
     .bind(&req.content)
-    .fetch_one(&state.db.pool)
+    .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create review: {}", e)))?;
     
@@ -606,7 +682,7 @@ pub async fn create_review(
     
     Ok(Json(serde_json::json!({
         "success": true,
-        "data": { "id": result },
+        "data": { "id": review_id.to_string() },
         "message": "Recensione pubblicata con successo"
     })))
 }
@@ -639,7 +715,7 @@ pub async fn list_user_orders(
     
     let data: Vec<serde_json::Value> = orders.iter().map(|o| {
         serde_json::json!({
-            "id": o.get::<i64, _>("id"),
+            "id": o.get::<uuid::Uuid, _>("id").to_string(),
             "status": o.get::<String, _>("status"),
             "total_amount": o.get::<rust_decimal::Decimal, _>("total_amount"),
             "currency": o.get::<String, _>("currency"),
@@ -659,7 +735,7 @@ pub async fn list_user_orders(
 pub async fn create_order(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<i64>,
+    Path(business_id): Path<uuid::Uuid>,
     Json(req): Json<CreateOrderRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
@@ -697,27 +773,31 @@ pub async fn create_order(
     }
     
     // Create order
-    let order_id = sqlx::query_scalar::<_, i64>(
-        r#"INSERT INTO orders (business_id, user_id, status, total_amount, currency, notes, delivery_type, delivery_address)
-           VALUES ($1, $2, 'pending', $3, 'EUR', $4, $5, $6)
-           RETURNING id"#
+    let order_id = uuid::Uuid::now_v7();
+
+    sqlx::query(
+        r#"INSERT INTO orders (id, business_id, user_id, status, total_amount, currency, notes, delivery_type, delivery_address)
+           VALUES ($1, $2, $3, 'pending', $4, 'EUR', $5, $6, $7)"#
     )
+    .bind(order_id)
     .bind(business_id)
     .bind(user_uuid)
     .bind(total)
     .bind(&req.notes)
     .bind(req.delivery_type.as_deref().unwrap_or("pickup"))
     .bind(&req.delivery_address)
-    .fetch_one(&state.db.pool)
+    .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create order: {}", e)))?;
     
     // Create order items
     for (product_id, name, qty, unit_price, total_price, notes) in order_items {
+        let item_id = uuid::Uuid::now_v7();
         let _ = sqlx::query(
-            r#"INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, total_price, notes)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)"#
+            r#"INSERT INTO order_items (id, order_id, product_id, product_name, quantity, unit_price, total_price, notes)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"#
         )
+        .bind(item_id)
         .bind(order_id)
         .bind(product_id)
         .bind(name)
@@ -740,7 +820,7 @@ pub async fn create_order(
     Ok(Json(serde_json::json!({
         "success": true,
         "data": {
-            "id": order_id,
+            "id": order_id.to_string(),
             "total": total
         },
         "message": "Ordine creato con successo"
@@ -751,7 +831,7 @@ pub async fn create_order(
 pub async fn update_order_status(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
-    Path(order_id): Path<i64>,
+    Path(order_id): Path<uuid::Uuid>,
     Json(req): Json<UpdateOrderStatusRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)

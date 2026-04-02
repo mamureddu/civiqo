@@ -144,11 +144,16 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/admin", get(pages::admin_dashboard))
         .route("/admin/settings", get(pages::instance_settings_page))
         .route("/search", get(pages::search_page))
+        .route("/notifications", get(pages::notifications))
         .route("/setup", get(pages::setup_page))
         .route("/test-db", get(pages::test_db))
+        // Redirects for convenience links
+        .route("/profile", get(profile_redirect))
+        .route("/governance/proposals/create", get(governance_create_redirect))
         // User profile pages
         .route("/users/{id}", get(pages::user_profile))
         .route("/users/{id}/edit", get(pages::edit_profile_page))
+        .route("/posts/{id}/edit", get(pages::edit_post_page))
         
         // HTMX Fragments (return HTML fragments for dynamic updates)
         .route("/htmx/nav", get(htmx::nav_fragment))
@@ -185,6 +190,9 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/users/{id}/followers", get(htmx::user_followers))
         .route("/htmx/users/{id}/following", get(htmx::user_following))
         .route("/htmx/notifications", get(htmx::notifications_dropdown))
+        .route("/htmx/notifications/list", get(htmx::notifications_list))
+        .route("/htmx/notifications/mark-all-read", post(htmx::mark_all_notifications_read))
+        .route("/htmx/notifications/{id}/mark-read", post(htmx::mark_notification_read))
         // Community proposals HTMX fragments
         .route("/htmx/communities/{id}/proposals", get(htmx::community_proposals))
         .route("/htmx/communities/{id}/proposals", post(htmx::create_proposal_htmx))
@@ -200,11 +208,16 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/communities/{id}/requests", get(htmx::membership_requests_htmx))
         .route("/htmx/communities/{id}/requests/{user_id}/approve", post(htmx::approve_request_htmx))
         .route("/htmx/communities/{id}/requests/{user_id}/reject", post(htmx::reject_request_htmx))
+        // Business HTMX create
+        .route("/htmx/businesses", post(businesses::create_business_htmx))
         // Community businesses and chat HTMX fragments
         .route("/htmx/communities/{id}/businesses", get(htmx::community_businesses))
         .route("/htmx/communities/{id}/chat", get(htmx::community_chat))
         // Admin HTMX fragments
         .route("/htmx/admin/dashboard", get(admin::admin_dashboard_fragment))
+        .route("/htmx/admin/moderation", get(admin::admin_moderation_fragment))
+        .route("/htmx/admin/analytics", get(admin::admin_analytics_fragment))
+        .route("/htmx/admin/audit-logs", get(admin::admin_audit_logs_fragment))
         
         // REST API Endpoints
         // NOTE: POST /api/users removed - users are created via Auth0 OAuth2 flow
@@ -353,4 +366,14 @@ async fn list_languages() -> axum::Json<Vec<i18n::LanguageInfo>> {
     axum::Json(get_available_languages())
 }
 
-// Health check and root endpoints are now in handlers/stubs.rs
+/// /profile → redirect to current user's profile
+async fn profile_redirect(
+    auth::AuthUser(user): auth::AuthUser,
+) -> impl axum::response::IntoResponse {
+    axum::response::Redirect::to(&format!("/users/{}", user.user_id))
+}
+
+/// /governance/proposals/create → redirect to governance page with create modal
+async fn governance_create_redirect() -> impl axum::response::IntoResponse {
+    axum::response::Redirect::to("/governance?create=1")
+}

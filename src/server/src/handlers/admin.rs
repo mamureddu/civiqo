@@ -494,3 +494,254 @@ pub async fn admin_dashboard_fragment(
     
     Ok(Html(html))
 }
+
+// ============================================================================
+// Admin HTMX Fragments (moderation, analytics, audit-logs)
+// ============================================================================
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ModerationHtmxQuery {
+    pub status: Option<String>,
+}
+
+/// Moderation queue HTMX fragment
+pub async fn admin_moderation_fragment(
+    AuthUser(_user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ModerationHtmxQuery>,
+) -> Html<String> {
+    let status = params.status.unwrap_or_else(|| "pending".to_string());
+
+    let items = sqlx::query(
+        r#"SELECT m.id, m.content_type, m.content_id, m.reason, m.details,
+                  m.status, m.priority, m.created_at,
+                  COALESCE(up.name, u.email) as reporter_name
+           FROM moderation_queue m
+           LEFT JOIN users u ON m.reported_by = u.id
+           LEFT JOIN user_profiles up ON u.id = up.user_id
+           WHERE m.status = $1
+           ORDER BY
+               CASE m.priority
+                   WHEN 'urgent' THEN 1
+                   WHEN 'high' THEN 2
+                   WHEN 'normal' THEN 3
+                   ELSE 4
+               END,
+               m.created_at ASC
+           LIMIT 50"#
+    )
+    .bind(&status)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+
+    if items.is_empty() {
+        return Html(r#"<div class="p-8 text-center text-civiqo-gray-500">
+            <svg class="w-12 h-12 mx-auto mb-3 text-civiqo-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="font-medium">Nessun elemento in coda</p>
+            <p class="text-sm mt-1">Non ci sono contenuti da moderare al momento.</p>
+        </div>"#.to_string());
+    }
+
+    let mut html = String::new();
+    for row in &items {
+        let id: uuid::Uuid = row.get("id");
+        let content_type: String = row.get("content_type");
+        let reason: String = row.get("reason");
+        let priority: String = row.get("priority");
+        let reporter: Option<String> = row.get("reporter_name");
+        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+
+        let priority_badge = match priority.as_str() {
+            "urgent" => r#"<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">Urgente</span>"#,
+            "high" => r#"<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-700">Alta</span>"#,
+            _ => r#"<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-civiqo-gray-100 text-civiqo-gray-600">Normale</span>"#,
+        };
+
+        let reporter_name = reporter.unwrap_or_else(|| "Anonimo".to_string());
+        let date_str = created_at.format("%d/%m/%Y %H:%M").to_string();
+        let approve_url = format!("/api/admin/moderation/{}/approve", id);
+        let reject_url = format!("/api/admin/moderation/{}/reject", id);
+
+        html.push_str(&format!(
+            "<div class=\"p-4 flex items-center justify-between\">\
+                <div class=\"flex-1\">\
+                    <div class=\"flex items-center gap-2 mb-1\">\
+                        <span class=\"font-medium text-civiqo-gray-900\">{content_type}</span>\
+                        {priority_badge}\
+                    </div>\
+                    <p class=\"text-sm text-civiqo-gray-600\">{reason}</p>\
+                    <p class=\"text-xs text-civiqo-gray-400 mt-1\">Segnalato da {reporter_name} il {date_str}</p>\
+                </div>\
+                <div class=\"flex items-center gap-2\">\
+                    <button hx-post=\"{approve_url}\" hx-target=\"#moderation-list\" hx-swap=\"innerHTML\"\
+                            class=\"px-3 py-1 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition\">\
+                        Approva\
+                    </button>\
+                    <button hx-post=\"{reject_url}\" hx-target=\"#moderation-list\" hx-swap=\"innerHTML\"\
+                            class=\"px-3 py-1 text-sm bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition\">\
+                        Rifiuta\
+                    </button>\
+                </div>\
+            </div>",
+        ));
+    }
+
+    Html(html)
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AnalyticsHtmxQuery {
+    pub page: Option<i32>,
+}
+
+/// Analytics events HTMX fragment
+pub async fn admin_analytics_fragment(
+    AuthUser(_user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<AnalyticsHtmxQuery>,
+) -> Html<String> {
+    let page = params.page.unwrap_or(1);
+    let limit = 30;
+    let offset = (page - 1) * limit;
+
+    let events = sqlx::query(
+        r#"SELECT ae.event_type, ae.created_at,
+                  COALESCE(up.name, u.email) as user_name,
+                  c.name as community_name
+           FROM analytics_events ae
+           LEFT JOIN users u ON ae.user_id = u.id
+           LEFT JOIN user_profiles up ON u.id = up.user_id
+           LEFT JOIN communities c ON ae.community_id = c.id
+           ORDER BY ae.created_at DESC
+           LIMIT $1 OFFSET $2"#
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+
+    if events.is_empty() {
+        return Html(r#"<div class="text-center text-civiqo-gray-500 py-8">
+            <svg class="w-12 h-12 mx-auto mb-3 text-civiqo-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            <p class="font-medium">Nessun evento registrato</p>
+            <p class="text-sm mt-1">Gli eventi analytics appariranno qui.</p>
+        </div>"#.to_string());
+    }
+
+    let mut html = String::from(r#"<table class="w-full text-sm">
+        <thead>
+            <tr class="text-left text-civiqo-gray-500 border-b border-civiqo-gray-200">
+                <th class="pb-2 font-medium">Evento</th>
+                <th class="pb-2 font-medium">Utente</th>
+                <th class="pb-2 font-medium">Community</th>
+                <th class="pb-2 font-medium">Data</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-civiqo-gray-100">"#);
+
+    for row in &events {
+        let event_type: String = row.get("event_type");
+        let user_name: Option<String> = row.get("user_name");
+        let community_name: Option<String> = row.get("community_name");
+        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+
+        html.push_str(&format!(
+            r#"<tr class="hover:bg-civiqo-gray-50">
+                <td class="py-2 text-civiqo-gray-900">{}</td>
+                <td class="py-2 text-civiqo-gray-600">{}</td>
+                <td class="py-2 text-civiqo-gray-600">{}</td>
+                <td class="py-2 text-civiqo-gray-400">{}</td>
+            </tr>"#,
+            event_type,
+            user_name.unwrap_or_else(|| "-".to_string()),
+            community_name.unwrap_or_else(|| "-".to_string()),
+            created_at.format("%d/%m/%Y %H:%M"),
+        ));
+    }
+
+    html.push_str("</tbody></table>");
+    Html(html)
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AuditLogsHtmxQuery {
+    pub page: Option<i32>,
+}
+
+/// Audit logs HTMX fragment
+pub async fn admin_audit_logs_fragment(
+    AuthUser(_user): AuthUser,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<AuditLogsHtmxQuery>,
+) -> Html<String> {
+    let page = params.page.unwrap_or(1);
+    let limit = 50;
+    let offset = (page - 1) * limit;
+
+    let logs = sqlx::query(
+        r#"SELECT a.action, a.target_type, a.target_id, a.created_at,
+                  COALESCE(up.name, u.email) as user_name
+           FROM audit_logs a
+           LEFT JOIN users u ON a.user_id = u.id
+           LEFT JOIN user_profiles up ON u.id = up.user_id
+           ORDER BY a.created_at DESC
+           LIMIT $1 OFFSET $2"#
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+
+    if logs.is_empty() {
+        return Html(r#"<div class="p-8 text-center text-civiqo-gray-500">
+            <svg class="w-12 h-12 mx-auto mb-3 text-civiqo-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            <p class="font-medium">Nessun log di audit</p>
+            <p class="text-sm mt-1">Le attivit&agrave; amministrative appariranno qui.</p>
+        </div>"#.to_string());
+    }
+
+    let mut html = String::new();
+    for row in &logs {
+        let action: String = row.get("action");
+        let target_type: Option<String> = row.get("target_type");
+        let target_id: Option<String> = row.get("target_id");
+        let user_name: Option<String> = row.get("user_name");
+        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+
+        html.push_str(&format!(
+            r#"<div class="p-4 flex items-start gap-3">
+                <div class="w-8 h-8 bg-civiqo-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg class="w-4 h-4 text-civiqo-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm text-civiqo-gray-900">
+                        <span class="font-medium">{}</span> ha eseguito <span class="font-medium">{}</span>
+                        {}
+                    </p>
+                    <p class="text-xs text-civiqo-gray-400 mt-1">{}</p>
+                </div>
+            </div>"#,
+            user_name.unwrap_or_else(|| "Sistema".to_string()),
+            action,
+            if let (Some(tt), Some(ti)) = (&target_type, &target_id) {
+                format!(" su {} <code class=\"text-xs bg-civiqo-gray-100 px-1 rounded\">{}</code>", tt, ti)
+            } else {
+                String::new()
+            },
+            created_at.format("%d/%m/%Y %H:%M:%S"),
+        ));
+    }
+
+    Html(html)
+}

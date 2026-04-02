@@ -149,7 +149,7 @@ pub async fn list_proposals(
                 .map(|dt| dt.to_rfc3339()),
             voting_ends_at: row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("voting_ends_at")
                 .map(|dt| dt.to_rfc3339()),
-            quorum_required: row.get::<Option<i64>, _>("quorum_required").unwrap_or(0) as i32,
+            quorum_required: row.get::<Option<i32>, _>("quorum_required").unwrap_or(0),
         }
     }).collect();
     
@@ -196,7 +196,7 @@ pub async fn get_proposal(
             .map(|dt| dt.to_rfc3339()),
         voting_ends_at: row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("voting_ends_at")
             .map(|dt| dt.to_rfc3339()),
-        quorum_required: row.get::<Option<i64>, _>("quorum_required").unwrap_or(0) as i32,
+        quorum_required: row.get::<Option<i32>, _>("quorum_required").unwrap_or(0),
     }))
 }
 
@@ -377,7 +377,7 @@ pub async fn get_results(
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?
     .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Proposal not found".to_string())))?;
     
-    let quorum_required: i64 = proposal.get::<Option<i64>, _>("quorum_required").unwrap_or(0);
+    let quorum_required: i64 = proposal.get::<Option<i32>, _>("quorum_required").unwrap_or(0) as i64;
     let community_id: Uuid = proposal.get("community_id");
     
     // Get vote counts by value

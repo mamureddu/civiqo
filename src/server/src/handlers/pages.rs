@@ -181,27 +181,48 @@ pub async fn chat_room(
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<String>,
 ) -> Result<Response, AppError> {
-    // Validate room_id is a valid UUID
+    use sqlx::Row;
+
     let room_uuid = uuid::Uuid::parse_str(&room_id).map_err(|_| {
         AppError::BadRequest("Invalid room ID format".to_string())
     })?;
-    
+
+    // Get community name for the room
+    let room_name = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM communities WHERE id = $1"
+    )
+    .bind(room_uuid)
+    .fetch_optional(&state.db.pool)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or_else(|| "Chat".to_string());
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
     ctx.insert("room_id", &room_id);
-    ctx.insert("room_name", &format!("Room {}", &room_uuid.to_string()[..8]));
-    
-    // Add auth info to context
-    if let Some(user) = user {
+    ctx.insert("room_name", &room_name);
+
+    if let Some(ref user) = user {
         ctx.insert("logged_in", &true);
-        ctx.insert("username", &user.name.unwrap_or(user.email.clone()));
+        ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
         ctx.insert("picture", &user.picture);
         ctx.insert("user_id", &user.user_id);
+
+        // Generate JWT token for WebSocket auth
+        if let Ok(jwt_config) = shared::auth::JwtConfig::from_env() {
+            let jwt_service = shared::auth::JwtService::new(jwt_config);
+            if let Ok(user_uuid) = uuid::Uuid::parse_str(&user.user_id) {
+                if let Ok(token) = jwt_service.issue_token(user_uuid, &user.email, user.name.as_deref(), vec![]) {
+                    ctx.insert("ws_token", &token);
+                }
+            }
+        }
     } else {
         ctx.insert("logged_in", &false);
         ctx.insert("user_id", "guest");
     }
-    
+
     let html = state.tera.render("chat.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -466,10 +487,22 @@ pub async fn community_detail(
 /// Businesses list page
 pub async fn businesses(
     LocaleExtractor(locale): LocaleExtractor,
+    OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
+
+    // Add auth info to context
+    if let Some(ref user) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
+        ctx.insert("picture", &user.picture);
+        ctx.insert("user_id", &user.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
+
     let html = state.tera.render("businesses.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -719,13 +752,14 @@ pub async fn proposal_detail(
     let id: uuid::Uuid = proposal.get("id");
     let title: String = proposal.get("title");
     let description: Option<String> = proposal.get("description");
-    let proposal_type: String = proposal.get("proposal_type");
+    let proposal_type: Option<String> = proposal.get("proposal_type");
+    let proposal_type = proposal_type.unwrap_or_else(|| "general".to_string());
     let status: String = proposal.get("status");
     let community_name: String = proposal.get("community_name");
     let community_id: uuid::Uuid = proposal.get("community_id");
     let author_name: String = proposal.get("author_name");
     let vote_count: i64 = proposal.get("vote_count");
-    let quorum_required: Option<i64> = proposal.get("quorum_required");
+    let quorum_required: Option<i32> = proposal.get("quorum_required");
     let voting_ends: Option<chrono::DateTime<chrono::Utc>> = proposal.get("voting_ends_at");
     let created_at: chrono::DateTime<chrono::Utc> = proposal.get("created_at");
     
@@ -797,10 +831,19 @@ pub async fn proposal_detail(
 /// Points of Interest / Map page
 pub async fn poi(
     LocaleExtractor(locale): LocaleExtractor,
+    OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
+    if let Some(ref u) = user {
+        ctx.insert("logged_in", &true);
+        ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
+        ctx.insert("picture", &u.picture);
+        ctx.insert("user_id", &u.user_id);
+    } else {
+        ctx.insert("logged_in", &false);
+    }
     let html = state.tera.render("poi.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -1488,6 +1531,69 @@ pub async fn edit_profile_page(
     Ok(Html(html).into_response())
 }
 
+/// Edit post page
+pub async fn edit_post_page(
+    LocaleExtractor(locale): LocaleExtractor,
+    OptionalAuthUser(maybe_user): OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    Path(post_id): Path<String>,
+) -> Result<Response, AppError> {
+    use sqlx::Row;
+
+    let user = match maybe_user {
+        Some(u) => u,
+        None => return Ok(axum::response::Redirect::to("/login").into_response()),
+    };
+
+    let post_uuid = uuid::Uuid::parse_str(&post_id)
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid post ID")))?;
+
+    let post = sqlx::query(
+        r#"SELECT p.id, p.title, p.content, p.content_type, p.media_url, p.community_id, p.author_id, c.name as community_name
+           FROM posts p
+           JOIN communities c ON c.id = p.community_id
+           WHERE p.id = $1"#
+    )
+    .bind(post_uuid)
+    .fetch_optional(&state.db.pool)
+    .await?;
+
+    let Some(row) = post else {
+        return Ok(axum::response::Redirect::to("/").into_response());
+    };
+
+    let author_id: uuid::Uuid = row.get("author_id");
+    let user_uuid = uuid::Uuid::parse_str(&user.user_id)
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
+
+    if author_id != user_uuid {
+        return Ok(axum::response::Redirect::to(&format!("/posts/{}", post_id)).into_response());
+    }
+
+    let mut ctx = Context::new();
+    add_i18n_context(&mut ctx, &locale);
+    ctx.insert("logged_in", &true);
+    ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
+    ctx.insert("picture", &user.picture);
+    ctx.insert("user_id", &user.user_id);
+
+    let community_id: uuid::Uuid = row.get("community_id");
+    let community_data = serde_json::json!({
+        "id": community_id.to_string(),
+        "name": row.get::<String, _>("community_name"),
+    });
+    ctx.insert("community", &community_data);
+    ctx.insert("editing", &true);
+    ctx.insert("post_id", &post_id);
+    ctx.insert("post_title", &row.get::<String, _>("title"));
+    ctx.insert("post_content", &row.get::<String, _>("content"));
+    ctx.insert("post_content_type", &row.get::<Option<String>, _>("content_type").unwrap_or("markdown".to_string()));
+    ctx.insert("post_media_url", &row.get::<Option<String>, _>("media_url"));
+
+    let html = state.tera.render("create_post.html", &ctx)?;
+    Ok(Html(html).into_response())
+}
+
 /// 404 Not Found page
 #[allow(dead_code)]
 pub async fn not_found(
@@ -1546,17 +1652,22 @@ pub async fn internal_error(
 #[allow(dead_code)]
 pub async fn notifications(
     LocaleExtractor(locale): LocaleExtractor,
-    AuthUser(user): AuthUser,
+    OptionalAuthUser(maybe_user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
+    let user = match maybe_user {
+        Some(u) => u,
+        None => return Ok(axum::response::Redirect::to("/login").into_response()),
+    };
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     ctx.insert("logged_in", &true);
     ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
     ctx.insert("picture", &user.picture);
     ctx.insert("user_id", &user.user_id);
-    
+
     let html = state.tera.render("notifications.html", &ctx)?;
     Ok(Html(html).into_response())
 }

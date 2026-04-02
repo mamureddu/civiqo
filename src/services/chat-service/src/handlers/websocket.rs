@@ -23,22 +23,30 @@ use crate::{
     state::AppState,
 };
 
+/// Query params for WebSocket auth (browsers can't send custom headers)
+#[derive(serde::Deserialize)]
+pub struct WsQuery {
+    pub token: Option<String>,
+}
+
 /// WebSocket upgrade handler
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
     headers: HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<WsQuery>,
 ) -> Response {
-    // Extract and validate JWT token
-    let token = match extract_token_from_headers(&headers) {
-        Some(token) => token,
-        None => {
-            warn!("WebSocket connection attempt without authorization header");
-            return (axum::http::StatusCode::UNAUTHORIZED, "Missing authorization header").into_response();
-        }
+    // Extract JWT token from header OR query parameter (browsers can't send WS headers)
+    let token_string: String = if let Some(t) = extract_token_from_headers(&headers) {
+        t.to_string()
+    } else if let Some(ref t) = query.token {
+        t.clone()
+    } else {
+        warn!("WebSocket connection attempt without token");
+        return (axum::http::StatusCode::UNAUTHORIZED, "Missing authorization").into_response();
     };
 
-    let claims = match state.jwt_service().validate_token(&token) {
+    let claims = match state.jwt_service().validate_token(&token_string) {
         Ok(claims) => claims,
         Err(e) => {
             warn!("WebSocket authentication failed: {}", e);
