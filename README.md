@@ -1,116 +1,101 @@
-# Community Manager
+# Civiqo
 
-A decentralized community management platform enabling local communities to organize, govern, and collaborate with end-to-end encrypted communication.
+A decentralized community management platform enabling local communities to organize, govern, and collaborate.
 
 ## Features
-- Multi-role community management (owner, socio, investor, affiliate, supporter)
-- Geographic-based community discovery and creation
+
+- Multi-role community management (owner, admin, moderator, member)
+- Geographic-based community discovery
 - End-to-end encrypted real-time chat
-- Local business integration with geographic mapping
-- Decentralized governance tools (polls, voting, decision-making)
-- Mobile-first design (web + future React Native app)
+- Local business integration
+- Governance tools (polls, voting, proposals)
+- Internationalization (Italian, English)
 
-## 🎨 Design & Brand
-> **Strict Adherence Required**: This project follows the **Civiqo Brand Book v1.1**.
-> 
-> All UI/UX decisions must align with the [Brand Guidelines](docs/BRAND_GUIDELINES.md).
-> - **Primary Color**: Civiqo Blue (`#3B7FBA`)
-> - **Fonts**: Nunito (Headings), Inter (Body)
-> - **Tone**: Human, Clear, Reassuring
+## Tech Stack
 
-## Architecture
-- **Frontend**: HTMX + Leptos WASM (100% Rust stack)
-- **Backend**: Rust microservices with cargo-lambda (Lambda → EC2 progression)
-- **Database**: CockroachDB Cloud (PostgreSQL-compatible)
-- **Authentication**: Auth0 with custom role management
-- **Chat**: Stateless WebSocket service with WASM client
-- **Infrastructure**: AWS with progressive scaling (Lambda → EC2 Spot)
-- **Mobile**: Native Android (Kotlin) + iOS (Swift)
-
-## Development Phases
-1. **Foundation** (4-6 weeks): Auth, communities, basic roles
-2. **Core Features** (3-4 weeks): Chat, business profiles, maps
-3. **Advanced** (3-4 weeks): E2EE, governance, advanced roles
-4. **Mobile** (4-5 weeks): Native Android + iOS app development
+- **Backend**: Rust / Axum
+- **Database**: PostgreSQL 18 (via SQLx, migrations auto-run)
+- **Auth**: Custom JWT (argon2 + HS256) with session-based HTMX pages
+- **Frontend**: Server-rendered Tera templates + HTMX + Alpine.js
+- **Styling**: Tailwind CSS
+- **Deployment**: VPS with Caddy reverse proxy + systemd
 
 ## Quick Start
+
 ```bash
-# Prerequisites: Rust, cargo-lambda, CockroachDB Cloud account
+git clone https://github.com/mamureddu/civiqo.git
+cd civiqo
+./setup.sh
+```
+
+The setup script will:
+1. Check and optionally install prerequisites (Rust, PostgreSQL, Node.js)
+2. Create and configure the database
+3. Generate a secure JWT secret
+4. Build the project
+5. Optionally configure Civiqo as a system service
+
+### Manual Setup
+
+```bash
+# Prerequisites: Rust, PostgreSQL 18, Node.js (for Tailwind)
 
 # 1. Configure environment
-cp docs/ENVIRONMENT.md src/.env      # Copy and configure with your CockroachDB credentials
-./scripts/check-env.sh                # Validate configuration
+cp src/.env.example src/.env
+# Edit src/.env with your database credentials
 
-# 2. Start development
-cd src && cargo run --bin server      # Start server (HTMX pages + API)
+# 2. Build and run
+cd src && cargo run -p server
 # Open http://localhost:9001
 ```
 
 ### Development Commands
-- `cd src && cargo run --bin server`: Start web server
-- `cd src && cargo run --bin chat-service`: Start chat service (future)
-- `cd src && cargo test --workspace`: Run all tests
-- `cd wasm && trunk serve`: Develop WASM components (future)
 
-## Architecture Evolution
-- **Phase 1**: Lambda + API Gateway (~$15/month)
-- **Phase 2**: Lambda + EC2 WebSocket (~$40/month)
-- **Phase 3**: Direct ALB WebSocket (~$25/month)
-
-## Development
-- **Backend**: Rust with cargo-lambda for agile deployment
-- **Frontend**: HTMX + Leptos WASM for 100% Rust stack
-- **Database**: CockroachDB Cloud with PostGIS-compatible geographic features
-- **Real-time**: WebSocket with WASM client and ephemeral message queuing
-
-## Deployment
 ```bash
-# Deploy to development
-./scripts/deploy.sh dev all
-
-# Deploy individual services
-./scripts/deploy.sh dev api
-./scripts/deploy.sh dev chat
+cd src && cargo run -p server          # Start web server
+cd src && cargo run -p chat-service    # Start chat service
+cd src && cargo test --workspace       # Run all tests
+cd src && cargo clippy                 # Lint
+cd src && cargo fmt --check            # Check formatting
 ```
 
 ## Project Structure
+
 ```
-community-manager/
-├── src/                      # Backend Rust
-│   ├── server/              # Web server (HTMX + API)
-│   │   ├── templates/       # Tera templates
-│   │   ├── static/          # CSS, WASM, images
-│   │   └── src/             # Rust code
-│   ├── services/            # Microservices
-│   │   └── chat-service/    # WebSocket service
-│   ├── shared/              # Common Rust code
-│   └── migrations/          # Database migrations
-├── wasm/                    # WASM components (Leptos)
-├── scripts/                 # Development automation
-└── docs/                    # Documentation
-    ├── DEVELOPMENT.md       # Development guide
-    ├── ENVIRONMENT.md       # Environment setup
-    ├── SCHEMA.md            # Database schema
-    ├── MIGRATION.md         # Cloud migration guide
-    └── TESTING.md           # Test suite documentation
+civiqo/
+├── src/
+│   ├── server/              # Axum web server (HTMX + API)
+│   │   ├── src/             # Handlers, auth, middleware
+│   │   ├── templates/       # Tera HTML templates
+│   │   └── static/          # CSS, JS, images
+│   ├── services/
+│   │   └── chat-service/    # WebSocket chat service
+│   ├── shared/              # Shared library (DB, models, JWT)
+│   └── migrations/          # SQLx database migrations
+├── deploy/                  # VPS deployment (Caddy, systemd)
+├── scripts/                 # Development scripts
+├── docs/                    # Documentation
+└── setup.sh                 # Interactive setup script
 ```
 
 ## Documentation
 
-- **[Development Guide](docs/DEVELOPMENT.md)** - Complete development setup and workflow
-- **[Environment Setup](docs/ENVIRONMENT.md)** - Environment configuration template
-- **[Database Schema](docs/SCHEMA.md)** - Complete database schema documentation
-- **[Migration Guide](docs/MIGRATION.md)** - Cloud-first infrastructure migration
-- **[HTMX + WASM Migration](docs/HTMX_WASM_MIGRATION.md)** - Frontend architecture migration
-- **[Testing Guide](docs/TESTING.md)** - Comprehensive test suite documentation
-- **[Project Status](docs/CLAUDE.md)** - Detailed project status and achievements
+- **[Development Guide](docs/DEVELOPMENT.md)** - Setup and workflow
+- **[Architecture](docs/ARCHITECTURE.md)** - System design
+- **[Authentication](docs/AUTHENTICATION.md)** - Auth flow details
+- **[API Reference](docs/API.md)** - API endpoints
+- **[Database Schema](docs/SCHEMA.md)** - Schema documentation
+- **[Deployment](docs/DEPLOYMENT.md)** - VPS deployment guide
+- **[i18n Guide](docs/I18N_GUIDE.md)** - Internationalization
 
 ## Contributing
-1. Install prerequisites: Rust, cargo-lambda
-2. Configure CockroachDB Cloud connection in src/.env
-3. Start development with `cd src && cargo run --bin server`
-4. Follow conventional commit messages
-5. Test before submitting PRs: `cd src && cargo test --workspace`
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Security
+
+To report vulnerabilities, see [SECURITY.md](SECURITY.md).
 
 ## License
-MIT License - see LICENSE file for details
+
+MIT License - see [LICENSE](LICENSE) for details.

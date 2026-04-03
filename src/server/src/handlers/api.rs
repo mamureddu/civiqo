@@ -12,27 +12,8 @@ use crate::handlers::pages::AppState;
 use crate::auth::{AuthUser, OptionalAuthUser};
 
 // ============================================================================
-// Helper Functions
-// ============================================================================
-
-// NOTE: generate_slug and ensure_unique_slug functions removed
-// Slug generation is now handled by client (user provides slug)
-// Slug uniqueness is enforced by database constraint (UNIQUE on slug column)
-// This simplifies the API and makes slug handling explicit
-
-// ============================================================================
 // Request/Response Types
 // ============================================================================
-
-// ==========================================================
-// DEPRECATED: CreateUserRequest - Users are created via Auth0
-// ==========================================================
-// #[derive(Debug, Deserialize)]
-// pub struct CreateUserRequest {
-//     pub username: String,
-//     pub email: String,
-//     pub password: String,
-// }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateCommunityRequest {
@@ -126,12 +107,6 @@ fn default_limit() -> u32 { 20 }
 // ============================================================================
 // User Endpoints
 // ============================================================================
-
-// ==========================================================
-// DEPRECATED: create_user - Users are created via Auth0 OAuth2 flow
-// See: src/server/src/auth.rs -> sync_user_to_database()
-// ==========================================================
-// pub async fn create_user(...) { ... }
 
 /// Get all users
 pub async fn get_users(

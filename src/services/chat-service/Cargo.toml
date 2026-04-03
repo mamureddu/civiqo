@@ -2,6 +2,10 @@
 name = "chat-service"
 version = "0.1.0"
 edition = "2021"
+description = "Civiqo - WebSocket chat service with E2E encryption"
+license = "MIT"
+repository = "https://github.com/mamureddu/civiqo"
+authors = ["Mario Mureddu"]
 
 [dependencies]
 # Use workspace dependencies

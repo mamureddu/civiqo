@@ -80,10 +80,12 @@ pub struct ReportContentRequest {
 
 /// Get analytics summary for admin dashboard
 pub async fn get_analytics_summary(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<AnalyticsSummary>, AppError> {
-    // TODO: Add admin role check
+    if !crate::handlers::instance::is_instance_admin(&state, &user.user_id).await {
+        return Err(AppError::Internal(anyhow::anyhow!("Unauthorized: admin access required")));
+    }
     
     let total_users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(&state.db.pool)
@@ -135,10 +137,13 @@ pub async fn get_analytics_summary(
 
 /// List analytics events
 pub async fn list_analytics_events(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
     Query(params): Query<AnalyticsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !crate::handlers::instance::is_instance_admin(&state, &user.user_id).await {
+        return Err(AppError::Internal(anyhow::anyhow!("Unauthorized: admin access required")));
+    }
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(50).min(100);
     let offset = (page - 1) * limit;
@@ -215,10 +220,13 @@ pub async fn track_event(
 
 /// List moderation queue items
 pub async fn list_moderation_queue(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
     Query(params): Query<ModerationQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !crate::handlers::instance::is_instance_admin(&state, &user.user_id).await {
+        return Err(AppError::Internal(anyhow::anyhow!("Unauthorized: admin access required")));
+    }
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20).min(50);
     let offset = (page - 1) * limit;

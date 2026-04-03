@@ -2,6 +2,10 @@
 name = "server"
 version = "0.1.0"
 edition = "2021"
+description = "Civiqo - Decentralized community management platform (web server)"
+license = "MIT"
+repository = "https://github.com/mamureddu/civiqo"
+authors = ["Mario Mureddu"]
 
 [[bin]]
 name = "server"

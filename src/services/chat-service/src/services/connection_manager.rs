@@ -22,14 +22,6 @@ pub struct ActiveConnection {
     /// User ID
     pub user_id: Uuid,
 
-    // ==========================================================
-    // COMMENTED FIELD - KEPT FOR FUTURE REFERENCE
-    // ==========================================================
-    /// Connection ID
-    /// USAGE: When implementing connection tracking across multiple instances
-    /// PURPOSE: Unique identifier for WebSocket connection debugging and management
-    // pub connection_id: String,
-
     /// Channel for sending messages to this connection
     pub sender: mpsc::UnboundedSender<WebSocketMessage>,
 
@@ -82,14 +74,6 @@ impl ActiveConnection {
 pub struct ConnectionManager {
     /// Active connections mapped by connection ID
     connections: Arc<DashMap<String, ActiveConnection>>,
-
-    // ==========================================================
-    // COMMENTED FIELD - KEPT FOR FUTURE REFERENCE
-    // ==========================================================
-    /// Database for persistent connection tracking
-    /// USAGE: When implementing cross-instance connection synchronization
-    /// PURPOSE: Store connection state for recovery and analytics
-    // database: Database,
 
     /// Message router for handling message delivery
     message_router: Arc<MessageRouter>,
@@ -280,27 +264,6 @@ impl ConnectionManager {
         Ok(())
     }
 
-    // ==========================================================
-    // COMMENTED METHODS - KEPT FOR FUTURE REFERENCE
-    // ==========================================================
-    // /// Get connection count
-    // /// USAGE: When implementing monitoring and metrics
-    // /// PURPOSE: Track active WebSocket connections for scaling decisions
-    // pub fn connection_count(&self) -> usize {
-    //     self.connections.len()
-    // }
-
-    // /// Get connections for a specific user
-    // /// USAGE: When implementing multi-device support or connection management
-    // /// PURPOSE: Allow users to manage multiple active connections
-    // pub fn get_user_connections(&self, user_id: Uuid) -> Vec<String> {
-    //     self.connections
-    //         .iter()
-    //         .filter(|entry| entry.value().user_id == user_id)
-    //         .map(|entry| entry.key().clone())
-    //         .collect()
-    // }
-
     /// Start background cleanup task for expired connections
     fn start_cleanup_task(&self) {
         let connections = Arc::clone(&self.connections);
@@ -345,69 +308,4 @@ impl ConnectionManager {
         Ok(())
     }
 
-    // ==========================================================
-    // COMMENTED METHOD - KEPT FOR FUTURE REFERENCE
-    // ==========================================================
-    // /// Get instance ID for this service instance
-    // /// USAGE: When implementing distributed WebSocket coordination
-    // /// PURPOSE: Identify specific service instances for load balancing and debugging
-    // fn get_instance_id(&self) -> String {
-    //     // In production, this could be AWS instance ID, container ID, etc.
-    //     // For now, use a simple generated ID
-    //     format!("chat-service-{}", Uuid::new_v4())
-    // }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use shared::models::chat::WebSocketMessage;
-//     use tokio::sync::mpsc;
-// 
-//     #[test]
-//     fn test_active_connection_creation() {
-//         let user_id = Uuid::new_v4();
-//         let connection_id = "test_conn".to_string();
-//         let (sender, _) = mpsc::unbounded_channel();
-// 
-//         let connection = ActiveConnection::new(user_id, connection_id.clone(), sender);
-// 
-//         assert_eq!(connection.user_id, user_id);
-//         assert_eq!(connection.connection_id, connection_id);
-//         assert!(connection.joined_rooms.is_empty());
-//     }
-// 
-//     #[test]
-//     fn test_room_join_leave() {
-//         let user_id = Uuid::new_v4();
-//         let connection_id = "test_conn".to_string();
-//         let (sender, _) = mpsc::unbounded_channel();
-//         let room_id = Uuid::new_v4();
-// 
-//         let mut connection = ActiveConnection::new(user_id, connection_id, sender);
-// 
-//         // Test join
-//         connection.join_room(room_id);
-//         assert!(connection.joined_rooms.contains(&room_id));
-// 
-//         // Test leave
-//         connection.leave_room(room_id);
-//         assert!(!connection.joined_rooms.contains(&room_id));
-//     }
-// 
-//     #[test]
-//     fn test_heartbeat_expiration() {
-//         let user_id = Uuid::new_v4();
-//         let connection_id = "test_conn".to_string();
-//         let (sender, _) = mpsc::unbounded_channel();
-// 
-//         let mut connection = ActiveConnection::new(user_id, connection_id, sender);
-// 
-//         // Should not be expired immediately
-//         assert!(!connection.is_expired(Duration::from_secs(10)));
-// 
-//         // Simulate old heartbeat
-//         connection.last_heartbeat = Instant::now() - Duration::from_secs(15);
-//         assert!(connection.is_expired(Duration::from_secs(10)));
-//     }
-// }

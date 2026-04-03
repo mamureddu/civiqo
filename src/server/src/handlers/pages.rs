@@ -1814,14 +1814,16 @@ pub async fn admin_dashboard(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
-    // TODO: Add admin role check
-    
+    if !crate::handlers::instance::is_instance_admin(&state, &user.user_id).await {
+        return Err(AppError::Internal(anyhow::anyhow!("Unauthorized: admin access required")));
+    }
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
     ctx.insert("logged_in", &true);
     ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
     ctx.insert("user_id", &user.user_id);
-    
+
     let html = state.tera.render("admin.html", &ctx)?;
     Ok(Html(html).into_response())
 }

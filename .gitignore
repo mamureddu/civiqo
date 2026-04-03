@@ -1,3 +1,32 @@
+# Internal/proprietary files (not for open source release)
+brand_id/
+civiqo_assets_structured/
+agents_memory/
+federation_management_plan/
+.claude/
+.playwright-mcp/
+PROMPT_ANALISI_COMPLETA.md
+RALPH_WIGGUM_PROMPT.md
+RIPRESA_PROGETTO.md
+PROJECT_ROADMAP_FINAL.md
+USER_JOURNEYS.md
+DEPLOYMENT.md
+docs/AGENT_*_PROMPT.md
+docs/AGENT_UX_PROMPT.md
+docs/TWO_AGENT_WORKFLOW.md
+
+# Legacy Lambda authorizer (no longer used)
+authorizer/
+
+# Platform-specific binaries
+tailwindcss-macos-arm64
+tailwindcss-linux-*
+tailwindcss
+
+# Development scripts (not for distribution)
+deploy.sh
+test-runner.sh
+
 # Environment files with secrets
 **/*.env
 **/.env*

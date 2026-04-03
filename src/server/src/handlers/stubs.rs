@@ -9,18 +9,3 @@ pub async fn health_check() -> Json<serde_json::Value> {
         "timestamp": chrono::Utc::now().to_rfc3339()
     }))
 }
-
-// ==========================================================
-// COMMENTED ENDPOINT - KEPT FOR FUTURE REFERENCE
-// ==========================================================
-// /// API root endpoint - Service information
-// /// USAGE: Add to router as GET / for API discovery
-// /// PURPOSE: Provides basic service info for monitoring/health checks
-// /// NOTE: Currently using /health for health checks, this could be for API info
-// pub async fn root() -> Json<serde_json::Value> {
-//     Json(json!({
-//         "service": "Community Manager API",
-//         "version": "0.1.0",
-//         "status": "running"
-//     }))
-// }

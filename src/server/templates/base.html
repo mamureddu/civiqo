@@ -322,6 +322,25 @@
 
     {% block scripts %}{% endblock %}
 
+    <!-- Cookie Banner -->
+    <div x-data="{ show: !document.cookie.includes('cookie_consent=1') }"
+         x-show="show"
+         x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-4"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-civiqo-gray-200 shadow-lg p-4">
+        <div class="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p class="text-sm text-civiqo-gray-600 text-center sm:text-left">
+                {{ t.cookie_message | default(value='Questo sito utilizza solo cookie tecnici di prima parte per gestire la sessione e le tue preferenze. Nessun cookie di tracciamento o di terze parti.') }}
+            </p>
+            <button @click="document.cookie = 'cookie_consent=1; path=/; max-age=31536000; SameSite=Lax'; show = false"
+                    class="shrink-0 px-6 py-2 bg-civiqo-blue text-white text-sm font-medium rounded-lg hover:bg-civiqo-blue/90 transition-colors">
+                {{ t.cookie_accept | default(value='Ho capito') }}
+            </button>
+        </div>
+    </div>
+
     <!-- Global scripts -->
     <script>
         async function logout() {

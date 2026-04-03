@@ -87,16 +87,6 @@ pub struct CommunitiesQuery {
     // page: u32,                         // Pagination for large communities lists
 }
 
-// ==========================================================
-// COMMENTED HELPER - KEPT FOR FUTURE REFERENCE
-// ==========================================================
-// /// Default page number for pagination
-// /// USAGE: When implementing paginated communities list
-// /// PURPOSE: Standard pagination starting point
-// fn default_page() -> u32 {
-//     1
-// }
-
 /// Communities list fragment - fetches from database with optional search
 pub async fn communities_list(
     State(state): State<Arc<AppState>>,

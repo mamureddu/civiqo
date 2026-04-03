@@ -93,8 +93,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
             format!("Failed to load templates from {}: {}", template_path, e)
         })?;
     
-    // Disable auto-escape for now (can be enabled later)
-    tera.autoescape_on(vec![]);
+    tera.autoescape_on(vec![".html"]);
     info!("Templates loaded successfully: {:?}", tera.get_template_names().collect::<Vec<_>>());
     
     // Create page state
@@ -105,8 +104,12 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
 
     // Setup session store
     let session_store = MemoryStore::default();
+    let cookie_secure = std::env::var("COOKIE_SECURE")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse::<bool>()
+        .unwrap_or(false);
     let session_layer = SessionManagerLayer::new(session_store)
-        .with_secure(false) // Set to true in production with HTTPS
+        .with_secure(cookie_secure)
         .with_same_site(tower_sessions::cookie::SameSite::Lax);
 
     // Build the router
