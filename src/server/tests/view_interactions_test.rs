@@ -65,7 +65,7 @@ async fn setup_db() -> Database {
 async fn ensure_setup_completed() {
     let db = setup_db().await;
     sqlx::query(
-        "INSERT INTO instance_settings (key, value) VALUES ('setup_completed', 'true') ON CONFLICT (key) DO NOTHING"
+        "INSERT INTO instance_settings (key, value) VALUES ('setup_completed', 'true') ON CONFLICT (key) DO UPDATE SET value = 'true'"
     )
     .execute(&db.pool)
     .await
