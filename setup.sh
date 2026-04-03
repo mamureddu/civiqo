@@ -382,6 +382,116 @@ PLIST
     echo "  Plist file: ${plist_path}"
 }
 
+# --- Domain & Caddy (HTTPS) setup ---
+
+setup_domain() {
+    echo ""
+    if ! confirm "Configure a domain with automatic HTTPS?"; then
+        echo ""
+        info "Skipping domain setup. Civiqo is available at http://localhost:9001"
+        return 0
+    fi
+
+    ask "Your domain (e.g. community.mytown.it):"
+    read -r domain
+
+    if [[ -z "$domain" ]]; then
+        warn "No domain entered, skipping"
+        return 0
+    fi
+
+    # Install Caddy if needed
+    if ! command -v caddy &>/dev/null; then
+        info "Installing Caddy..."
+        case $PKG_MANAGER in
+            brew)
+                brew install caddy
+                ;;
+            apt)
+                sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+                curl -1sLf 'https://dl.cloudkeeper.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null
+                curl -1sLf 'https://dl.cloudkeeper.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list > /dev/null
+                sudo apt update && sudo apt install -y caddy
+                ;;
+            dnf)
+                sudo dnf install -y 'dnf-command(copr)'
+                sudo dnf copr enable -y @caddy/caddy
+                sudo dnf install -y caddy
+                ;;
+            pacman)
+                sudo pacman -S --noconfirm caddy
+                ;;
+            *)
+                error "Cannot auto-install Caddy. Install from https://caddyserver.com/docs/install"
+                error "Then create /etc/caddy/Caddyfile manually."
+                return 1
+                ;;
+        esac
+        info "Caddy installed"
+    else
+        info "Caddy already installed: $(caddy version 2>/dev/null | head -1)"
+    fi
+
+    # Generate Caddyfile
+    local caddyfile="/etc/caddy/Caddyfile"
+    info "Configuring Caddy for ${domain}..."
+
+    sudo tee "$caddyfile" > /dev/null <<CADDY
+${domain} {
+    # Main app (HTMX pages + API)
+    reverse_proxy * localhost:9001
+
+    # WebSocket chat
+    reverse_proxy /ws localhost:8080
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        X-XSS-Protection "1; mode=block"
+    }
+
+    log {
+        output file /var/log/caddy/civiqo.log
+        format json
+    }
+}
+CADDY
+
+    # Update CORS in .env
+    local project_dir
+    project_dir=$(pwd)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s|^CORS_ORIGINS=.*|CORS_ORIGINS=https://${domain}|" "${project_dir}/src/.env"
+        sed -i '' "s|^COOKIE_SECURE=.*|COOKIE_SECURE=true|" "${project_dir}/src/.env"
+    else
+        sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=https://${domain}|" "${project_dir}/src/.env"
+        sed -i "s|^COOKIE_SECURE=.*|COOKIE_SECURE=true|" "${project_dir}/src/.env"
+    fi
+
+    # Start/restart Caddy
+    if [[ "$OS" == "macos" ]]; then
+        brew services restart caddy 2>/dev/null || caddy start --config "$caddyfile" &
+    else
+        sudo systemctl enable caddy
+        sudo systemctl restart caddy
+    fi
+
+    echo ""
+    info "Caddy configured for ${domain} with automatic HTTPS!"
+    echo ""
+    echo -e "  ${BOLD}Next step:${NC} Point your domain's DNS to this server's IP address."
+    echo ""
+    echo "  Add an A record:"
+    echo "    ${domain} → $(curl -s ifconfig.me 2>/dev/null || echo '<your-server-ip>')"
+    echo ""
+    echo "  Once DNS propagates, Caddy will automatically obtain an SSL certificate"
+    echo "  and your community will be live at https://${domain}"
+    echo ""
+    echo "  Caddyfile: ${caddyfile}"
+}
+
 # --- Main ---
 
 main() {
@@ -413,11 +523,18 @@ main() {
     setup_service
 
     echo ""
+    info "Phase 5: Domain & HTTPS..."
+    setup_domain
+
+    echo ""
     echo -e "${GREEN}${BOLD}========================================${NC}"
     echo -e "${GREEN}${BOLD}  Civiqo setup complete!${NC}"
     echo -e "${GREEN}${BOLD}========================================${NC}"
     echo ""
-    echo "  Open http://localhost:9001 in your browser"
+    echo "  Your community is ready."
+    echo ""
+    echo "  Local:  http://localhost:9001"
+    echo "  Docs:   https://github.com/mamureddu/civiqo"
     echo ""
 }
 
