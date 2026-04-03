@@ -1,40 +1,16 @@
-# Contributor Covenant Code of Conduct
+# Code of Conduct
 
-## Our Pledge
+Civiqo is a solo project, but contributions and discussions are welcome. Just be a decent human being.
 
-We as members, contributors, and leaders pledge to make participation in our
-community a harassment-free experience for everyone, regardless of age, body
-size, visible or invisible disability, ethnicity, sex characteristics, gender
-identity and expression, level of experience, education, socio-economic status,
-nationality, personal appearance, race, caste, color, religion, or sexual
-identity and orientation.
+## The basics
 
-## Our Standards
+- Be respectful and constructive
+- No harassment, insults, or personal attacks
+- No spam or off-topic self-promotion
+- If you disagree, explain why — don't just argue
 
-Examples of behavior that contributes to a positive environment:
+## If something goes wrong
 
-- Using welcoming and inclusive language
-- Being respectful of differing viewpoints and experiences
-- Gracefully accepting constructive criticism
-- Focusing on what is best for the community
-- Showing empathy towards other community members
+Open a [GitHub Issue](https://github.com/mamureddu/civiqo/issues) or use [GitHub Discussions](https://github.com/mamureddu/civiqo/discussions) if available. I'll handle it.
 
-Examples of unacceptable behavior:
-
-- Trolling, insulting or derogatory comments, and personal or political attacks
-- Public or private harassment
-- Publishing others' private information without explicit permission
-- Other conduct which could reasonably be considered inappropriate
-
-## Enforcement
-
-Instances of unacceptable behavior may be reported to the project team at
-**conduct@civiqo.com**. All complaints will be reviewed and investigated
-promptly and fairly.
-
-## Attribution
-
-This Code of Conduct is adapted from the
-[Contributor Covenant](https://www.contributor-covenant.org), version 2.1,
-available at
-https://www.contributor-covenant.org/version/2/1/code_of_conduct.html.
+Adapted from the [Contributor Covenant](https://www.contributor-covenant.org).

@@ -1,64 +1,38 @@
-# Contributing to Civiqo
+# Contributing
 
-Thank you for your interest in contributing to Civiqo!
+Civiqo is a solo project but I'm happy to accept contributions. Whether it's a bug fix, a feature idea, or just a typo — feel free to open a PR or an issue.
 
-## Getting Started
+## Getting started
 
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/civiqo.git`
-3. Run `./setup.sh` or follow the manual setup in the README
-4. Create a feature branch: `git checkout -b feature/your-feature`
-
-## Development Setup
-
-**Prerequisites:**
-- Rust (stable, >= 1.75)
-- PostgreSQL 18
-- Node.js >= 18 (for Tailwind CSS)
-
-**Run the server:**
 ```bash
-cd src && cargo run -p server
-# Server at http://localhost:9001
+git clone https://github.com/mamureddu/civiqo.git
+cd civiqo
+./setup.sh
 ```
 
-**Run tests:**
+Or manually:
+
 ```bash
-cd src && cargo test --workspace
+# You need: Rust (>= 1.75), PostgreSQL (>= 15), Node.js (>= 18)
+cp src/.env.example src/.env   # edit with your DB credentials
+cd src && cargo run -p server  # http://localhost:9001
 ```
 
-## Code Style
+## Before submitting a PR
 
-- Run `cargo fmt` before committing
-- Run `cargo clippy` and fix any warnings
-- Follow existing code patterns and naming conventions
-- Write tests for new functionality
+```bash
+cd src
+cargo fmt --all                    # format
+cargo clippy -- -D warnings        # lint
+cargo test --workspace             # test
+```
 
-## Pull Request Process
+CI runs all three — if they pass locally, they'll pass on GitHub.
 
-1. Ensure all tests pass: `cd src && cargo test --workspace`
-2. Ensure no clippy warnings: `cd src && cargo clippy -- -D warnings`
-3. Ensure formatting: `cd src && cargo fmt --check`
-4. Update documentation if needed
-5. Use conventional commit messages (e.g., `feat:`, `fix:`, `refactor:`, `docs:`)
-6. Submit your PR against the `main` branch
+## Commit style
 
-## Commit Messages
+I use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `refactor:`, `docs:`, `test:`.
 
-Use [Conventional Commits](https://www.conventionalcommits.org/):
+## Reporting bugs
 
-- `feat: add poll voting endpoint`
-- `fix: correct member role validation`
-- `refactor: extract auth middleware`
-- `docs: update API reference`
-- `test: add community creation tests`
-
-## Reporting Issues
-
-- Use GitHub Issues for bug reports and feature requests
-- Include steps to reproduce for bugs
-- Check existing issues before opening a new one
-
-## Code of Conduct
-
-This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+Open a [GitHub Issue](https://github.com/mamureddu/civiqo/issues). Include steps to reproduce if you can.
