@@ -39,13 +39,13 @@ pub fn now() -> DateTime<Utc> {
 
 // Validate geographic coordinates
 pub fn validate_coordinates(lat: f64, lon: f64) -> Result<()> {
-    if lat < -90.0 || lat > 90.0 {
+    if !(-90.0..=90.0).contains(&lat) {
         return Err(AppError::Validation(
             "Latitude must be between -90 and 90".to_string(),
         ));
     }
 
-    if lon < -180.0 || lon > 180.0 {
+    if !(-180.0..=180.0).contains(&lon) {
         return Err(AppError::Validation(
             "Longitude must be between -180 and 180".to_string(),
         ));

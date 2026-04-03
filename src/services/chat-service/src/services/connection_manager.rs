@@ -191,7 +191,7 @@ impl ConnectionManager {
         message: WebSocketMessage,
     ) -> Result<()> {
         if let Some(connection) = self.connections.get(connection_id) {
-            if let Err(_) = connection.sender.send(message) {
+            if connection.sender.send(message).is_err() {
                 warn!(
                     "Failed to send message to connection {}, removing",
                     connection_id
@@ -218,7 +218,7 @@ impl ConnectionManager {
         // Find all connections for this user
         for entry in self.connections.iter() {
             if entry.value().user_id == user_id {
-                if let Err(_) = entry.value().sender.send(message.clone()) {
+                if entry.value().sender.send(message.clone()).is_err() {
                     failed_connections.push(entry.key().clone());
                 } else {
                     sent_count += 1;

@@ -30,7 +30,7 @@ pub async fn create_test_db() -> Result<Database> {
         .acquire_timeout(std::time::Duration::from_secs(3))
         .connect(&database_url)
         .await
-        .map_err(|e| AppError::Database(e))?;
+        .map_err(AppError::Database)?;
 
     let db = Database { pool };
 
@@ -103,7 +103,7 @@ pub async fn create_test_community(
     .bind(&name)
     .bind("Test community description")
     .bind(&slug)
-    .bind(&creator_id)
+    .bind(creator_id)
     .fetch_one(&db.pool)
     .await?;
 
@@ -158,13 +158,13 @@ pub async fn test_rustls_db_connection() -> Result<()> {
         .max_connections(1)
         .connect(&database_url)
         .await
-        .map_err(|e| AppError::Database(e))?;
+        .map_err(AppError::Database)?;
 
     // Test a simple query to ensure the connection works
     let result: (i32,) = sqlx::query_as("SELECT 1")
         .fetch_one(&pool)
         .await
-        .map_err(|e| AppError::Database(e))?;
+        .map_err(AppError::Database)?;
 
     assert_eq!(result.0, 1);
     Ok(())

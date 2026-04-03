@@ -33,7 +33,7 @@ impl Database {
             .max_lifetime(Some(std::time::Duration::from_secs(1800)))
             .connect(database_url)
             .await
-            .map_err(|e| AppError::Database(e))?;
+            .map_err(AppError::Database)?;
 
         Ok(Self { pool })
     }
