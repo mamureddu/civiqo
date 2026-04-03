@@ -526,27 +526,57 @@ pub async fn community_feed(
     
     let mut html = String::new();
     for row in posts {
+        let post_id = row.get::<uuid::Uuid, _>("id");
         let title = row.get::<String, _>("title");
         let content = row.get::<String, _>("content");
         let author = row.get::<Option<String>, _>("author_name").unwrap_or_else(|| "Anonymous".to_string());
         let created_at = row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
             .format("%Y-%m-%d %H:%M")
             .to_string();
-        
+        // Truncate content for excerpt
+        let excerpt: String = if content.len() > 200 {
+            format!("{}...", &content[..content.char_indices().take_while(|(i, _)| *i < 200).last().map(|(i, c)| i + c.len_utf8()).unwrap_or(200)])
+        } else {
+            content
+        };
+
         html.push_str(&format!(
-            r#"<article class="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900 mb-2">{}</h3>
-                <p class="text-gray-600 mb-4">{}</p>
-                <div class="flex items-center text-sm text-gray-500">
-                    <span>By {}</span>
-                    <span class="mx-2">•</span>
-                    <span>{}</span>
+            r#"<article class="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow">
+                <h3 class="text-lg font-semibold text-gray-900 mb-2 hover:text-[#3B7FBA] transition-colors">
+                    <a href="/posts/{}">{}</a>
+                </h3>
+                <p class="text-gray-600 mb-4 line-clamp-3">{}</p>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center text-sm text-gray-500">
+                        <span>By {}</span>
+                        <span class="mx-2">&bull;</span>
+                        <span>{}</span>
+                    </div>
+                    <a href="/posts/{}" class="inline-flex items-center text-[#3B7FBA] hover:text-[#57C98A] font-medium text-sm transition-colors">
+                        Leggi tutto
+                        <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </a>
                 </div>
             </article>"#,
-            title, content, author, created_at
+            post_id, title, excerpt, author, created_at, post_id
         ));
     }
-    
+
+    // "Vedi tutti" link at the bottom
+    html.push_str(&format!(
+        r#"<div class="text-center pt-4">
+            <a href="/communities/{}/posts" class="inline-flex items-center text-civiqo-blue hover:text-civiqo-blue-dark font-medium text-sm transition-colors">
+                Vedi tutti i post
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            </a>
+        </div>"#,
+        uuid
+    ));
+
     Ok(Html(html))
 }
 
@@ -1640,20 +1670,41 @@ pub async fn poi_nearby(State(_state): State<Arc<AppState>>) -> Html<String> {
 
 /// Comment reply form fragment
 pub async fn comment_reply_form(
+    State(state): State<Arc<AppState>>,
     axum::extract::Path(comment_id): axum::extract::Path<String>,
 ) -> Html<String> {
-    Html(format!(r#"
-    <form hx-post="/api/comments/{}/replies" hx-swap="outerHTML" class="mt-2">
-        <textarea name="content" rows="2" 
+    // Look up the post_id from the parent comment
+    let post_id = if let Ok(comment_uuid) = uuid::Uuid::parse_str(&comment_id) {
+        sqlx::query_scalar::<_, uuid::Uuid>(
+            "SELECT post_id FROM comments WHERE id = $1"
+        )
+        .bind(comment_uuid)
+        .fetch_optional(&state.db.pool)
+        .await
+        .ok()
+        .flatten()
+        .map(|id| id.to_string())
+        .unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    let html = format!(
+        r##"<form hx-post="/api/posts/{post_id}/comments" hx-target="#replies-{cid}" hx-swap="beforeend" hx-on::after-request="this.reset()" class="mt-2">
+        <input type="hidden" name="parent_id" value="{cid}">
+        <textarea name="content" rows="2"
                   class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#57C98A] text-sm"
-                  placeholder="Scrivi una risposta..."></textarea>
+                  placeholder="Scrivi una risposta..." required></textarea>
         <div class="flex justify-end mt-2 space-x-2">
-            <button type="button" hx-get="/htmx/empty" hx-target="closest form" hx-swap="outerHTML"
+            <button type="button" hx-get="/htmx/empty" hx-target="#reply-form-{cid}" hx-swap="innerHTML"
                     class="px-3 py-1 text-gray-500 text-sm">Annulla</button>
             <button type="submit" class="px-3 py-1 bg-[#57C98A] text-white text-sm rounded">Rispondi</button>
         </div>
-    </form>
-    "#, comment_id))
+    </form>"##,
+        post_id = post_id,
+        cid = comment_id,
+    );
+    Html(html)
 }
 
 /// Comment edit form fragment
@@ -1694,6 +1745,158 @@ pub async fn comment_edit_form(
         </div>
     </form>
     "#, comment_id, escaped_content))
+}
+
+/// Comment replies fragment - loads nested replies for a comment
+pub async fn comment_replies(
+    crate::auth::OptionalAuthUser(user): crate::auth::OptionalAuthUser,
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(comment_id): axum::extract::Path<String>,
+) -> Html<String> {
+    let comment_uuid = match uuid::Uuid::parse_str(&comment_id) {
+        Ok(u) => u,
+        Err(_) => return Html(String::new()),
+    };
+
+    // Check if user is member (for showing reply button)
+    let (is_member, user_id_str) = if let Some(ref u) = user {
+        // Look up community via comment -> post -> community
+        let community_id: Option<uuid::Uuid> = sqlx::query_scalar(
+            "SELECT p.community_id FROM comments c JOIN posts p ON c.post_id = p.id WHERE c.id = $1"
+        )
+        .bind(comment_uuid)
+        .fetch_optional(&state.db.pool)
+        .await
+        .ok()
+        .flatten();
+
+        let member = if let (Some(cid), Ok(uid)) = (community_id, uuid::Uuid::parse_str(&u.user_id)) {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active')"
+            )
+            .bind(cid)
+            .bind(uid)
+            .fetch_one(&state.db.pool)
+            .await
+            .unwrap_or(false)
+        } else {
+            false
+        };
+        (member, u.user_id.clone())
+    } else {
+        (false, String::new())
+    };
+
+    // Fetch replies for this comment
+    let replies = sqlx::query(
+        "SELECT c.id, c.post_id, c.author_id, c.content, COALESCE(c.is_edited, false) as is_edited, c.created_at,
+                COALESCE(pr.name, u.email) as author_name, u.email as author_email
+         FROM comments c
+         LEFT JOIN users u ON c.author_id = u.id
+         LEFT JOIN user_profiles pr ON u.id = pr.user_id
+         WHERE c.parent_id = $1
+         ORDER BY c.created_at ASC"
+    )
+    .bind(comment_uuid)
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+
+    if replies.is_empty() {
+        return Html(String::new());
+    }
+
+    let mut html = String::new();
+    for row in &replies {
+        let reply_id: uuid::Uuid = row.get("id");
+        let author_id: uuid::Uuid = row.get("author_id");
+        let content: String = row.get("content");
+        let is_edited: bool = row.get("is_edited");
+        let author_name: Option<String> = row.get("author_name");
+        let author_email: Option<String> = row.get("author_email");
+        let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
+        let display_name = author_name.unwrap_or_else(|| author_email.clone().unwrap_or_else(|| "Anonymous".to_string()));
+        let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
+        let is_reply_author = author_id.to_string() == user_id_str;
+
+        let edited_badge = if is_edited { r#"<span class="text-gray-400 text-xs italic ml-1">(modificato)</span>"# } else { "" };
+
+        let rid = reply_id.to_string();
+        let reply_btn = if is_member {
+            format!(
+                r##"<button type="button" class="text-gray-500 hover:text-[#3B7FBA] transition-colors flex items-center space-x-1"
+                    hx-get="/htmx/comments/{rid}/reply-form" hx-target="#reply-form-{rid}" hx-swap="innerHTML">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                </svg>
+                <span>Rispondi</span>
+            </button>"##, rid = rid)
+        } else {
+            String::new()
+        };
+
+        let author_actions = if is_reply_author {
+            format!(
+                r##"<button type="button" class="text-gray-500 hover:text-[#57C98A] transition-colors flex items-center space-x-1"
+                    hx-get="/htmx/comments/{rid}/edit-form" hx-target="#comment-content-{rid}" hx-swap="outerHTML">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+                <span>Modifica</span>
+            </button>
+            <button type="button" class="text-gray-500 hover:text-[#EF6F5E] transition-colors flex items-center space-x-1"
+                    hx-delete="/api/comments/{rid}" hx-target="#comment-{rid}" hx-swap="outerHTML"
+                    hx-confirm="Sei sicuro di voler eliminare questo commento?">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+                <span>Elimina</span>
+            </button>"##, rid = rid)
+        } else {
+            String::new()
+        };
+
+        let datetime_attr = created_at.format("%Y-%m-%dT%H:%M").to_string();
+        let datetime_display = created_at.format("%Y-%m-%d %H:%M").to_string();
+        html.push_str(&format!(
+            r##"<div class="comment ml-6 border-l-2 border-gray-200 pl-4" id="comment-{rid}" data-depth="1">
+            <div class="bg-gray-50 rounded-lg p-4 mb-3">
+                <header class="flex items-center justify-between mb-2">
+                    <div class="flex items-center space-x-2 min-w-0 flex-1">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#3B7FBA] to-[#57C98A] flex items-center justify-center text-white font-semibold text-xs flex-shrink-0">
+                            {initial}
+                        </div>
+                        <div class="min-w-0">
+                            <span class="font-medium text-gray-800 text-sm truncate block max-w-[200px]">{display_name}</span>
+                            <span class="text-gray-400 text-xs mx-1">&bull;</span>
+                            <time class="text-gray-500 text-xs" datetime="{datetime_attr}">{datetime_display}</time>
+                            {edited_badge}
+                        </div>
+                    </div>
+                </header>
+                <div class="text-gray-700 text-sm leading-relaxed mb-3" id="comment-content-{rid}">{content}</div>
+                <footer class="flex items-center space-x-4 text-xs">
+                    {reply_btn}
+                    {author_actions}
+                </footer>
+            </div>
+            <div id="reply-form-{rid}" class="mb-3"></div>
+            <div class="replies" id="replies-{rid}"
+                 hx-get="/htmx/comments/{rid}/replies" hx-trigger="load" hx-swap="innerHTML"></div>
+        </div>"##,
+            rid = rid,
+            initial = initial,
+            display_name = display_name,
+            datetime_attr = datetime_attr,
+            datetime_display = datetime_display,
+            edited_badge = edited_badge,
+            content = content,
+            reply_btn = reply_btn,
+            author_actions = author_actions,
+        ));
+    }
+
+    Html(html)
 }
 
 /// Empty fragment - used for clearing content

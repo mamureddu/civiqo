@@ -155,7 +155,8 @@ pub async fn create_comment(
                 ctx.insert("comment", &comment_map);
                 ctx.insert("is_author", &true);
                 ctx.insert("is_member", &true);
-                ctx.insert("depth", &0);
+                let depth = if parent_uuid.is_some() { 1 } else { 0 };
+                ctx.insert("depth", &depth);
 
                 let html = state.tera.render("fragments/comment-item.html", &ctx)
                     .map_err(|e| {

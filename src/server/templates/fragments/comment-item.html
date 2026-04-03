@@ -88,6 +88,9 @@
     {# Reply form placeholder #}
     <div id="reply-form-{{ comment.id }}" class="mb-3"></div>
     
-    {# Nested replies placeholder - loaded via HTMX #}
-    <div class="replies" id="replies-{{ comment.id }}"></div>
+    {# Nested replies - loaded via HTMX #}
+    <div class="replies" id="replies-{{ comment.id }}"
+         hx-get="/htmx/comments/{{ comment.id }}/replies"
+         hx-trigger="load"
+         hx-swap="innerHTML"></div>
 </div>

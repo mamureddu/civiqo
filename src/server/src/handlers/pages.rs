@@ -512,7 +512,7 @@ pub async fn business_detail(
     LocaleExtractor(locale): LocaleExtractor,
     OptionalAuthUser(user): OptionalAuthUser,
     State(state): State<Arc<AppState>>,
-    Path(business_id): Path<i64>,
+    Path(business_id): Path<String>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
     
@@ -528,45 +528,47 @@ pub async fn business_detail(
         ctx.insert("logged_in", &false);
     }
     
+    // Parse UUID
+    let biz_uuid = uuid::Uuid::parse_str(&business_id)
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid business ID")))?;
+
     // Fetch business from database
     let business = sqlx::query(
         r#"SELECT id, name, description, category, address, phone, email, website,
-                  COALESCE(rating_avg, 0) as rating_avg,
+                  COALESCE(rating_avg, 0)::float8 as rating_avg,
                   COALESCE(review_count, 0) as review_count,
                   COALESCE(is_verified, false) as is_verified,
                   owner_id
            FROM businesses WHERE id = $1"#
     )
-    .bind(business_id)
+    .bind(biz_uuid)
     .fetch_optional(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
     
     match business {
         Some(row) => {
-            ctx.insert("business_id", &business_id);
-            ctx.insert("business_name", &row.get::<String, _>("name"));
-            ctx.insert("business_description", &row.get::<Option<String>, _>("description").unwrap_or_default());
-            ctx.insert("business_category", &row.get::<Option<String>, _>("category").unwrap_or_default());
-            ctx.insert("business_address", &row.get::<Option<String>, _>("address").unwrap_or_default());
-            ctx.insert("business_phone", &row.get::<Option<String>, _>("phone").unwrap_or_default());
-            ctx.insert("business_email", &row.get::<Option<String>, _>("email").unwrap_or_default());
-            ctx.insert("business_website", &row.get::<Option<String>, _>("website").unwrap_or_default());
-            ctx.insert("rating_avg", &row.get::<f64, _>("rating_avg"));
-            ctx.insert("review_count", &row.get::<i32, _>("review_count"));
-            ctx.insert("is_verified", &row.get::<bool, _>("is_verified"));
-            
-            // Check if current user is owner
-            if let Some(ref u) = user {
-                let owner_id: Option<uuid::Uuid> = row.get("owner_id");
-                if let (Some(owner), Ok(user_uuid)) = (owner_id, uuid::Uuid::parse_str(&u.user_id)) {
-                    ctx.insert("is_owner", &(owner == user_uuid));
-                } else {
-                    ctx.insert("is_owner", &false);
-                }
-            } else {
-                ctx.insert("is_owner", &false);
-            }
+            let owner_id: Option<uuid::Uuid> = row.get("owner_id");
+            let is_owner = if let Some(ref u) = user {
+                owner_id.map(|o| uuid::Uuid::parse_str(&u.user_id).ok().map(|uid| o == uid).unwrap_or(false)).unwrap_or(false)
+            } else { false };
+
+            let business = serde_json::json!({
+                "id": biz_uuid.to_string(),
+                "name": row.get::<String, _>("name"),
+                "description": row.get::<Option<String>, _>("description").unwrap_or_default(),
+                "category": row.get::<Option<String>, _>("category").unwrap_or_default(),
+                "address": row.get::<Option<String>, _>("address").unwrap_or_default(),
+                "phone": row.get::<Option<String>, _>("phone").unwrap_or_default(),
+                "email": row.get::<Option<String>, _>("email").unwrap_or_default(),
+                "website": row.get::<Option<String>, _>("website").unwrap_or_default(),
+                "rating_avg": row.get::<f64, _>("rating_avg"),
+                "review_count": row.get::<i32, _>("review_count"),
+                "is_verified": row.get::<bool, _>("is_verified"),
+                "is_owner": is_owner,
+            });
+            ctx.insert("business", &business);
+            ctx.insert("is_owner", &is_owner);
         }
         None => {
             return Ok(axum::response::Redirect::to("/businesses").into_response());

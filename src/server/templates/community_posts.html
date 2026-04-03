@@ -70,9 +70,8 @@
             </span>
         </div>
         
-        {# Loading skeleton (shown during HTMX requests) #}
-        <div id="posts-loading" class="htmx-indicator space-y-4">
-            {% for _ in range(end=3) %}
+        {# Loading skeleton (hidden by default, shown during HTMX requests) #}
+        <div id="posts-loading" class="htmx-indicator space-y-4" style="display:none;">
             <div class="bg-white rounded-lg shadow-md p-5 animate-pulse">
                 <div class="flex items-center space-x-3 mb-4">
                     <div class="w-10 h-10 bg-gray-200 rounded-full"></div>
@@ -86,13 +85,7 @@
                     <div class="h-4 bg-gray-200 rounded w-full"></div>
                     <div class="h-4 bg-gray-200 rounded w-5/6"></div>
                 </div>
-                <div class="flex items-center space-x-4 mt-4 pt-4 border-t border-gray-100">
-                    <div class="h-4 bg-gray-200 rounded w-12"></div>
-                    <div class="h-4 bg-gray-200 rounded w-12"></div>
-                    <div class="h-4 bg-gray-200 rounded w-12"></div>
-                </div>
             </div>
-            {% endfor %}
         </div>
         
         {# Posts List #}

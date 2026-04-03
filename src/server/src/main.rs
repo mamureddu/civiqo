@@ -180,6 +180,7 @@ async fn create_app() -> Result<Router, Box<dyn std::error::Error>> {
         .route("/htmx/poi/nearby", get(htmx::poi_nearby))
         // Comment HTMX fragments
         .route("/htmx/comments/{id}/reply-form", get(htmx::comment_reply_form))
+        .route("/htmx/comments/{id}/replies", get(htmx::comment_replies))
         .route("/htmx/comments/{id}/edit-form", get(htmx::comment_edit_form))
         .route("/htmx/empty", get(htmx::empty_fragment))
         // Search and user profile HTMX fragments
