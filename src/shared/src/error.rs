@@ -1,10 +1,10 @@
-use thiserror::Error;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
 use serde_json::json;
+use thiserror::Error;
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
@@ -83,7 +83,8 @@ impl AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let status_code = StatusCode::from_u16(self.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+        let status_code =
+            StatusCode::from_u16(self.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
         let body = Json(json!({
             "success": false,
@@ -198,13 +199,19 @@ mod tests {
     #[test]
     fn test_error_display() {
         let auth_error = AppError::Auth("Invalid token".to_string());
-        assert_eq!(auth_error.to_string(), "Authentication error: Invalid token");
+        assert_eq!(
+            auth_error.to_string(),
+            "Authentication error: Invalid token"
+        );
 
         let not_found_error = AppError::NotFound("User not found".to_string());
         assert_eq!(not_found_error.to_string(), "Not found: User not found");
 
         let validation_error = AppError::Validation("Email is required".to_string());
-        assert_eq!(validation_error.to_string(), "Validation error: Email is required");
+        assert_eq!(
+            validation_error.to_string(),
+            "Validation error: Email is required"
+        );
     }
 
     #[test]

@@ -7,10 +7,7 @@ use shared::{
     error::{AppError, Result},
     models::chat::{ConnectionInfo, WebSocketMessage},
 };
-use tokio::{
-    sync::mpsc,
-    time::interval,
-};
+use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -117,7 +114,9 @@ impl ConnectionManager {
     ) -> Result<String> {
         // Check connection limit
         if self.connections.len() >= self.max_connections {
-            return Err(AppError::Validation("Too many concurrent connections".to_string()));
+            return Err(AppError::Validation(
+                "Too many concurrent connections".to_string(),
+            ));
         }
 
         // Generate unique connection ID
@@ -125,9 +124,9 @@ impl ConnectionManager {
 
         // Create connection info
         let connection = ActiveConnection::new(
-            user_id, 
+            user_id,
             // connection_id.clone(),  // Uncomment when implementing connection tracking
-            sender
+            sender,
         );
 
         // Store in memory
@@ -147,14 +146,20 @@ impl ConnectionManager {
             // Continue anyway - in-memory tracking is sufficient for basic functionality
         }
 
-        info!("New connection added: {} for user {}", connection_id, user_id);
+        info!(
+            "New connection added: {} for user {}",
+            connection_id, user_id
+        );
         Ok(connection_id)
     }
 
     /// Remove a WebSocket connection
     pub async fn remove_connection(&self, connection_id: &str) -> Result<()> {
         if let Some((_, connection)) = self.connections.remove(connection_id) {
-            info!("Connection removed: {} for user {}", connection_id, connection.user_id);
+            info!(
+                "Connection removed: {} for user {}",
+                connection_id, connection.user_id
+            );
 
             // Remove from database
             if let Err(e) = self.remove_connection_info(connection_id).await {
@@ -163,8 +168,15 @@ impl ConnectionManager {
 
             // Leave all rooms
             for room_id in &connection.joined_rooms {
-                if let Err(e) = self.message_router.leave_room(connection.user_id, *room_id).await {
-                    error!("Failed to leave room {} for user {}: {}", room_id, connection.user_id, e);
+                if let Err(e) = self
+                    .message_router
+                    .leave_room(connection.user_id, *room_id)
+                    .await
+                {
+                    error!(
+                        "Failed to leave room {} for user {}: {}",
+                        room_id, connection.user_id, e
+                    );
                 }
             }
         }
@@ -180,13 +192,19 @@ impl ConnectionManager {
     ) -> Result<()> {
         if let Some(connection) = self.connections.get(connection_id) {
             if let Err(_) = connection.sender.send(message) {
-                warn!("Failed to send message to connection {}, removing", connection_id);
+                warn!(
+                    "Failed to send message to connection {}, removing",
+                    connection_id
+                );
                 drop(connection); // Release the reference before removal
                 self.remove_connection(connection_id).await?;
                 return Err(AppError::ExternalService("Connection closed".to_string()));
             }
         } else {
-            return Err(AppError::NotFound(format!("Connection {} not found", connection_id)));
+            return Err(AppError::NotFound(format!(
+                "Connection {} not found",
+                connection_id
+            )));
         }
 
         Ok(())
@@ -222,7 +240,10 @@ impl ConnectionManager {
             connection.update_heartbeat();
             debug!("Heartbeat updated for connection {}", connection_id);
         } else {
-            return Err(AppError::NotFound(format!("Connection {} not found", connection_id)));
+            return Err(AppError::NotFound(format!(
+                "Connection {} not found",
+                connection_id
+            )));
         }
 
         Ok(())
@@ -240,7 +261,10 @@ impl ConnectionManager {
 
             info!("Connection {} joined room {}", connection_id, room_id);
         } else {
-            return Err(AppError::NotFound(format!("Connection {} not found", connection_id)));
+            return Err(AppError::NotFound(format!(
+                "Connection {} not found",
+                connection_id
+            )));
         }
 
         Ok(())
@@ -258,7 +282,10 @@ impl ConnectionManager {
 
             info!("Connection {} left room {}", connection_id, room_id);
         } else {
-            return Err(AppError::NotFound(format!("Connection {} not found", connection_id)));
+            return Err(AppError::NotFound(format!(
+                "Connection {} not found",
+                connection_id
+            )));
         }
 
         Ok(())
@@ -307,5 +334,4 @@ impl ConnectionManager {
         debug!("Connection info removal skipped - not yet implemented in schema");
         Ok(())
     }
-
 }

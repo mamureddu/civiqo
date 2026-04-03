@@ -11,7 +11,7 @@ pub struct Poll {
     pub title: String,
     pub description: Option<String>,
     pub poll_type: PollType,
-    pub options: serde_json::Value, // JSON array of options
+    pub options: serde_json::Value,  // JSON array of options
     pub settings: serde_json::Value, // Poll configuration
     pub status: PollStatus,
     pub starts_at: DateTime<Utc>,
@@ -45,7 +45,7 @@ pub struct Vote {
     pub poll_id: Uuid,
     pub user_id: Uuid,
     pub vote_data: serde_json::Value, // Encrypted vote data
-    pub vote_hash: String, // For verification without revealing vote
+    pub vote_hash: String,            // For verification without revealing vote
     pub created_at: DateTime<Utc>,
 }
 
@@ -125,9 +125,9 @@ pub struct PollSettings {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CastVoteRequest {
-    pub choices: Vec<String>, // For multiple choice or ranked
+    pub choices: Vec<String>,   // For multiple choice or ranked
     pub choice: Option<String>, // For single choice
-    pub rating: Option<i32>, // For rating polls
+    pub rating: Option<i32>,    // For rating polls
 }
 
 #[derive(Debug, Serialize, Deserialize)]

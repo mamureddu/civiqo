@@ -1,14 +1,14 @@
+use crate::auth::{AuthUser, OptionalAuthUser};
+use crate::i18n_tera::{add_i18n_context, LocaleExtractor};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
-use tera::{Context, Tera};
-use std::sync::Arc;
 use shared::database::Database;
-use crate::auth::{AuthUser, OptionalAuthUser};
-use crate::i18n_tera::{LocaleExtractor, add_i18n_context};
 use sqlx::Row;
+use std::sync::Arc;
+use tera::{Context, Tera};
 
 /// Application state for page handlers
 pub struct AppState {
@@ -25,7 +25,7 @@ pub async fn index(
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     tracing::info!("Rendering index page (single-community mode)");
-    
+
     // Check if setup is completed
     let setup_completed: bool = sqlx::query_scalar(
         "SELECT COALESCE(value = 'true', false) FROM instance_settings WHERE key = 'setup_completed'"
@@ -34,12 +34,12 @@ pub async fn index(
     .await
     .unwrap_or(None)
     .unwrap_or(false);
-    
+
     if !setup_completed {
         tracing::info!("Setup not completed, redirecting to /setup");
         return Ok(axum::response::Redirect::to("/setup").into_response());
     }
-    
+
     // Get the single community
     let community = sqlx::query(
         "SELECT c.id, c.name, c.description, c.slug, c.is_public, 
@@ -49,15 +49,15 @@ pub async fn index(
          LEFT JOIN community_members m ON c.id = m.community_id
          GROUP BY c.id
          ORDER BY c.created_at ASC
-         LIMIT 1"
+         LIMIT 1",
     )
     .fetch_optional(&state.db.pool)
     .await
     .unwrap_or(None);
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Add auth info to context
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
@@ -67,7 +67,7 @@ pub async fn index(
     } else {
         ctx.insert("logged_in", &false);
     }
-    
+
     if let Some(row) = community {
         let community_id = row.get::<uuid::Uuid, _>("id");
         let community_data = serde_json::json!({
@@ -85,7 +85,7 @@ pub async fn index(
         });
         ctx.insert("community", &community_data);
         ctx.insert("has_community", &true);
-        
+
         // Check if user is member
         let is_member = if let Some(ref u) = user {
             let user_uuid = uuid::Uuid::parse_str(&u.user_id).ok();
@@ -109,7 +109,7 @@ pub async fn index(
         ctx.insert("has_community", &false);
         ctx.insert("is_member", &false);
     }
-    
+
     let html = state.tera.render("community_home.html", &ctx)?;
     tracing::info!("Community home page rendered successfully");
     Ok(Html(html).into_response())
@@ -134,7 +134,7 @@ pub async fn chat_list(
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Add auth info to context
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
@@ -144,7 +144,7 @@ pub async fn chat_list(
     } else {
         ctx.insert("logged_in", &false);
     }
-    
+
     // Fetch chat rooms from communities (each community has a chat room)
     let rooms = sqlx::query(
         r#"SELECT c.id, c.name, c.description, COUNT(DISTINCT cm.user_id) as member_count
@@ -153,23 +153,26 @@ pub async fn chat_list(
            WHERE c.is_public = true
            GROUP BY c.id, c.name, c.description
            ORDER BY c.created_at DESC
-           LIMIT 20"#
+           LIMIT 20"#,
     )
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
-    let rooms_data: Vec<serde_json::Value> = rooms.iter().map(|r| {
-        serde_json::json!({
-            "id": r.get::<uuid::Uuid, _>("id").to_string(),
-            "name": r.get::<String, _>("name"),
-            "description": r.get::<Option<String>, _>("description"),
-            "member_count": r.get::<i64, _>("member_count"),
+
+    let rooms_data: Vec<serde_json::Value> = rooms
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.get::<uuid::Uuid, _>("id").to_string(),
+                "name": r.get::<String, _>("name"),
+                "description": r.get::<Option<String>, _>("description"),
+                "member_count": r.get::<i64, _>("member_count"),
+            })
         })
-    }).collect();
-    
+        .collect();
+
     ctx.insert("rooms", &rooms_data);
-    
+
     let html = state.tera.render("chat_list.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -181,22 +184,17 @@ pub async fn chat_room(
     State(state): State<Arc<AppState>>,
     Path(room_id): Path<String>,
 ) -> Result<Response, AppError> {
-    use sqlx::Row;
-
-    let room_uuid = uuid::Uuid::parse_str(&room_id).map_err(|_| {
-        AppError::BadRequest("Invalid room ID format".to_string())
-    })?;
+    let room_uuid = uuid::Uuid::parse_str(&room_id)
+        .map_err(|_| AppError::BadRequest("Invalid room ID format".to_string()))?;
 
     // Get community name for the room
-    let room_name = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM communities WHERE id = $1"
-    )
-    .bind(room_uuid)
-    .fetch_optional(&state.db.pool)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Chat".to_string());
+    let room_name = sqlx::query_scalar::<_, String>("SELECT name FROM communities WHERE id = $1")
+        .bind(room_uuid)
+        .fetch_optional(&state.db.pool)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "Chat".to_string());
 
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
@@ -213,7 +211,9 @@ pub async fn chat_room(
         if let Ok(jwt_config) = shared::auth::JwtConfig::from_env() {
             let jwt_service = shared::auth::JwtService::new(jwt_config);
             if let Ok(user_uuid) = uuid::Uuid::parse_str(&user.user_id) {
-                if let Ok(token) = jwt_service.issue_token(user_uuid, &user.email, user.name.as_deref(), vec![]) {
+                if let Ok(token) =
+                    jwt_service.issue_token(user_uuid, &user.email, user.name.as_deref(), vec![])
+                {
                     ctx.insert("ws_token", &token);
                 }
             }
@@ -234,17 +234,20 @@ pub async fn create_community(
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     tracing::info!("Rendering create community page for user: {}", user.user_id);
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Auth info (always logged in for create community)
     ctx.insert("logged_in", &true);
     ctx.insert("user_id", &user.user_id);
     ctx.insert("email", &user.email);
-    ctx.insert("username", &user.name.clone().unwrap_or_else(|| "User".to_string()));
+    ctx.insert(
+        "username",
+        &user.name.clone().unwrap_or_else(|| "User".to_string()),
+    );
     ctx.insert("picture", &user.picture);
-    
+
     let html = state.tera.render("create_community.html", &ctx)?;
     tracing::info!("Create community page rendered successfully");
     Ok(Html(html).into_response())
@@ -265,7 +268,7 @@ pub async fn dashboard(
     };
 
     tracing::info!("Rendering dashboard page for user: {}", user.user_id);
-    
+
     // Check if setup is completed
     let setup_completed: bool = sqlx::query_scalar(
         "SELECT COALESCE(value = 'true', false) FROM instance_settings WHERE key = 'setup_completed'"
@@ -274,25 +277,28 @@ pub async fn dashboard(
     .await
     .unwrap_or(None)
     .unwrap_or(false);
-    
+
     if !setup_completed {
         return Ok(axum::response::Redirect::to("/setup").into_response());
     }
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Auth info (always logged in for dashboard)
     ctx.insert("logged_in", &true);
     ctx.insert("user_id", &user.user_id);
     ctx.insert("email", &user.email);
-    ctx.insert("username", &user.name.clone().unwrap_or_else(|| "User".to_string()));
+    ctx.insert(
+        "username",
+        &user.name.clone().unwrap_or_else(|| "User".to_string()),
+    );
     ctx.insert("picture", &user.picture);
-    
+
     // Parse user_id as UUID
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Get the single community
     let community = sqlx::query(
         "SELECT c.id, c.name, c.description, c.slug, c.is_public, 
@@ -302,12 +308,12 @@ pub async fn dashboard(
          LEFT JOIN community_members m ON c.id = m.community_id
          GROUP BY c.id
          ORDER BY c.created_at ASC
-         LIMIT 1"
+         LIMIT 1",
     )
     .fetch_optional(&state.db.pool)
     .await
     .unwrap_or(None);
-    
+
     if let Some(row) = community {
         let community_id = row.get::<uuid::Uuid, _>("id");
         let community_data = serde_json::json!({
@@ -321,7 +327,7 @@ pub async fn dashboard(
             "member_count": row.get::<i64, _>("member_count"),
         });
         ctx.insert("community", &community_data);
-        
+
         // Check if user is member
         let is_member: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2)"
@@ -332,18 +338,17 @@ pub async fn dashboard(
         .await
         .unwrap_or(false);
         ctx.insert("is_member", &is_member);
-        
+
         // Check if user is admin
-        let is_admin: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM instance_admins WHERE user_id = $1)"
-        )
-        .bind(user_uuid)
-        .fetch_one(&state.db.pool)
-        .await
-        .unwrap_or(false);
+        let is_admin: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM instance_admins WHERE user_id = $1)")
+                .bind(user_uuid)
+                .fetch_one(&state.db.pool)
+                .await
+                .unwrap_or(false);
         ctx.insert("is_admin", &is_admin);
     }
-    
+
     let html = state.tera.render("user_dashboard.html", &ctx)?;
     tracing::info!("Dashboard page rendered successfully");
     Ok(Html(html).into_response())
@@ -357,10 +362,10 @@ pub async fn community_detail(
     Path(community_id): Path<String>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Parse user UUID if logged in
     let user_uuid = if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
@@ -372,11 +377,11 @@ pub async fn community_detail(
         ctx.insert("logged_in", &false);
         None
     };
-    
+
     // Parse community UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid community ID")))?;
-    
+
     // Fetch community details with all needed fields
     let community = sqlx::query(
         "SELECT c.id, c.name, c.slug, c.description, c.is_public, c.requires_approval,
@@ -385,27 +390,42 @@ pub async fn community_detail(
          FROM communities c 
          LEFT JOIN users u ON c.created_by = u.id 
          LEFT JOIN user_profiles p ON u.id = p.user_id
-         WHERE c.id = $1"
+         WHERE c.id = $1",
     )
     .bind(uuid)
     .fetch_optional(&state.db.pool)
     .await?;
-    
+
     if let Some(row) = community {
         let community_uuid = row.get::<uuid::Uuid, _>("id");
         let created_by = row.get::<uuid::Uuid, _>("created_by");
         let is_public = row.get::<Option<bool>, _>("is_public").unwrap_or(true);
-        let requires_approval = row.get::<Option<bool>, _>("requires_approval").unwrap_or(false);
-        
+        let requires_approval = row
+            .get::<Option<bool>, _>("requires_approval")
+            .unwrap_or(false);
+
         ctx.insert("community_id", &community_uuid.to_string());
         ctx.insert("community_name", &row.get::<String, _>("name"));
         ctx.insert("community_slug", &row.get::<String, _>("slug"));
-        ctx.insert("community_description", &row.get::<Option<String>, _>("description").unwrap_or_default());
-        ctx.insert("creator_name", &row.get::<Option<String>, _>("creator_name").unwrap_or_else(|| "Unknown".to_string()));
-        ctx.insert("created_at", &row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%d %B %Y").to_string());
+        ctx.insert(
+            "community_description",
+            &row.get::<Option<String>, _>("description")
+                .unwrap_or_default(),
+        );
+        ctx.insert(
+            "creator_name",
+            &row.get::<Option<String>, _>("creator_name")
+                .unwrap_or_else(|| "Unknown".to_string()),
+        );
+        ctx.insert(
+            "created_at",
+            &row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%d %B %Y")
+                .to_string(),
+        );
         ctx.insert("is_public", &is_public);
         ctx.insert("requires_approval", &requires_approval);
-        
+
         // Check membership status
         let (is_member, is_owner) = if let Some(uid) = user_uuid {
             let is_owner = uid == created_by;
@@ -423,29 +443,28 @@ pub async fn community_detail(
         };
         ctx.insert("is_member", &is_member);
         ctx.insert("is_owner", &is_owner);
-        
+
         // Fetch community stats
         let member_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND status = 'active'"
+            "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND status = 'active'",
         )
         .bind(uuid)
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-        
-        let post_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM posts WHERE community_id = $1"
-        )
-        .bind(uuid)
-        .fetch_one(&state.db.pool)
-        .await
-        .unwrap_or(0);
-        
+
+        let post_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE community_id = $1")
+                .bind(uuid)
+                .fetch_one(&state.db.pool)
+                .await
+                .unwrap_or(0);
+
         ctx.insert("member_count", &member_count);
         ctx.insert("post_count", &post_count);
         ctx.insert("event_count", &0i64);
         ctx.insert("active_today", &0i64);
-        
+
         // Fetch posts for this community
         let posts = sqlx::query(
             "SELECT p.id, p.title, p.content, p.created_at, 
@@ -455,13 +474,13 @@ pub async fn community_detail(
              LEFT JOIN user_profiles pr ON u.id = pr.user_id
              WHERE p.community_id = $1 
              ORDER BY p.created_at DESC 
-             LIMIT 10"
+             LIMIT 10",
         )
         .bind(uuid)
         .fetch_all(&state.db.pool)
         .await
         .unwrap_or_default();
-        
+
         let posts_data: Vec<serde_json::Value> = posts.iter().map(|row| {
             serde_json::json!({
                 "id": row.get::<uuid::Uuid, _>("id").to_string(),
@@ -471,15 +490,16 @@ pub async fn community_detail(
                 "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
             })
         }).collect();
-        
+
         ctx.insert("posts", &posts_data);
     } else {
         return Ok((
             StatusCode::NOT_FOUND,
             Html("<h1>Community Not Found</h1><p>The requested community does not exist.</p>"),
-        ).into_response());
+        )
+            .into_response());
     }
-    
+
     let html = state.tera.render("community_detail.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -515,10 +535,10 @@ pub async fn business_detail(
     Path(business_id): Path<String>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Add auth info
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
@@ -527,7 +547,7 @@ pub async fn business_detail(
     } else {
         ctx.insert("logged_in", &false);
     }
-    
+
     // Parse UUID
     let biz_uuid = uuid::Uuid::parse_str(&business_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid business ID")))?;
@@ -539,19 +559,28 @@ pub async fn business_detail(
                   COALESCE(review_count, 0) as review_count,
                   COALESCE(is_verified, false) as is_verified,
                   owner_id
-           FROM businesses WHERE id = $1"#
+           FROM businesses WHERE id = $1"#,
     )
     .bind(biz_uuid)
     .fetch_optional(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+
     match business {
         Some(row) => {
             let owner_id: Option<uuid::Uuid> = row.get("owner_id");
             let is_owner = if let Some(ref u) = user {
-                owner_id.map(|o| uuid::Uuid::parse_str(&u.user_id).ok().map(|uid| o == uid).unwrap_or(false)).unwrap_or(false)
-            } else { false };
+                owner_id
+                    .map(|o| {
+                        uuid::Uuid::parse_str(&u.user_id)
+                            .ok()
+                            .map(|uid| o == uid)
+                            .unwrap_or(false)
+                    })
+                    .unwrap_or(false)
+            } else {
+                false
+            };
 
             let business = serde_json::json!({
                 "id": biz_uuid.to_string(),
@@ -574,7 +603,7 @@ pub async fn business_detail(
             return Ok(axum::response::Redirect::to("/businesses").into_response());
         }
     }
-    
+
     let html = state.tera.render("business_detail.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -590,7 +619,7 @@ pub async fn create_business_page(
     ctx.insert("logged_in", &true);
     ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
     ctx.insert("user_id", &user.user_id);
-    
+
     let html = state.tera.render("create_business.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -602,10 +631,10 @@ pub async fn governance(
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Add auth info to context
     if let Some(ref user) = user {
         ctx.insert("logged_in", &true);
@@ -615,15 +644,14 @@ pub async fn governance(
     } else {
         ctx.insert("logged_in", &false);
     }
-    
+
     // Single-community mode: fetch the community for proposal creation
-    let community = sqlx::query(
-        "SELECT id, name, slug FROM communities ORDER BY created_at ASC LIMIT 1"
-    )
-    .fetch_optional(&state.db.pool)
-    .await
-    .unwrap_or(None);
-    
+    let community =
+        sqlx::query("SELECT id, name, slug FROM communities ORDER BY created_at ASC LIMIT 1")
+            .fetch_optional(&state.db.pool)
+            .await
+            .unwrap_or(None);
+
     if let Some(row) = community {
         let community_data = serde_json::json!({
             "id": row.get::<uuid::Uuid, _>("id").to_string(),
@@ -632,41 +660,37 @@ pub async fn governance(
         });
         ctx.insert("community", &community_data);
     }
-    
+
     // Fetch governance stats from database
-    let active_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM proposals WHERE status = 'active'"
-    )
-    .fetch_one(&state.db.pool)
-    .await
-    .unwrap_or(0);
-    
-    let passed_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM proposals WHERE status = 'passed'"
-    )
-    .fetch_one(&state.db.pool)
-    .await
-    .unwrap_or(0);
-    
-    let participants_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(DISTINCT user_id) FROM votes"
-    )
-    .fetch_one(&state.db.pool)
-    .await
-    .unwrap_or(0);
-    
+    let active_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM proposals WHERE status = 'active'")
+            .fetch_one(&state.db.pool)
+            .await
+            .unwrap_or(0);
+
+    let passed_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM proposals WHERE status = 'passed'")
+            .fetch_one(&state.db.pool)
+            .await
+            .unwrap_or(0);
+
+    let participants_count: i64 = sqlx::query_scalar("SELECT COUNT(DISTINCT user_id) FROM votes")
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(0);
+
     let ending_soon_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM proposals WHERE status = 'active' AND voting_ends_at <= NOW() + INTERVAL '24 hours'"
     )
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(0);
-    
+
     ctx.insert("active_proposals", &active_count);
     ctx.insert("passed_proposals", &passed_count);
     ctx.insert("participants", &participants_count);
     ctx.insert("ending_soon", &ending_soon_count);
-    
+
     let html = state.tera.render("governance.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -679,10 +703,10 @@ pub async fn proposal_detail(
     Path(proposal_id): Path<uuid::Uuid>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Fetch proposal details
     let proposal = sqlx::query(
         r#"SELECT p.id, p.title, p.description, p.proposal_type, p.status,
@@ -695,33 +719,33 @@ pub async fn proposal_detail(
            JOIN communities c ON p.community_id = c.id
            JOIN users u ON p.created_by = u.id
            LEFT JOIN user_profiles up ON u.id = up.user_id
-           WHERE p.id = $1"#
+           WHERE p.id = $1"#,
     )
     .bind(proposal_id)
     .fetch_optional(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+
     let proposal = match proposal {
         Some(p) => p,
         None => return Ok(axum::response::Redirect::to("/governance").into_response()),
     };
-    
+
     // Add auth info to context
     let mut is_author = false;
     let mut user_vote: Option<String> = None;
     let mut is_member = false;
-    
+
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
         ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
         ctx.insert("picture", &u.picture);
         ctx.insert("user_id", &u.user_id);
-        
+
         let created_by: uuid::Uuid = proposal.get("created_by");
         if let Ok(user_uuid) = uuid::Uuid::parse_str(&u.user_id) {
             is_author = created_by == user_uuid;
-            
+
             // Check if user is community member
             let community_id: uuid::Uuid = proposal.get("community_id");
             is_member = sqlx::query_scalar::<_, i64>(
@@ -732,10 +756,10 @@ pub async fn proposal_detail(
             .fetch_one(&state.db.pool)
             .await
             .unwrap_or(0) > 0;
-            
+
             // Check if user already voted
             let vote = sqlx::query_scalar::<_, String>(
-                "SELECT vote_value FROM votes WHERE proposal_id = $1 AND user_id = $2"
+                "SELECT vote_value FROM votes WHERE proposal_id = $1 AND user_id = $2",
             )
             .bind(proposal_id)
             .bind(user_uuid)
@@ -743,13 +767,13 @@ pub async fn proposal_detail(
             .await
             .ok()
             .flatten();
-            
+
             user_vote = vote;
         }
     } else {
         ctx.insert("logged_in", &false);
     }
-    
+
     // Extract proposal data
     let id: uuid::Uuid = proposal.get("id");
     let title: String = proposal.get("title");
@@ -764,7 +788,7 @@ pub async fn proposal_detail(
     let quorum_required: Option<i32> = proposal.get("quorum_required");
     let voting_ends: Option<chrono::DateTime<chrono::Utc>> = proposal.get("voting_ends_at");
     let created_at: chrono::DateTime<chrono::Utc> = proposal.get("created_at");
-    
+
     // Get vote results
     let votes = sqlx::query(
         "SELECT vote_value, COUNT(*) as count FROM votes WHERE proposal_id = $1 GROUP BY vote_value"
@@ -773,11 +797,11 @@ pub async fn proposal_detail(
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     let mut yes_votes: i64 = 0;
     let mut no_votes: i64 = 0;
     let mut abstain_votes: i64 = 0;
-    
+
     for vote in &votes {
         let value: String = vote.get("vote_value");
         let count: i64 = vote.get("count");
@@ -788,12 +812,24 @@ pub async fn proposal_detail(
             _ => {}
         }
     }
-    
+
     let total_votes = yes_votes + no_votes + abstain_votes;
-    let yes_percent = if total_votes > 0 { (yes_votes as f64 / total_votes as f64) * 100.0 } else { 0.0 };
-    let no_percent = if total_votes > 0 { (no_votes as f64 / total_votes as f64) * 100.0 } else { 0.0 };
-    let abstain_percent = if total_votes > 0 { (abstain_votes as f64 / total_votes as f64) * 100.0 } else { 0.0 };
-    
+    let yes_percent = if total_votes > 0 {
+        (yes_votes as f64 / total_votes as f64) * 100.0
+    } else {
+        0.0
+    };
+    let no_percent = if total_votes > 0 {
+        (no_votes as f64 / total_votes as f64) * 100.0
+    } else {
+        0.0
+    };
+    let abstain_percent = if total_votes > 0 {
+        (abstain_votes as f64 / total_votes as f64) * 100.0
+    } else {
+        0.0
+    };
+
     ctx.insert("proposal_id", &id.to_string());
     ctx.insert("title", &title);
     ctx.insert("description", &description.clone().unwrap_or_default());
@@ -814,8 +850,11 @@ pub async fn proposal_detail(
     ctx.insert("yes_percent", &yes_percent);
     ctx.insert("no_percent", &no_percent);
     ctx.insert("abstain_percent", &abstain_percent);
-    ctx.insert("created_at", &created_at.format("%d/%m/%Y %H:%M").to_string());
-    
+    ctx.insert(
+        "created_at",
+        &created_at.format("%d/%m/%Y %H:%M").to_string(),
+    );
+
     if let Some(ends) = voting_ends {
         ctx.insert("voting_ends_at", &ends.format("%d/%m/%Y %H:%M").to_string());
         let now = chrono::Utc::now();
@@ -824,7 +863,7 @@ pub async fn proposal_detail(
         ctx.insert("voting_ends_at", &"");
         ctx.insert("voting_ended", &false);
     }
-    
+
     // Render using the template file
     let html = state.tera.render("proposal_detail.html", &ctx)?;
     Ok(Html(html).into_response())
@@ -859,14 +898,14 @@ pub async fn community_posts(
     axum::extract::Query(params): axum::extract::Query<PostsQueryParams>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid community ID")))?;
-    
+
     // Add auth info
     let user_uuid = if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
@@ -878,55 +917,55 @@ pub async fn community_posts(
         ctx.insert("logged_in", &false);
         None
     };
-    
+
     // Fetch community
-    let community = sqlx::query(
-        "SELECT id, name, description, is_public FROM communities WHERE id = $1"
-    )
-    .bind(uuid)
-    .fetch_optional(&state.db.pool)
-    .await?
-    .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Community not found")))?;
-    
+    let community =
+        sqlx::query("SELECT id, name, description, is_public FROM communities WHERE id = $1")
+            .bind(uuid)
+            .fetch_optional(&state.db.pool)
+            .await?
+            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Community not found")))?;
+
     let community_data = serde_json::json!({
         "id": community.get::<uuid::Uuid, _>("id").to_string(),
         "name": community.get::<String, _>("name"),
         "description": community.get::<Option<String>, _>("description").unwrap_or_default(),
     });
     ctx.insert("community", &community_data);
-    
+
     // Check membership
     let is_member = if let Some(user_id) = user_uuid {
         sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2"
+            "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2",
         )
         .bind(uuid)
         .bind(user_id)
         .fetch_one(&state.db.pool)
         .await
-        .unwrap_or(0) > 0
+        .unwrap_or(0)
+            > 0
     } else {
         false
     };
     ctx.insert("is_member", &is_member);
-    
+
     // Pagination
     let page = params.page.unwrap_or(1).max(1);
     let limit = params.limit.unwrap_or(10).min(50);
     let offset = (page - 1) * limit;
     let sort = params.sort.as_deref().unwrap_or("newest");
-    
+
     ctx.insert("page", &page);
     ctx.insert("limit", &limit);
     ctx.insert("sort", &sort);
-    
+
     // Order by clause
     let order_by = match sort {
         "popular" => "p.view_count DESC, p.created_at DESC",
         "discussed" => "comment_count DESC, p.created_at DESC",
         _ => "p.created_at DESC",
     };
-    
+
     // Fetch posts with counts using JOINs (more efficient than subqueries)
     let query = format!(
         "SELECT p.id, p.title, p.content, p.media_url, p.is_pinned, p.view_count, p.created_at,
@@ -951,7 +990,7 @@ pub async fn community_posts(
          LIMIT $2 OFFSET $3",
         order_by
     );
-    
+
     let posts = sqlx::query(&query)
         .bind(uuid)
         .bind(limit as i64)
@@ -959,7 +998,7 @@ pub async fn community_posts(
         .fetch_all(&state.db.pool)
         .await
         .unwrap_or_default();
-    
+
     let posts_data: Vec<serde_json::Value> = posts.iter().map(|row| {
         serde_json::json!({
             "id": row.get::<uuid::Uuid, _>("id").to_string(),
@@ -975,9 +1014,9 @@ pub async fn community_posts(
             "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
         })
     }).collect();
-    
+
     ctx.insert("posts", &posts_data);
-    
+
     // Total count
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE community_id = $1")
         .bind(uuid)
@@ -985,7 +1024,7 @@ pub async fn community_posts(
         .await
         .unwrap_or(0);
     ctx.insert("total", &total);
-    
+
     let html = state.tera.render("community_posts.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -998,14 +1037,14 @@ pub async fn post_detail(
     Path(post_id): Path<String>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&post_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid post ID")))?;
-    
+
     // Add auth info - always insert user_id (even as null) for template
     let user_uuid = if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
@@ -1018,70 +1057,72 @@ pub async fn post_detail(
         ctx.insert("user_id", &Option::<String>::None);
         None
     };
-    
+
     // Fetch post with author
     let post = sqlx::query(
         "SELECT p.*, COALESCE(pr.name, u.email) as author_name, u.email as author_email
          FROM posts p
          LEFT JOIN users u ON p.author_id = u.id
          LEFT JOIN user_profiles pr ON u.id = pr.user_id
-         WHERE p.id = $1"
+         WHERE p.id = $1",
     )
     .bind(uuid)
     .fetch_optional(&state.db.pool)
     .await?
     .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Post not found")))?;
-    
+
     let community_id = post.get::<uuid::Uuid, _>("community_id");
     let author_id = post.get::<uuid::Uuid, _>("author_id");
-    
+
     // Fetch community
     let community = sqlx::query("SELECT id, name FROM communities WHERE id = $1")
         .bind(community_id)
         .fetch_one(&state.db.pool)
         .await?;
-    
+
     let community_data = serde_json::json!({
         "id": community.get::<uuid::Uuid, _>("id").to_string(),
         "name": community.get::<String, _>("name"),
     });
     ctx.insert("community", &community_data);
-    
+
     // Check permissions
     let is_author = user_uuid.map(|u| u == author_id).unwrap_or(false);
     ctx.insert("is_author", &is_author);
-    
+
     // Check membership
     let is_member = if let Some(user_id) = user_uuid {
         sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2"
+            "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2",
         )
         .bind(community_id)
         .bind(user_id)
         .fetch_one(&state.db.pool)
         .await
-        .unwrap_or(0) > 0
+        .unwrap_or(0)
+            > 0
     } else {
         false
     };
     ctx.insert("is_member", &is_member);
-    
+
     // Check if admin
     let is_admin = if let Some(user_id) = user_uuid {
         sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM community_members
-             WHERE community_id = $1 AND user_id = $2 AND role IN ('admin', 'owner')"
+             WHERE community_id = $1 AND user_id = $2 AND role IN ('admin', 'owner')",
         )
         .bind(community_id)
         .bind(user_id)
         .fetch_one(&state.db.pool)
         .await
-        .unwrap_or(0) > 0
+        .unwrap_or(0)
+            > 0
     } else {
         false
     };
     ctx.insert("is_admin", &is_admin);
-    
+
     // Post data - handle nullable fields with defaults
     let post_data = serde_json::json!({
         "id": post.get::<uuid::Uuid, _>("id").to_string(),
@@ -1100,7 +1141,7 @@ pub async fn post_detail(
     });
     ctx.insert("post", &post_data);
     ctx.insert("post_id", &uuid.to_string());
-    
+
     // Fetch reactions
     let reactions = sqlx::query(
         "SELECT reaction_type, COUNT(*) as count FROM reactions WHERE post_id = $1 GROUP BY reaction_type"
@@ -1109,7 +1150,7 @@ pub async fn post_detail(
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     let mut reactions_map = serde_json::Map::new();
     for row in &reactions {
         let reaction_type = row.get::<String, _>("reaction_type");
@@ -1117,11 +1158,11 @@ pub async fn post_detail(
         reactions_map.insert(reaction_type, serde_json::json!(count));
     }
     ctx.insert("reactions", &serde_json::Value::Object(reactions_map));
-    
+
     // User's reaction
     let user_reaction = if let Some(user_id) = user_uuid {
         sqlx::query_scalar::<_, String>(
-            "SELECT reaction_type FROM reactions WHERE post_id = $1 AND user_id = $2"
+            "SELECT reaction_type FROM reactions WHERE post_id = $1 AND user_id = $2",
         )
         .bind(uuid)
         .bind(user_id)
@@ -1133,7 +1174,7 @@ pub async fn post_detail(
         None
     };
     ctx.insert("user_reaction", &user_reaction);
-    
+
     // Fetch comments (top-level only, replies loaded separately)
     let comments = sqlx::query(
         "SELECT c.*, COALESCE(pr.name, u.email) as author_name, u.email as author_email
@@ -1141,13 +1182,13 @@ pub async fn post_detail(
          LEFT JOIN users u ON c.author_id = u.id
          LEFT JOIN user_profiles pr ON u.id = pr.user_id
          WHERE c.post_id = $1 AND c.parent_id IS NULL
-         ORDER BY c.created_at ASC"
+         ORDER BY c.created_at ASC",
     )
     .bind(uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     let comments_data: Vec<serde_json::Value> = comments.iter().map(|row| {
         serde_json::json!({
             "id": row.get::<uuid::Uuid, _>("id").to_string(),
@@ -1161,13 +1202,13 @@ pub async fn post_detail(
         })
     }).collect();
     ctx.insert("comments", &comments_data);
-    
+
     // Increment view count (fire and forget)
     let _ = sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = $1")
         .bind(uuid)
         .execute(&state.db.pool)
         .await;
-    
+
     let html = state.tera.render("post_detail.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -1180,51 +1221,56 @@ pub async fn create_post_page(
     Path(community_id): Path<String>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Parse UUID
     let uuid = uuid::Uuid::parse_str(&community_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid community ID")))?;
-    
+
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     // Auth info
     ctx.insert("logged_in", &true);
     ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
     ctx.insert("picture", &user.picture);
     ctx.insert("user_id", &user.user_id);
-    
+
     // Fetch community
     let community = sqlx::query("SELECT id, name FROM communities WHERE id = $1")
         .bind(uuid)
         .fetch_optional(&state.db.pool)
         .await?
         .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Community not found")))?;
-    
+
     // Check membership
     let is_member = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2"
+        "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2",
     )
     .bind(uuid)
     .bind(user_uuid)
     .fetch_one(&state.db.pool)
     .await
-    .unwrap_or(0) > 0;
-    
+    .unwrap_or(0)
+        > 0;
+
     if !is_member {
         // Redirect to community page with message to join first
-        return Ok(axum::response::Redirect::to(&format!("/communities/{}?join_required=true", community_id)).into_response());
+        return Ok(axum::response::Redirect::to(&format!(
+            "/communities/{}?join_required=true",
+            community_id
+        ))
+        .into_response());
     }
-    
+
     let community_data = serde_json::json!({
         "id": community.get::<uuid::Uuid, _>("id").to_string(),
         "name": community.get::<String, _>("name"),
     });
     ctx.insert("community", &community_data);
-    
+
     let html = state.tera.render("create_post.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -1242,41 +1288,41 @@ pub async fn test_db(
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Get counts
     let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
+
     let community_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM communities")
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
+
     let post_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts")
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
+
     ctx.insert("user_count", &user_count);
     ctx.insert("community_count", &community_count);
     ctx.insert("post_count", &post_count);
-    
+
     // Get recent users (join with user_profiles for name)
     let users = sqlx::query(
         "SELECT u.id, u.email, u.created_at, p.name 
          FROM users u 
          LEFT JOIN user_profiles p ON u.id = p.user_id 
-         ORDER BY u.created_at DESC LIMIT 5"
+         ORDER BY u.created_at DESC LIMIT 5",
     )
-        .fetch_all(&state.db.pool)
-        .await
-        .unwrap_or_default();
-    
+    .fetch_all(&state.db.pool)
+    .await
+    .unwrap_or_default();
+
     let users_data: Vec<serde_json::Value> = users.iter().map(|row| {
         serde_json::json!({
             "id": row.get::<uuid::Uuid, _>("id").to_string(),
@@ -1285,15 +1331,15 @@ pub async fn test_db(
             "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
         })
     }).collect();
-    
+
     ctx.insert("users", &users_data);
-    
+
     // Get recent communities
     let communities = sqlx::query("SELECT id, name, description, created_at FROM communities ORDER BY created_at DESC LIMIT 5")
         .fetch_all(&state.db.pool)
         .await
         .unwrap_or_default();
-    
+
     let communities_data: Vec<serde_json::Value> = communities.iter().map(|row| {
         serde_json::json!({
             "id": row.get::<uuid::Uuid, _>("id").to_string(),
@@ -1302,9 +1348,9 @@ pub async fn test_db(
             "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
         })
     }).collect();
-    
+
     ctx.insert("communities", &communities_data);
-    
+
     let html = state.tera.render("test_db.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -1327,7 +1373,7 @@ impl AppError {
     pub fn bad_request(msg: impl Into<String>) -> Self {
         Self::BadRequest(msg.into())
     }
-    
+
     /// Create a not found error
     pub fn not_found(msg: impl Into<String>) -> Self {
         Self::NotFound(msg.into())
@@ -1342,21 +1388,24 @@ impl IntoResponse for AppError {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Html("<h1>Internal Server Error</h1>"),
-                ).into_response()
+                )
+                    .into_response()
             }
             AppError::BadRequest(msg) => {
                 tracing::warn!("Bad request: {}", msg);
                 (
                     StatusCode::BAD_REQUEST,
                     Html(format!("<h1>Bad Request</h1><p>{}</p>", msg)),
-                ).into_response()
+                )
+                    .into_response()
             }
             AppError::NotFound(msg) => {
                 tracing::warn!("Not found: {}", msg);
                 (
                     StatusCode::NOT_FOUND,
                     Html(format!("<h1>Not Found</h1><p>{}</p>", msg)),
-                ).into_response()
+                )
+                    .into_response()
             }
         }
     }
@@ -1383,14 +1432,14 @@ pub async fn user_profile(
     Path(user_id): Path<String>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     // Parse target user UUID
     let target_uuid = uuid::Uuid::parse_str(&user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     // Add auth info to context
     let is_own_profile = if let Some(ref u) = current_user {
         ctx.insert("logged_in", &true);
@@ -1403,7 +1452,7 @@ pub async fn user_profile(
         false
     };
     ctx.insert("is_own_profile", &is_own_profile);
-    
+
     // Fetch user profile
     let profile = sqlx::query(
         r#"SELECT u.id, u.email, u.created_at,
@@ -1413,33 +1462,34 @@ pub async fn user_profile(
                   COALESCE(p.following_count, 0) as following_count
            FROM users u
            LEFT JOIN user_profiles p ON u.id = p.user_id
-           WHERE u.id = $1"#
+           WHERE u.id = $1"#,
     )
     .bind(target_uuid)
     .fetch_optional(&state.db.pool)
     .await?;
-    
+
     let Some(row) = profile else {
-        return Ok((
-            StatusCode::NOT_FOUND,
-            Html("<h1>Utente non trovato</h1>"),
-        ).into_response());
+        return Ok((StatusCode::NOT_FOUND, Html("<h1>Utente non trovato</h1>")).into_response());
     };
-    
+
     // Check privacy
     let is_public: bool = row.get::<Option<bool>, _>("is_public").unwrap_or(true);
     if !is_public && !is_own_profile {
         return Ok((
             StatusCode::FORBIDDEN,
             Html("<h1>Profilo privato</h1><p>Questo profilo non è pubblico.</p>"),
-        ).into_response());
+        )
+            .into_response());
     }
-    
+
     let email: String = row.get("email");
-    let profile_name = row.get::<Option<String>, _>("name").unwrap_or_else(|| email.clone());
-    let avatar_url = row.get::<Option<String>, _>("avatar_url")
+    let profile_name = row
+        .get::<Option<String>, _>("name")
+        .unwrap_or_else(|| email.clone());
+    let avatar_url = row
+        .get::<Option<String>, _>("avatar_url")
         .or_else(|| row.get::<Option<String>, _>("picture"));
-    
+
     ctx.insert("profile_user_id", &user_id);
     ctx.insert("email", &email);
     ctx.insert("profile_name", &profile_name);
@@ -1450,30 +1500,28 @@ pub async fn user_profile(
     ctx.insert("website", &row.get::<Option<String>, _>("website"));
     ctx.insert("follower_count", &row.get::<i32, _>("follower_count"));
     ctx.insert("following_count", &row.get::<i32, _>("following_count"));
-    
+
     let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
     ctx.insert("joined_at", &created_at.format("%B %Y").to_string());
-    
+
     // Count communities and posts
     let community_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM community_members WHERE user_id = $1 AND status = 'active'"
+        "SELECT COUNT(*) FROM community_members WHERE user_id = $1 AND status = 'active'",
     )
     .bind(target_uuid)
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(0);
-    
-    let post_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM posts WHERE author_id = $1"
-    )
-    .bind(target_uuid)
-    .fetch_one(&state.db.pool)
-    .await
-    .unwrap_or(0);
-    
+
+    let post_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE author_id = $1")
+        .bind(target_uuid)
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(0);
+
     ctx.insert("community_count", &community_count);
     ctx.insert("post_count", &post_count);
-    
+
     let html = state.tera.render("profile.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -1486,49 +1534,61 @@ pub async fn edit_profile_page(
     Path(user_id): Path<String>,
 ) -> Result<Response, AppError> {
     use sqlx::Row;
-    
+
     // Only allow editing own profile
     if user.user_id != user_id {
         return Ok((
             StatusCode::FORBIDDEN,
             Html("<h1>Accesso negato</h1><p>Puoi modificare solo il tuo profilo.</p>"),
-        ).into_response());
+        )
+            .into_response());
     }
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
     ctx.insert("logged_in", &true);
     ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
     ctx.insert("picture", &user.picture);
     ctx.insert("user_id", &user.user_id);
-    
+
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     // Fetch current profile
     let profile = sqlx::query(
         r#"SELECT p.name, p.picture, p.bio, p.location, p.website, 
                   p.cover_image, p.avatar_url, p.is_public
            FROM user_profiles p
-           WHERE p.user_id = $1"#
+           WHERE p.user_id = $1"#,
     )
     .bind(user_uuid)
     .fetch_optional(&state.db.pool)
     .await?;
-    
+
     if let Some(row) = profile {
-        ctx.insert("profile_name", &row.get::<Option<String>, _>("name").unwrap_or(user.email.clone()));
-        ctx.insert("avatar_url", &row.get::<Option<String>, _>("avatar_url").or_else(|| row.get::<Option<String>, _>("picture")));
+        ctx.insert(
+            "profile_name",
+            &row.get::<Option<String>, _>("name")
+                .unwrap_or(user.email.clone()),
+        );
+        ctx.insert(
+            "avatar_url",
+            &row.get::<Option<String>, _>("avatar_url")
+                .or_else(|| row.get::<Option<String>, _>("picture")),
+        );
         ctx.insert("cover_image", &row.get::<Option<String>, _>("cover_image"));
         ctx.insert("bio", &row.get::<Option<String>, _>("bio"));
         ctx.insert("location", &row.get::<Option<String>, _>("location"));
         ctx.insert("website", &row.get::<Option<String>, _>("website"));
-        ctx.insert("is_public", &row.get::<Option<bool>, _>("is_public").unwrap_or(true));
+        ctx.insert(
+            "is_public",
+            &row.get::<Option<bool>, _>("is_public").unwrap_or(true),
+        );
     } else {
         ctx.insert("profile_name", &user.email);
         ctx.insert("is_public", &true);
     }
-    
+
     let html = state.tera.render("profile_edit.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -1589,7 +1649,11 @@ pub async fn edit_post_page(
     ctx.insert("post_id", &post_id);
     ctx.insert("post_title", &row.get::<String, _>("title"));
     ctx.insert("post_content", &row.get::<String, _>("content"));
-    ctx.insert("post_content_type", &row.get::<Option<String>, _>("content_type").unwrap_or("markdown".to_string()));
+    ctx.insert(
+        "post_content_type",
+        &row.get::<Option<String>, _>("content_type")
+            .unwrap_or("markdown".to_string()),
+    );
     ctx.insert("post_media_url", &row.get::<Option<String>, _>("media_url"));
 
     let html = state.tera.render("create_post.html", &ctx)?;
@@ -1605,7 +1669,7 @@ pub async fn not_found(
 ) -> Response {
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
         ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
@@ -1614,10 +1678,14 @@ pub async fn not_found(
     } else {
         ctx.insert("logged_in", &false);
     }
-    
+
     match state.tera.render("404.html", &ctx) {
         Ok(html) => (StatusCode::NOT_FOUND, Html(html)).into_response(),
-        Err(_) => (StatusCode::NOT_FOUND, Html("<h1>404 - Pagina non trovata</h1>")).into_response(),
+        Err(_) => (
+            StatusCode::NOT_FOUND,
+            Html("<h1>404 - Pagina non trovata</h1>"),
+        )
+            .into_response(),
     }
 }
 
@@ -1630,7 +1698,7 @@ pub async fn internal_error(
 ) -> Response {
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
         ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
@@ -1639,14 +1707,18 @@ pub async fn internal_error(
     } else {
         ctx.insert("logged_in", &false);
     }
-    
+
     // Generate error ID for tracking
     let error_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
     ctx.insert("error_id", &error_id);
-    
+
     match state.tera.render("500.html", &ctx) {
         Ok(html) => (StatusCode::INTERNAL_SERVER_ERROR, Html(html)).into_response(),
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Html("<h1>500 - Errore interno</h1>")).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html("<h1>500 - Errore interno</h1>"),
+        )
+            .into_response(),
     }
 }
 
@@ -1689,7 +1761,7 @@ pub async fn search_page(
 ) -> Result<Response, AppError> {
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     if let Some(ref u) = user {
         ctx.insert("logged_in", &true);
         ctx.insert("username", &u.name.clone().unwrap_or(u.email.clone()));
@@ -1698,16 +1770,16 @@ pub async fn search_page(
     } else {
         ctx.insert("logged_in", &false);
     }
-    
+
     let query = params.q.unwrap_or_default();
     let filter = params.filter.unwrap_or_else(|| "all".to_string());
-    
+
     ctx.insert("query", &query);
     ctx.insert("filter", &filter);
-    
+
     if query.len() >= 2 {
         let search_pattern = format!("%{}%", query.to_lowercase());
-        
+
         // Search users (if filter allows)
         let users: Vec<serde_json::Value> = if filter == "all" || filter == "users" {
             sqlx::query(
@@ -1715,7 +1787,7 @@ pub async fn search_page(
                    FROM users u
                    LEFT JOIN user_profiles p ON u.id = p.user_id
                    WHERE LOWER(u.email) LIKE $1 OR LOWER(p.name) LIKE $1
-                   LIMIT 20"#
+                   LIMIT 20"#,
             )
             .bind(&search_pattern)
             .fetch_all(&state.db.pool)
@@ -1734,7 +1806,7 @@ pub async fn search_page(
         } else {
             vec![]
         };
-        
+
         // Search communities (if filter allows)
         let communities: Vec<serde_json::Value> = if filter == "all" || filter == "communities" {
             sqlx::query(
@@ -1743,7 +1815,7 @@ pub async fn search_page(
                    LEFT JOIN community_members cm ON c.id = cm.community_id AND cm.status = 'active'
                    WHERE LOWER(c.name) LIKE $1 OR LOWER(c.description) LIKE $1
                    GROUP BY c.id, c.name, c.description
-                   LIMIT 20"#
+                   LIMIT 20"#,
             )
             .bind(&search_pattern)
             .fetch_all(&state.db.pool)
@@ -1762,7 +1834,7 @@ pub async fn search_page(
         } else {
             vec![]
         };
-        
+
         // Search posts (if filter allows)
         let posts: Vec<serde_json::Value> = if filter == "all" || filter == "posts" {
             sqlx::query(
@@ -1790,9 +1862,9 @@ pub async fn search_page(
         } else {
             vec![]
         };
-        
+
         let total_results = users.len() + communities.len() + posts.len();
-        
+
         ctx.insert("users", &users);
         ctx.insert("communities", &communities);
         ctx.insert("posts", &posts);
@@ -1803,7 +1875,7 @@ pub async fn search_page(
         ctx.insert("posts", &Vec::<serde_json::Value>::new());
         ctx.insert("total_results", &0);
     }
-    
+
     let html = state.tera.render("search.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -1815,7 +1887,9 @@ pub async fn admin_dashboard(
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     if !crate::handlers::instance::is_instance_admin(&state, &user.user_id).await {
-        return Err(AppError::Internal(anyhow::anyhow!("Unauthorized: admin access required")));
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "Unauthorized: admin access required"
+        )));
     }
 
     let mut ctx = Context::new();
@@ -1839,15 +1913,15 @@ pub async fn setup_page(
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
     use crate::handlers::instance::is_setup_completed;
-    
+
     // If setup already completed, redirect to home
     if is_setup_completed(&state).await {
         return Ok(axum::response::Redirect::to("/").into_response());
     }
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
-    
+
     if let Some(user) = user {
         ctx.insert("logged_in", &true);
         ctx.insert("username", &user.name.unwrap_or(user.email.clone()));
@@ -1856,7 +1930,7 @@ pub async fn setup_page(
     } else {
         ctx.insert("logged_in", &false);
     }
-    
+
     let html = state.tera.render("setup.html", &ctx)?;
     Ok(Html(html).into_response())
 }
@@ -1867,20 +1941,20 @@ pub async fn instance_settings_page(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Response, AppError> {
-    use crate::handlers::instance::{is_instance_admin, get_community};
-    
+    use crate::handlers::instance::{get_community, is_instance_admin};
+
     // Check admin permission
     if !is_instance_admin(&state, &user.user_id).await {
         return Err(AppError::BadRequest("Accesso non autorizzato".to_string()));
     }
-    
+
     let mut ctx = Context::new();
     add_i18n_context(&mut ctx, &locale);
     ctx.insert("logged_in", &true);
     ctx.insert("username", &user.name.clone().unwrap_or(user.email.clone()));
     ctx.insert("picture", &user.picture);
     ctx.insert("user_id", &user.user_id);
-    
+
     // Get community data
     if let Some(row) = get_community(&state).await {
         let community = serde_json::json!({
@@ -1898,7 +1972,7 @@ pub async fn instance_settings_page(
         });
         ctx.insert("community", &community);
     }
-    
+
     let html = state.tera.render("admin/instance_settings.html", &ctx)?;
     Ok(Html(html).into_response())
 }

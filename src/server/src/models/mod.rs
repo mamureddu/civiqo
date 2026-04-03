@@ -1,3 +1,3 @@
 pub mod community;
 
-pub use community::{CreateCommunityRequest, UpdateCommunityRequest, CommunityResponse};
+pub use community::{CommunityResponse, CreateCommunityRequest, UpdateCommunityRequest};

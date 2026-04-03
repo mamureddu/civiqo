@@ -51,7 +51,8 @@ impl RateLimiter {
             &self.message_limits,
             self.max_messages_per_window,
             "message",
-        ).await
+        )
+        .await
     }
 
     /// Check if user can send typing notification (returns true if allowed)
@@ -61,7 +62,8 @@ impl RateLimiter {
             &self.typing_limits,
             self.max_typing_per_window,
             "typing",
-        ).await
+        )
+        .await
     }
 
     /// Generic rate limit check
@@ -84,7 +86,10 @@ impl RateLimiter {
         if now.duration_since(entry.window_start) >= self.window_duration {
             entry.count = 0;
             entry.window_start = now;
-            debug!("Rate limit window reset for user {} action {}", user_id, action_type);
+            debug!(
+                "Rate limit window reset for user {} action {}",
+                user_id, action_type
+            );
         }
 
         // Check if limit exceeded
@@ -138,7 +143,10 @@ impl RateLimiter {
                     limits.retain(|user_id, entry| {
                         let retain = now.duration_since(entry.window_start) < window_duration * 2;
                         if !retain {
-                            debug!("Cleaned up expired typing rate limit entry for user {}", user_id);
+                            debug!(
+                                "Cleaned up expired typing rate limit entry for user {}",
+                                user_id
+                            );
                         }
                         retain
                     });

@@ -1,15 +1,15 @@
 use axum::{
-    extract::{Path, State, Query, Form},
+    extract::{Form, Path, Query, State},
     http::StatusCode,
-    response::{Json, Html, IntoResponse, Response, Redirect},
+    response::{Html, IntoResponse, Json, Redirect, Response},
 };
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use std::sync::Arc;
 use uuid::Uuid;
-use sqlx::Row;
 
-use crate::handlers::pages::AppState;
 use crate::auth::{AuthUser, OptionalAuthUser};
+use crate::handlers::pages::AppState;
 
 // ============================================================================
 // Request/Response Types
@@ -66,8 +66,12 @@ pub struct PostsQueryParams {
     pub limit: u32,
 }
 
-fn default_page() -> u32 { 1 }
-fn default_limit() -> u32 { 20 }
+fn default_page() -> u32 {
+    1
+}
+fn default_limit() -> u32 {
+    20
+}
 
 #[derive(Debug, Serialize)]
 pub struct ApiResponse<T> {
@@ -87,24 +91,32 @@ pub async fn create_post(
     Path(community_id): Path<Uuid>,
     Json(payload): Json<CreatePostRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<PostResponse>>), StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let title = payload.title.trim();
     let content = payload.content.trim();
-    
+
     if title.is_empty() {
-        return Ok((StatusCode::BAD_REQUEST, Json(ApiResponse {
-            success: false, data: None,
-            message: Some("Title cannot be empty".to_string()),
-        })));
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Title cannot be empty".to_string()),
+            }),
+        ));
     }
-    
+
     if content.is_empty() {
-        return Ok((StatusCode::BAD_REQUEST, Json(ApiResponse {
-            success: false, data: None,
-            message: Some("Content cannot be empty".to_string()),
-        })));
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Content cannot be empty".to_string()),
+            }),
+        ));
     }
 
     let is_member: bool = sqlx::query_scalar(
@@ -117,13 +129,19 @@ pub async fn create_post(
     .map_err(|e| { tracing::error!("Failed to check membership: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
 
     if !is_member {
-        return Ok((StatusCode::FORBIDDEN, Json(ApiResponse {
-            success: false, data: None,
-            message: Some("You must be a community member to create posts".to_string()),
-        })));
+        return Ok((
+            StatusCode::FORBIDDEN,
+            Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("You must be a community member to create posts".to_string()),
+            }),
+        ));
     }
 
-    let content_type = payload.content_type.unwrap_or_else(|| "markdown".to_string());
+    let content_type = payload
+        .content_type
+        .unwrap_or_else(|| "markdown".to_string());
     let post_id = Uuid::now_v7();
 
     let result = sqlx::query(
@@ -139,33 +157,48 @@ pub async fn create_post(
         Ok(row) => {
             let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
             let updated_at: chrono::DateTime<chrono::Utc> = row.get("updated_at");
-            tracing::info!("User {} created post {} in community {}", user.user_id, post_id, community_id);
-            
-            Ok((StatusCode::CREATED, Json(ApiResponse {
-                success: true,
-                data: Some(PostResponse {
-                    id: post_id.to_string(),
-                    community_id: community_id.to_string(),
-                    author_id: user_uuid.to_string(),
-                    author_email: user.email.clone(),
-                    title: title.to_string(),
-                    content: content.to_string(),
-                    content_type,
-                    media_url: payload.media_url,
-                    is_pinned: false, is_locked: false, view_count: 0,
-                    reaction_count: 0, comment_count: 0,
-                    created_at: created_at.format("%Y-%m-%d %H:%M").to_string(),
-                    updated_at: updated_at.format("%Y-%m-%d %H:%M").to_string(),
+            tracing::info!(
+                "User {} created post {} in community {}",
+                user.user_id,
+                post_id,
+                community_id
+            );
+
+            Ok((
+                StatusCode::CREATED,
+                Json(ApiResponse {
+                    success: true,
+                    data: Some(PostResponse {
+                        id: post_id.to_string(),
+                        community_id: community_id.to_string(),
+                        author_id: user_uuid.to_string(),
+                        author_email: user.email.clone(),
+                        title: title.to_string(),
+                        content: content.to_string(),
+                        content_type,
+                        media_url: payload.media_url,
+                        is_pinned: false,
+                        is_locked: false,
+                        view_count: 0,
+                        reaction_count: 0,
+                        comment_count: 0,
+                        created_at: created_at.format("%Y-%m-%d %H:%M").to_string(),
+                        updated_at: updated_at.format("%Y-%m-%d %H:%M").to_string(),
+                    }),
+                    message: Some("Post created successfully".to_string()),
                 }),
-                message: Some("Post created successfully".to_string()),
-            })))
+            ))
         }
         Err(e) => {
             tracing::error!("Failed to create post: {}", e);
-            Ok((StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse {
-                success: false, data: None,
-                message: Some("Failed to create post".to_string()),
-            })))
+            Ok((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Failed to create post".to_string()),
+                }),
+            ))
         }
     }
 }
@@ -184,7 +217,7 @@ pub async fn create_post_htmx(
 
     let title = payload.title.trim();
     let content = payload.content.trim();
-    
+
     if title.is_empty() || content.is_empty() {
         return Html("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">Titolo e contenuto sono obbligatori</div>").into_response();
     }
@@ -201,7 +234,7 @@ pub async fn create_post_htmx(
 
     // Also check if user is the community creator
     let is_creator: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM communities WHERE id = $1 AND created_by = $2)"
+        "SELECT EXISTS(SELECT 1 FROM communities WHERE id = $1 AND created_by = $2)",
     )
     .bind(community_id)
     .bind(user_uuid)
@@ -213,7 +246,9 @@ pub async fn create_post_htmx(
         return Html("<div class=\"p-4 bg-red-50 text-red-700 rounded-lg\">Devi essere membro della community per pubblicare</div>").into_response();
     }
 
-    let content_type = payload.content_type.unwrap_or_else(|| "markdown".to_string());
+    let content_type = payload
+        .content_type
+        .unwrap_or_else(|| "markdown".to_string());
     let post_id = Uuid::now_v7();
 
     let result = sqlx::query(
@@ -227,7 +262,12 @@ pub async fn create_post_htmx(
 
     match result {
         Ok(_) => {
-            tracing::info!("User {} created post {} in community {}", user.user_id, post_id, community_id);
+            tracing::info!(
+                "User {} created post {} in community {}",
+                user.user_id,
+                post_id,
+                community_id
+            );
             // Redirect to the new post
             Redirect::to(&format!("/posts/{}", post_id)).into_response()
         }
@@ -247,33 +287,58 @@ pub async fn list_posts(
 ) -> Result<Json<ApiResponse<PostsListResponse>>, StatusCode> {
     let offset = (params.page - 1) * params.limit;
 
-    let community: Option<(bool,)> = sqlx::query_as("SELECT is_public FROM communities WHERE id = $1")
-        .bind(community_id)
-        .fetch_optional(&state.db.pool)
-        .await
-        .map_err(|e| { tracing::error!("Failed to fetch community: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    let community: Option<(bool,)> =
+        sqlx::query_as("SELECT is_public FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch community: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     let is_public = match community {
         Some((public,)) => public,
-        None => return Ok(Json(ApiResponse { success: false, data: None, message: Some("Community not found".to_string()) })),
+        None => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Community not found".to_string()),
+            }))
+        }
     };
 
     if !is_public {
         if let Some(ref auth_user) = user {
-            let user_uuid = Uuid::parse_str(&auth_user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let user_uuid = Uuid::parse_str(&auth_user.user_id)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             let is_member: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active')"
             ).bind(community_id).bind(user_uuid).fetch_one(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             if !is_member {
-                return Ok(Json(ApiResponse { success: false, data: None, message: Some("Access denied".to_string()) }));
+                return Ok(Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Access denied".to_string()),
+                }));
             }
         } else {
-            return Ok(Json(ApiResponse { success: false, data: None, message: Some("Access denied".to_string()) }));
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Access denied".to_string()),
+            }));
         }
     }
 
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE community_id = $1")
-        .bind(community_id).fetch_one(&state.db.pool).await.map_err(|e| { tracing::error!("Failed to count: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+        .bind(community_id)
+        .fetch_one(&state.db.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to count: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let rows = sqlx::query(
         "SELECT p.id, p.community_id, p.author_id, u.email as author_email, p.title, p.content, p.content_type, p.media_url,
@@ -285,28 +350,44 @@ pub async fn list_posts(
     ).bind(community_id).bind(params.limit as i64).bind(offset as i64)
     .fetch_all(&state.db.pool).await.map_err(|e| { tracing::error!("Failed to fetch posts: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
 
-    let posts: Vec<PostResponse> = rows.iter().map(|row| PostResponse {
-        id: row.get::<Uuid, _>("id").to_string(),
-        community_id: row.get::<Uuid, _>("community_id").to_string(),
-        author_id: row.get::<Uuid, _>("author_id").to_string(),
-        author_email: row.get::<String, _>("author_email"),
-        title: row.get("title"), content: row.get("content"),
-        content_type: row.get::<Option<String>, _>("content_type").unwrap_or_else(|| "markdown".to_string()),
-        media_url: row.get("media_url"),
-        is_pinned: row.get::<Option<bool>, _>("is_pinned").unwrap_or(false),
-        is_locked: row.get::<Option<bool>, _>("is_locked").unwrap_or(false),
-        view_count: row.get::<Option<i64>, _>("view_count").unwrap_or(0),
-        reaction_count: row.get::<Option<i64>, _>("reaction_count").unwrap_or(0),
-        comment_count: row.get::<Option<i64>, _>("comment_count").unwrap_or(0),
-        created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
-        updated_at: row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at").format("%Y-%m-%d %H:%M").to_string(),
-    }).collect();
+    let posts: Vec<PostResponse> = rows
+        .iter()
+        .map(|row| PostResponse {
+            id: row.get::<Uuid, _>("id").to_string(),
+            community_id: row.get::<Uuid, _>("community_id").to_string(),
+            author_id: row.get::<Uuid, _>("author_id").to_string(),
+            author_email: row.get::<String, _>("author_email"),
+            title: row.get("title"),
+            content: row.get("content"),
+            content_type: row
+                .get::<Option<String>, _>("content_type")
+                .unwrap_or_else(|| "markdown".to_string()),
+            media_url: row.get("media_url"),
+            is_pinned: row.get::<Option<bool>, _>("is_pinned").unwrap_or(false),
+            is_locked: row.get::<Option<bool>, _>("is_locked").unwrap_or(false),
+            view_count: row.get::<Option<i64>, _>("view_count").unwrap_or(0),
+            reaction_count: row.get::<Option<i64>, _>("reaction_count").unwrap_or(0),
+            comment_count: row.get::<Option<i64>, _>("comment_count").unwrap_or(0),
+            created_at: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
+            updated_at: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("updated_at")
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
+        })
+        .collect();
 
     Ok(Json(ApiResponse {
         success: true,
         data: Some(PostsListResponse {
-            posts, total, page: params.page, limit: params.limit,
-            has_next: (offset + params.limit) < total as u32, has_prev: params.page > 1,
+            posts,
+            total,
+            page: params.page,
+            limit: params.limit,
+            has_next: (offset + params.limit) < total as u32,
+            has_prev: params.page > 1,
         }),
         message: None,
     }))
@@ -328,7 +409,13 @@ pub async fn get_post(
 
     let row = match row {
         Some(r) => r,
-        None => return Ok(Json(ApiResponse { success: false, data: None, message: Some("Post not found".to_string()) })),
+        None => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Post not found".to_string()),
+            }))
+        }
     };
 
     let community_is_public: bool = row.get("community_is_public");
@@ -336,17 +423,31 @@ pub async fn get_post(
 
     if !community_is_public {
         if let Some(ref auth_user) = user {
-            let user_uuid = Uuid::parse_str(&auth_user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let user_uuid = Uuid::parse_str(&auth_user.user_id)
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             let is_member: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active')"
             ).bind(community_id).bind(user_uuid).fetch_one(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            if !is_member { return Ok(Json(ApiResponse { success: false, data: None, message: Some("Access denied".to_string()) })); }
+            if !is_member {
+                return Ok(Json(ApiResponse {
+                    success: false,
+                    data: None,
+                    message: Some("Access denied".to_string()),
+                }));
+            }
         } else {
-            return Ok(Json(ApiResponse { success: false, data: None, message: Some("Access denied".to_string()) }));
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Access denied".to_string()),
+            }));
         }
     }
 
-    let _ = sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = $1").bind(post_id).execute(&state.db.pool).await;
+    let _ = sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = $1")
+        .bind(post_id)
+        .execute(&state.db.pool)
+        .await;
 
     Ok(Json(ApiResponse {
         success: true,
@@ -355,16 +456,25 @@ pub async fn get_post(
             community_id: row.get::<Uuid, _>("community_id").to_string(),
             author_id: row.get::<Uuid, _>("author_id").to_string(),
             author_email: row.get::<String, _>("author_email"),
-            title: row.get("title"), content: row.get("content"),
-            content_type: row.get::<Option<String>, _>("content_type").unwrap_or_else(|| "markdown".to_string()),
+            title: row.get("title"),
+            content: row.get("content"),
+            content_type: row
+                .get::<Option<String>, _>("content_type")
+                .unwrap_or_else(|| "markdown".to_string()),
             media_url: row.get("media_url"),
             is_pinned: row.get::<Option<bool>, _>("is_pinned").unwrap_or(false),
             is_locked: row.get::<Option<bool>, _>("is_locked").unwrap_or(false),
             view_count: row.get::<Option<i64>, _>("view_count").unwrap_or(0) + 1,
             reaction_count: row.get::<Option<i64>, _>("reaction_count").unwrap_or(0),
             comment_count: row.get::<Option<i64>, _>("comment_count").unwrap_or(0),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
-            updated_at: row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at").format("%Y-%m-%d %H:%M").to_string(),
+            created_at: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
+            updated_at: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("updated_at")
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
         }),
         message: None,
     }))
@@ -377,38 +487,79 @@ pub async fn update_post(
     Path(post_id): Path<Uuid>,
     Json(payload): Json<UpdatePostRequest>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let post: Option<(Uuid,)> = sqlx::query_as("SELECT author_id FROM posts WHERE id = $1")
-        .bind(post_id).fetch_optional(&state.db.pool).await.map_err(|e| { tracing::error!("Failed: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+        .bind(post_id)
+        .fetch_optional(&state.db.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let author_id = match post {
         Some((author,)) => author,
-        None => return Ok(Json(ApiResponse { success: false, data: None, message: Some("Post not found".to_string()) })),
+        None => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Post not found".to_string()),
+            }))
+        }
     };
 
     if author_id != user_uuid {
-        return Ok(Json(ApiResponse { success: false, data: None, message: Some("Only the author can update this post".to_string()) }));
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Only the author can update this post".to_string()),
+        }));
     }
 
     if payload.title.is_none() && payload.content.is_none() {
-        return Ok(Json(ApiResponse { success: false, data: None, message: Some("No fields to update".to_string()) }));
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("No fields to update".to_string()),
+        }));
     }
 
-    let title = payload.title.as_deref().map(|t| t.trim()).filter(|t| !t.is_empty());
-    let content = payload.content.as_deref().map(|c| c.trim()).filter(|c| !c.is_empty());
+    let title = payload
+        .title
+        .as_deref()
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty());
+    let content = payload
+        .content
+        .as_deref()
+        .map(|c| c.trim())
+        .filter(|c| !c.is_empty());
 
     if title.is_some() {
         sqlx::query("UPDATE posts SET title = $1, updated_at = NOW() WHERE id = $2")
-            .bind(title).bind(post_id).execute(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .bind(title)
+            .bind(post_id)
+            .execute(&state.db.pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
     if content.is_some() {
         sqlx::query("UPDATE posts SET content = $1, updated_at = NOW() WHERE id = $2")
-            .bind(content).bind(post_id).execute(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .bind(content)
+            .bind(post_id)
+            .execute(&state.db.pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
     tracing::info!("User {} updated post {}", user.user_id, post_id);
-    Ok(Json(ApiResponse { success: true, data: None, message: Some("Post updated".to_string()) }))
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        message: Some("Post updated".to_string()),
+    }))
 }
 
 /// Delete a post (author or admin)
@@ -417,14 +568,28 @@ pub async fn delete_post(
     State(state): State<Arc<AppState>>,
     Path(post_id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let post: Option<(Uuid, Uuid)> = sqlx::query_as("SELECT author_id, community_id FROM posts WHERE id = $1")
-        .bind(post_id).fetch_optional(&state.db.pool).await.map_err(|e| { tracing::error!("Failed: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
+    let post: Option<(Uuid, Uuid)> =
+        sqlx::query_as("SELECT author_id, community_id FROM posts WHERE id = $1")
+            .bind(post_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     let (author_id, community_id) = match post {
         Some(p) => p,
-        None => return Ok(Json(ApiResponse { success: false, data: None, message: Some("Post not found".to_string()) })),
+        None => {
+            return Ok(Json(ApiResponse {
+                success: false,
+                data: None,
+                message: Some("Post not found".to_string()),
+            }))
+        }
     };
 
     let is_author = author_id == user_uuid;
@@ -433,10 +598,22 @@ pub async fn delete_post(
     ).bind(community_id).bind(user_uuid).fetch_one(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if !is_author && !is_admin {
-        return Ok(Json(ApiResponse { success: false, data: None, message: Some("Permission denied".to_string()) }));
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Permission denied".to_string()),
+        }));
     }
 
-    sqlx::query("DELETE FROM posts WHERE id = $1").bind(post_id).execute(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    sqlx::query("DELETE FROM posts WHERE id = $1")
+        .bind(post_id)
+        .execute(&state.db.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     tracing::info!("User {} deleted post {}", user.user_id, post_id);
-    Ok(Json(ApiResponse { success: true, data: None, message: Some("Post deleted".to_string()) }))
+    Ok(Json(ApiResponse {
+        success: true,
+        data: None,
+        message: Some("Post deleted".to_string()),
+    }))
 }

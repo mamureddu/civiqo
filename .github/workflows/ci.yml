@@ -9,11 +9,29 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-Dwarnings"
+  DATABASE_URL: postgresql://test:test@localhost:5432/civiqo_test
+  JWT_SECRET: test-secret-that-is-at-least-32-bytes-long
+  JWT_ISSUER: civiqo
+  DEVELOPMENT_MODE: "true"
 
 jobs:
   check:
     name: Check & Lint
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: civiqo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -48,11 +66,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    env:
-      DATABASE_URL: postgresql://test:test@localhost:5432/civiqo_test
-      JWT_SECRET: test-secret-that-is-at-least-32-bytes-long
-      JWT_ISSUER: civiqo
-      DEVELOPMENT_MODE: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -67,6 +80,20 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: civiqo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

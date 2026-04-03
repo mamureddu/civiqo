@@ -2,18 +2,18 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-pub mod community;
-pub mod user;
 pub mod business;
-pub mod governance;
 pub mod chat;
+pub mod community;
+pub mod governance;
+pub mod user;
 
 // Re-export all model types
-pub use community::*;
-pub use user::*;
 pub use business::*;
-pub use governance::*;
 pub use chat::*;
+pub use community::*;
+pub use governance::*;
+pub use user::*;
 
 // Common response types
 #[derive(Debug, Serialize, Deserialize)]
@@ -102,7 +102,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&response).expect("Should serialize");
-        let deserialized: ApiResponse<String> = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: ApiResponse<String> =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.success, true);
         assert_eq!(deserialized.data, Some("test data".to_string()));
@@ -123,7 +124,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&response).expect("Should serialize");
-        let deserialized: ApiResponse<String> = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: ApiResponse<String> =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.success, false);
         assert!(deserialized.data.is_none());
@@ -137,7 +139,11 @@ mod tests {
 
     #[test]
     fn test_paginated_response() {
-        let items = vec!["item1".to_string(), "item2".to_string(), "item3".to_string()];
+        let items = vec![
+            "item1".to_string(),
+            "item2".to_string(),
+            "item3".to_string(),
+        ];
         let response = PaginatedResponse {
             items: items.clone(),
             total: 100,
@@ -147,7 +153,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&response).expect("Should serialize");
-        let deserialized: PaginatedResponse<String> = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: PaginatedResponse<String> =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.items, items);
         assert_eq!(deserialized.total, 100);
@@ -178,7 +185,8 @@ mod tests {
 
         // Test with missing values (should use defaults)
         let json_minimal = r#"{}"#;
-        let params_minimal: PaginationParams = serde_json::from_str(json_minimal).expect("Should deserialize");
+        let params_minimal: PaginationParams =
+            serde_json::from_str(json_minimal).expect("Should deserialize");
 
         assert_eq!(params_minimal.page, 1);
         assert_eq!(params_minimal.per_page, 20);
@@ -213,7 +221,9 @@ mod tests {
         let deserialized: AuditFields = serde_json::from_str(&json).expect("Should deserialize");
 
         // Due to serialization precision, we check that times are very close
-        let diff = (deserialized.created_at - audit.created_at).num_milliseconds().abs();
+        let diff = (deserialized.created_at - audit.created_at)
+            .num_milliseconds()
+            .abs();
         assert!(diff < 1000); // Within 1 second
     }
 
@@ -234,15 +244,28 @@ mod tests {
     #[test]
     fn test_polygon_serialization() {
         let polygon = Polygon {
-            coordinates: vec![
-                vec![
-                    Point { latitude: 0.0, longitude: 0.0 },
-                    Point { latitude: 0.0, longitude: 1.0 },
-                    Point { latitude: 1.0, longitude: 1.0 },
-                    Point { latitude: 1.0, longitude: 0.0 },
-                    Point { latitude: 0.0, longitude: 0.0 }, // Close the ring
-                ],
-            ],
+            coordinates: vec![vec![
+                Point {
+                    latitude: 0.0,
+                    longitude: 0.0,
+                },
+                Point {
+                    latitude: 0.0,
+                    longitude: 1.0,
+                },
+                Point {
+                    latitude: 1.0,
+                    longitude: 1.0,
+                },
+                Point {
+                    latitude: 1.0,
+                    longitude: 0.0,
+                },
+                Point {
+                    latitude: 0.0,
+                    longitude: 0.0,
+                }, // Close the ring
+            ]],
         };
 
         let json = serde_json::to_string(&polygon).expect("Should serialize");
@@ -261,19 +284,49 @@ mod tests {
             coordinates: vec![
                 // Exterior ring
                 vec![
-                    Point { latitude: 0.0, longitude: 0.0 },
-                    Point { latitude: 0.0, longitude: 10.0 },
-                    Point { latitude: 10.0, longitude: 10.0 },
-                    Point { latitude: 10.0, longitude: 0.0 },
-                    Point { latitude: 0.0, longitude: 0.0 },
+                    Point {
+                        latitude: 0.0,
+                        longitude: 0.0,
+                    },
+                    Point {
+                        latitude: 0.0,
+                        longitude: 10.0,
+                    },
+                    Point {
+                        latitude: 10.0,
+                        longitude: 10.0,
+                    },
+                    Point {
+                        latitude: 10.0,
+                        longitude: 0.0,
+                    },
+                    Point {
+                        latitude: 0.0,
+                        longitude: 0.0,
+                    },
                 ],
                 // Interior hole
                 vec![
-                    Point { latitude: 2.0, longitude: 2.0 },
-                    Point { latitude: 2.0, longitude: 8.0 },
-                    Point { latitude: 8.0, longitude: 8.0 },
-                    Point { latitude: 8.0, longitude: 2.0 },
-                    Point { latitude: 2.0, longitude: 2.0 },
+                    Point {
+                        latitude: 2.0,
+                        longitude: 2.0,
+                    },
+                    Point {
+                        latitude: 2.0,
+                        longitude: 8.0,
+                    },
+                    Point {
+                        latitude: 8.0,
+                        longitude: 8.0,
+                    },
+                    Point {
+                        latitude: 8.0,
+                        longitude: 2.0,
+                    },
+                    Point {
+                        latitude: 2.0,
+                        longitude: 2.0,
+                    },
                 ],
             ],
         };
@@ -303,11 +356,17 @@ mod tests {
     #[test]
     fn test_pagination_edge_cases() {
         // Test with zero page (should still work mathematically)
-        let params = PaginationParams { page: 0, per_page: 20 };
+        let params = PaginationParams {
+            page: 0,
+            per_page: 20,
+        };
         assert_eq!(params.offset(), -20); // Mathematically correct but likely invalid in practice
 
         // Test with negative page
-        let params = PaginationParams { page: -1, per_page: 20 };
+        let params = PaginationParams {
+            page: -1,
+            per_page: 20,
+        };
         assert_eq!(params.offset(), -40);
 
         // These edge cases show that validation should be done at a higher level
@@ -323,7 +382,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&response).expect("Should serialize");
-        let deserialized: ApiResponse<String> = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: ApiResponse<String> =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.data, response.data);
         assert_eq!(deserialized.message, response.message);

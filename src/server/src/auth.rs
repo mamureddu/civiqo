@@ -1,19 +1,19 @@
-use axum::{
-    extract::{Request, FromRequestParts, State, Form, Query},
-    http::{StatusCode, request::Parts},
-    response::{IntoResponse, Redirect, Html},
-    Json,
-};
-use serde::{Deserialize, Serialize};
-use tower_sessions::Session;
-use tracing::info;
-use std::sync::Arc;
-use uuid::Uuid;
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
+use axum::{
+    extract::{FromRequestParts, Query, Request, State},
+    http::{request::Parts, StatusCode},
+    response::{Html, IntoResponse, Redirect},
+    Json,
+};
+use serde::{Deserialize, Serialize};
 use shared::auth::JwtService;
+use std::sync::Arc;
+use tower_sessions::Session;
+use tracing::info;
+use uuid::Uuid;
 
 /// Session data stored in tower-sessions
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -135,11 +135,12 @@ pub async fn login_handler(
         "SELECT u.id, u.email, u.password_hash, p.name
          FROM users u
          LEFT JOIN user_profiles p ON p.user_id = u.id
-         WHERE u.email = $1 AND u.provider = 'local'"
+         WHERE u.email = $1 AND u.provider = 'local'",
     )
     .bind(&form.email)
     .fetch_optional(&state.db.pool)
-    .await {
+    .await
+    {
         Ok(Some(u)) => u,
         Ok(None) => return Redirect::to("/login?error=invalid_credentials").into_response(),
         Err(e) => {
@@ -161,7 +162,10 @@ pub async fn login_handler(
         Err(_) => return Redirect::to("/login?error=server").into_response(),
     };
 
-    if Argon2::default().verify_password(form.password.as_bytes(), &parsed_hash).is_err() {
+    if Argon2::default()
+        .verify_password(form.password.as_bytes(), &parsed_hash)
+        .is_err()
+    {
         return Redirect::to("/login?error=invalid_credentials").into_response();
     }
 
@@ -245,7 +249,7 @@ pub async fn register_handler(
     // Create profile
     let _ = sqlx::query(
         "INSERT INTO user_profiles (user_id, name, created_at, updated_at)
-         VALUES ($1, $2, NOW(), NOW())"
+         VALUES ($1, $2, NOW(), NOW())",
     )
     .bind(user_id)
     .bind(&form.name)
@@ -281,16 +285,27 @@ pub async fn api_login(
         "SELECT u.id, u.email, u.password_hash, p.name
          FROM users u
          LEFT JOIN user_profiles p ON p.user_id = u.id
-         WHERE u.email = $1 AND u.provider = 'local'"
+         WHERE u.email = $1 AND u.provider = 'local'",
     )
     .bind(&form.email)
     .fetch_optional(&state.db.pool)
-    .await {
+    .await
+    {
         Ok(Some(u)) => u,
-        Ok(None) => return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid credentials"}))).into_response(),
+        Ok(None) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "Invalid credentials"})),
+            )
+                .into_response()
+        }
         Err(e) => {
             tracing::error!("DB error: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server error"}))).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Server error"})),
+            )
+                .into_response();
         }
     };
 
@@ -299,35 +314,67 @@ pub async fn api_login(
     // Verify password
     let password_hash = match password_hash {
         Some(h) => h,
-        None => return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid credentials"}))).into_response(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "Invalid credentials"})),
+            )
+                .into_response()
+        }
     };
 
     let parsed_hash = match PasswordHash::new(&password_hash) {
         Ok(h) => h,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server error"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Server error"})),
+            )
+                .into_response()
+        }
     };
 
-    if Argon2::default().verify_password(form.password.as_bytes(), &parsed_hash).is_err() {
-        return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid credentials"}))).into_response();
+    if Argon2::default()
+        .verify_password(form.password.as_bytes(), &parsed_hash)
+        .is_err()
+    {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid credentials"})),
+        )
+            .into_response();
     }
 
     // Issue JWT
     let jwt_config = match shared::auth::JwtConfig::from_env() {
         Ok(c) => c,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server config error"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Server config error"})),
+            )
+                .into_response()
+        }
     };
     let jwt_service = JwtService::new(jwt_config);
 
     let token = match jwt_service.issue_token(user_id, &email, name.as_deref(), vec![]) {
         Ok(t) => t,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Token generation failed"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Token generation failed"})),
+            )
+                .into_response()
+        }
     };
 
     Json(TokenResponse {
         token,
         token_type: "Bearer".to_string(),
         expires_in: jwt_service.expiry_seconds(),
-    }).into_response()
+    })
+    .into_response()
 }
 
 /// POST /api/auth/register — returns JWT token
@@ -336,14 +383,24 @@ pub async fn api_register(
     Json(form): Json<RegisterForm>,
 ) -> impl IntoResponse {
     if form.password.len() < 8 {
-        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "Password must be at least 8 characters"}))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Password must be at least 8 characters"})),
+        )
+            .into_response();
     }
 
     // Hash password
     let salt = SaltString::generate(&mut OsRng);
     let password_hash = match Argon2::default().hash_password(form.password.as_bytes(), &salt) {
         Ok(h) => h.to_string(),
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server error"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Server error"})),
+            )
+                .into_response()
+        }
     };
 
     // Insert user
@@ -375,47 +432,80 @@ pub async fn api_register(
     // Issue JWT
     let jwt_config = match shared::auth::JwtConfig::from_env() {
         Ok(c) => c,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server config error"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Server config error"})),
+            )
+                .into_response()
+        }
     };
     let jwt_service = JwtService::new(jwt_config);
 
     let token = match jwt_service.issue_token(user_id, &form.email, form.name.as_deref(), vec![]) {
         Ok(t) => t,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Token generation failed"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Token generation failed"})),
+            )
+                .into_response()
+        }
     };
 
-    (StatusCode::CREATED, Json(TokenResponse {
-        token,
-        token_type: "Bearer".to_string(),
-        expires_in: jwt_service.expiry_seconds(),
-    })).into_response()
+    (
+        StatusCode::CREATED,
+        Json(TokenResponse {
+            token,
+            token_type: "Bearer".to_string(),
+            expires_in: jwt_service.expiry_seconds(),
+        }),
+    )
+        .into_response()
 }
 
 /// POST /api/auth/refresh — refresh JWT token (requires valid token via session)
-pub async fn refresh_token(
-    AuthUser(user): AuthUser,
-) -> impl IntoResponse {
+pub async fn refresh_token(AuthUser(user): AuthUser) -> impl IntoResponse {
     let jwt_config = match shared::auth::JwtConfig::from_env() {
         Ok(c) => c,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Server config error"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Server config error"})),
+            )
+                .into_response()
+        }
     };
     let jwt_service = JwtService::new(jwt_config);
 
     let user_id = match Uuid::parse_str(&user.user_id) {
         Ok(id) => id,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Invalid user ID"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Invalid user ID"})),
+            )
+                .into_response()
+        }
     };
 
     let token = match jwt_service.issue_token(user_id, &user.email, user.name.as_deref(), vec![]) {
         Ok(t) => t,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Token generation failed"}))).into_response(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Token generation failed"})),
+            )
+                .into_response()
+        }
     };
 
     Json(TokenResponse {
         token,
         token_type: "Bearer".to_string(),
         expires_in: jwt_service.expiry_seconds(),
-    }).into_response()
+    })
+    .into_response()
 }
 
 // ── Logout ───────────────────────────────────────────────────
@@ -428,7 +518,8 @@ pub async fn logout(req: Request) -> impl IntoResponse {
             return Json(serde_json::json!({
                 "success": false,
                 "error": "No session found"
-            })).into_response();
+            }))
+            .into_response();
         }
     };
 
@@ -437,7 +528,8 @@ pub async fn logout(req: Request) -> impl IntoResponse {
         return Json(serde_json::json!({
             "success": false,
             "error": "Failed to delete session"
-        })).into_response();
+        }))
+        .into_response();
     }
 
     info!("User logged out");
@@ -445,7 +537,8 @@ pub async fn logout(req: Request) -> impl IntoResponse {
         "success": true,
         "message": "Logged out",
         "redirect_url": "/"
-    })).into_response()
+    }))
+    .into_response()
 }
 
 // ── Extractors (unchanged interface) ─────────────────────────

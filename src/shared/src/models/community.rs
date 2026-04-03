@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use super::{Polygon, Point};
+use super::{Point, Polygon};
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Community {
@@ -156,9 +156,9 @@ pub struct CommunitySearchResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::*;
     use serde_json;
     use test_case::test_case;
-    use rstest::*;
 
     #[fixture]
     fn sample_community() -> Community {
@@ -195,14 +195,24 @@ mod tests {
     #[fixture]
     fn sample_polygon() -> Polygon {
         Polygon {
-            coordinates: vec![
-                vec![
-                    Point { latitude: 37.7749, longitude: -122.4194 }, // SF
-                    Point { latitude: 37.7849, longitude: -122.4094 },
-                    Point { latitude: 37.7649, longitude: -122.4094 },
-                    Point { latitude: 37.7749, longitude: -122.4194 }, // Close the ring
-                ],
-            ],
+            coordinates: vec![vec![
+                Point {
+                    latitude: 37.7749,
+                    longitude: -122.4194,
+                }, // SF
+                Point {
+                    latitude: 37.7849,
+                    longitude: -122.4094,
+                },
+                Point {
+                    latitude: 37.7649,
+                    longitude: -122.4094,
+                },
+                Point {
+                    latitude: 37.7749,
+                    longitude: -122.4194,
+                }, // Close the ring
+            ]],
         }
     }
 
@@ -216,7 +226,10 @@ mod tests {
         assert_eq!(deserialized.name, sample_community.name);
         assert_eq!(deserialized.slug, sample_community.slug);
         assert_eq!(deserialized.is_public, sample_community.is_public);
-        assert_eq!(deserialized.requires_approval, sample_community.requires_approval);
+        assert_eq!(
+            deserialized.requires_approval,
+            sample_community.requires_approval
+        );
     }
 
     #[test]
@@ -262,7 +275,8 @@ mod tests {
 
         for status in statuses {
             let json = serde_json::to_string(&status).expect("Should serialize status");
-            let deserialized: MembershipStatus = serde_json::from_str(&json).expect("Should deserialize status");
+            let deserialized: MembershipStatus =
+                serde_json::from_str(&json).expect("Should deserialize status");
             assert_eq!(status.to_string(), deserialized.to_string());
         }
     }
@@ -271,12 +285,22 @@ mod tests {
     #[rstest]
     fn test_community_settings_serialization(sample_community_settings: CommunitySettings) {
         let json = serde_json::to_string(&sample_community_settings).expect("Should serialize");
-        let deserialized: CommunitySettings = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CommunitySettings =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.id, sample_community_settings.id);
-        assert_eq!(deserialized.community_id, sample_community_settings.community_id);
-        assert_eq!(deserialized.max_members, sample_community_settings.max_members);
-        assert_eq!(deserialized.allow_business_listings, sample_community_settings.allow_business_listings);
+        assert_eq!(
+            deserialized.community_id,
+            sample_community_settings.community_id
+        );
+        assert_eq!(
+            deserialized.max_members,
+            sample_community_settings.max_members
+        );
+        assert_eq!(
+            deserialized.allow_business_listings,
+            sample_community_settings.allow_business_listings
+        );
     }
 
     #[test]
@@ -298,10 +322,14 @@ mod tests {
         };
 
         let json = serde_json::to_string(&settings).expect("Should serialize");
-        let deserialized: CommunitySettings = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CommunitySettings =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.governance_rules["custom_rule"], "value");
-        assert_eq!(deserialized.governance_rules["another_rule"]["nested"], true);
+        assert_eq!(
+            deserialized.governance_rules["another_rule"]["nested"],
+            true
+        );
     }
 
     // CommunityBoundary tests
@@ -324,7 +352,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&boundary).expect("Should serialize");
-        let deserialized: CommunityBoundary = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CommunityBoundary =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.id, boundary.id);
         assert_eq!(deserialized.name, boundary.name);
@@ -346,7 +375,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&member).expect("Should serialize");
-        let deserialized: CommunityMember = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CommunityMember =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.id, member.id);
         assert_eq!(deserialized.user_id, member.user_id);
@@ -368,7 +398,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&pending_member).expect("Should serialize");
-        let deserialized: CommunityMember = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CommunityMember =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.status.to_string(), "pending");
         assert!(deserialized.joined_at.is_none());
@@ -420,14 +451,24 @@ mod tests {
     #[test]
     fn test_create_community_request() {
         let polygon = Polygon {
-            coordinates: vec![
-                vec![
-                    Point { latitude: 37.7749, longitude: -122.4194 },
-                    Point { latitude: 37.7849, longitude: -122.4094 },
-                    Point { latitude: 37.7649, longitude: -122.4094 },
-                    Point { latitude: 37.7749, longitude: -122.4194 },
-                ],
-            ],
+            coordinates: vec![vec![
+                Point {
+                    latitude: 37.7749,
+                    longitude: -122.4194,
+                },
+                Point {
+                    latitude: 37.7849,
+                    longitude: -122.4094,
+                },
+                Point {
+                    latitude: 37.7649,
+                    longitude: -122.4094,
+                },
+                Point {
+                    latitude: 37.7749,
+                    longitude: -122.4194,
+                },
+            ]],
         };
 
         let request = CreateCommunityRequest {
@@ -440,7 +481,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: CreateCommunityRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CreateCommunityRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.name, request.name);
         assert_eq!(deserialized.slug, request.slug);
@@ -460,7 +502,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: CreateCommunityRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CreateCommunityRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.name, "Minimal Community");
         assert!(deserialized.description.is_none());
@@ -479,7 +522,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: UpdateCommunityRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: UpdateCommunityRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.name, Some("Updated Name".to_string()));
         assert_eq!(deserialized.is_public, Some(false));
@@ -496,7 +540,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: UpdateCommunityRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: UpdateCommunityRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.name, Some("Only name updated".to_string()));
         assert!(deserialized.description.is_none());
@@ -511,7 +556,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: JoinCommunityRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: JoinCommunityRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.message, request.message);
     }
@@ -521,7 +567,8 @@ mod tests {
         let request = JoinCommunityRequest { message: None };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: JoinCommunityRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: JoinCommunityRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert!(deserialized.message.is_none());
     }
@@ -546,7 +593,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&community_with_stats).expect("Should serialize");
-        let deserialized: CommunityWithStats = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CommunityWithStats =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.name, "Tech Community");
         assert_eq!(deserialized.member_count, 150);
@@ -572,7 +620,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&member_with_profile).expect("Should serialize");
-        let deserialized: MemberWithProfile = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: MemberWithProfile =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.user_name, Some("John Doe".to_string()));
         assert_eq!(deserialized.role_name, "Moderator");
@@ -584,13 +633,17 @@ mod tests {
     fn test_community_search_query_serialization() {
         let search_query = CommunitySearchQuery {
             q: Some("tech community".to_string()),
-            location: Some(Point { latitude: 37.7749, longitude: -122.4194 }),
+            location: Some(Point {
+                latitude: 37.7749,
+                longitude: -122.4194,
+            }),
             radius_km: Some(10.0),
             is_public: Some(true),
         };
 
         let json = serde_json::to_string(&search_query).expect("Should serialize");
-        let deserialized: CommunitySearchQuery = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CommunitySearchQuery =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.q, Some("tech community".to_string()));
         assert!(deserialized.location.is_some());
@@ -608,7 +661,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&search_query).expect("Should serialize");
-        let deserialized: CommunitySearchQuery = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CommunitySearchQuery =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert!(deserialized.q.is_none());
         assert!(deserialized.location.is_none());
@@ -637,7 +691,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&search_result).expect("Should serialize");
-        let deserialized: CommunitySearchResult = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CommunitySearchResult =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.community.name, "Nearby Tech Community");
         assert_eq!(deserialized.distance_km, Some(5.2));
@@ -653,7 +708,7 @@ mod tests {
             ("tech123", true),
             ("123tech", true),
             ("tech-community-with-very-long-name", true),
-            ("", false), // Should be validated at application layer
+            ("", false),         // Should be validated at application layer
             ("UPPERCASE", true), // Valid but should be normalized
         ];
 
@@ -729,7 +784,8 @@ mod tests {
             };
 
             let json = serde_json::to_string(&community).expect("Should serialize Unicode names");
-            let deserialized: Community = serde_json::from_str(&json).expect("Should deserialize Unicode names");
+            let deserialized: Community =
+                serde_json::from_str(&json).expect("Should deserialize Unicode names");
 
             assert_eq!(deserialized.name, name);
         }
@@ -746,7 +802,7 @@ mod tests {
                     "value": i,
                     "description": format!("Rule number {}", i),
                     "enabled": i % 2 == 0
-                })
+                }),
             );
         }
 
@@ -762,11 +818,16 @@ mod tests {
 
         let start = std::time::Instant::now();
         let json = serde_json::to_string(&settings).expect("Should serialize large rules");
-        let _: CommunitySettings = serde_json::from_str(&json).expect("Should deserialize large rules");
+        let _: CommunitySettings =
+            serde_json::from_str(&json).expect("Should deserialize large rules");
         let duration = start.elapsed();
 
         // Should handle large governance rules efficiently
-        assert!(duration.as_millis() < 100, "Large rules serialization too slow: {:?}", duration);
+        assert!(
+            duration.as_millis() < 100,
+            "Large rules serialization too slow: {:?}",
+            duration
+        );
     }
 
     #[test]
@@ -803,7 +864,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&boundary).expect("Should serialize complex boundary");
-        let deserialized: CommunityBoundary = serde_json::from_str(&json).expect("Should deserialize complex boundary");
+        let deserialized: CommunityBoundary =
+            serde_json::from_str(&json).expect("Should deserialize complex boundary");
 
         assert_eq!(deserialized.boundary_data, complex_boundary);
         assert_eq!(deserialized.name, "Complex Boundary");

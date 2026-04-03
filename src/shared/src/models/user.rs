@@ -8,8 +8,8 @@ pub struct User {
     pub id: Uuid,
     pub email: String,
     pub password_hash: Option<String>,
-    pub provider: String,              // "local", "google", "github", etc.
-    pub provider_id: Option<String>,   // NULL for local users, provider-specific ID for SSO
+    pub provider: String,            // "local", "google", "github", etc.
+    pub provider_id: Option<String>, // NULL for local users, provider-specific ID for SSO
     pub email_verified: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -65,9 +65,9 @@ pub struct UserWithProfile {
 // JWT Claims (self-issued, SSO-ready)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,    // User UUID
-    pub aud: String,    // "civiqo-api"
-    pub iss: String,    // "civiqo" (or configured issuer)
+    pub sub: String, // User UUID
+    pub aud: String, // "civiqo-api"
+    pub iss: String, // "civiqo" (or configured issuer)
     pub exp: i64,
     pub iat: i64,
     pub email: Option<String>,
@@ -86,9 +86,9 @@ pub struct CommunityRole {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::*;
     use serde_json;
     use test_case::test_case;
-    use rstest::*;
 
     #[fixture]
     fn sample_user() -> User {
@@ -139,7 +139,7 @@ mod tests {
                     community_id: Uuid::new_v4(),
                     role: "member".to_string(),
                     permissions: vec!["read".to_string()],
-                }
+                },
             ],
         }
     }
@@ -176,11 +176,15 @@ mod tests {
         };
 
         let json = serde_json::to_string(&user_with_profile).expect("Should serialize");
-        let deserialized: UserWithProfile = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: UserWithProfile =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.id, user_with_profile.id);
         assert_eq!(deserialized.profile_name, user_with_profile.profile_name);
-        assert_eq!(deserialized.profile_website, user_with_profile.profile_website);
+        assert_eq!(
+            deserialized.profile_website,
+            user_with_profile.profile_website
+        );
     }
 
     #[test]
@@ -204,7 +208,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&user_without_profile).expect("Should serialize");
-        let deserialized: UserWithProfile = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: UserWithProfile =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.id, user_without_profile.id);
         assert!(deserialized.profile_id.is_none());
@@ -256,7 +261,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: CreateUserRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CreateUserRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.email, request.email);
         assert_eq!(deserialized.name, request.name);
@@ -271,7 +277,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: CreateUserRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: CreateUserRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.email, request.email);
         assert!(deserialized.name.is_none());
@@ -287,7 +294,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: UpdateUserProfileRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: UpdateUserProfileRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.name, request.name);
         assert_eq!(deserialized.bio, request.bio);
@@ -305,7 +313,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&request).expect("Should serialize");
-        let deserialized: UpdateUserProfileRequest = serde_json::from_str(&json).expect("Should deserialize");
+        let deserialized: UpdateUserProfileRequest =
+            serde_json::from_str(&json).expect("Should deserialize");
 
         assert_eq!(deserialized.name, request.name);
         assert!(deserialized.bio.is_none());
@@ -323,7 +332,10 @@ mod tests {
         assert_eq!(deserialized.aud, sample_claims.aud);
         assert_eq!(deserialized.iss, sample_claims.iss);
         assert_eq!(deserialized.email, sample_claims.email);
-        assert_eq!(deserialized.community_roles.len(), sample_claims.community_roles.len());
+        assert_eq!(
+            deserialized.community_roles.len(),
+            sample_claims.community_roles.len()
+        );
     }
 
     #[test]
@@ -519,7 +531,8 @@ mod tests {
 
             // Should serialize/deserialize without issues
             let json = serde_json::to_string(&profile).expect("Should serialize valid URLs");
-            let _: UserProfile = serde_json::from_str(&json).expect("Should deserialize valid URLs");
+            let _: UserProfile =
+                serde_json::from_str(&json).expect("Should deserialize valid URLs");
         }
 
         // Note: URL validation should be done at the application layer, not model layer
@@ -555,7 +568,11 @@ mod tests {
         let duration = start.elapsed();
 
         // Should handle large lists efficiently
-        assert!(duration.as_millis() < 100, "Large serialization too slow: {:?}", duration);
+        assert!(
+            duration.as_millis() < 100,
+            "Large serialization too slow: {:?}",
+            duration
+        );
         assert_eq!(claims.community_roles.len(), 100);
     }
 
@@ -574,7 +591,8 @@ mod tests {
         };
 
         let json = serde_json::to_string(&profile).expect("Should handle Unicode");
-        let deserialized: UserProfile = serde_json::from_str(&json).expect("Should deserialize Unicode");
+        let deserialized: UserProfile =
+            serde_json::from_str(&json).expect("Should deserialize Unicode");
 
         assert_eq!(deserialized.name, profile.name);
         assert_eq!(deserialized.bio, profile.bio);

@@ -1,5 +1,5 @@
 //! Phase 4: Business Features Tests
-//! 
+//!
 //! Tests for:
 //! - Business CRUD operations
 //! - Product management
@@ -229,7 +229,7 @@ async fn test_business_page_brand_colors() {
 #[tokio::test]
 async fn phase4_completion_checklist() {
     // Phase 4: Business Features
-    
+
     // Model (M) ✅
     // - [x] businesses table extended (rating_avg, review_count, order_count, is_verified)
     // - [x] business_reviews table
@@ -237,21 +237,21 @@ async fn phase4_completion_checklist() {
     // - [x] orders table
     // - [x] order_items table
     // - [x] Indexes for performance
-    
+
     // View (V) ✅
     // - [x] businesses.html - Business list page (Italian, brand colors)
     // - [x] business_detail.html - Business detail page (products, reviews, orders)
     // - [x] HTMX fragments for dynamic loading
-    
+
     // Controller (C) ✅
     // - [x] list_businesses, get_business, create_business, update_business, delete_business
     // - [x] list_products, create_product
     // - [x] list_reviews, create_review
     // - [x] list_user_orders, create_order, update_order_status
     // - [x] All routes registered in lib.rs
-    
+
     // Tests ✅
     // - [x] 28 test cases defined
-    
+
     assert!(true, "Phase 4 complete!");
 }

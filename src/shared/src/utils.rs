@@ -1,7 +1,7 @@
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
-use regex::Regex;
 use crate::error::{AppError, Result};
+use chrono::{DateTime, Utc};
+use regex::Regex;
+use uuid::Uuid;
 
 // Generate a URL-friendly slug from a string
 pub fn generate_slug(input: &str) -> String {
@@ -41,13 +41,13 @@ pub fn now() -> DateTime<Utc> {
 pub fn validate_coordinates(lat: f64, lon: f64) -> Result<()> {
     if lat < -90.0 || lat > 90.0 {
         return Err(AppError::Validation(
-            "Latitude must be between -90 and 90".to_string()
+            "Latitude must be between -90 and 90".to_string(),
         ));
     }
 
     if lon < -180.0 || lon > 180.0 {
         return Err(AppError::Validation(
-            "Longitude must be between -180 and 180".to_string()
+            "Longitude must be between -180 and 180".to_string(),
         ));
     }
 
@@ -63,8 +63,8 @@ pub fn calculate_distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let delta_lat = (lat2 - lat1).to_radians();
     let delta_lon = (lon2 - lon1).to_radians();
 
-    let a = (delta_lat / 2.0).sin().powi(2) +
-        lat1_rad.cos() * lat2_rad.cos() * (delta_lon / 2.0).sin().powi(2);
+    let a = (delta_lat / 2.0).sin().powi(2)
+        + lat1_rad.cos() * lat2_rad.cos() * (delta_lon / 2.0).sin().powi(2);
     let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
 
     r * c
@@ -79,14 +79,16 @@ pub fn sanitize_text(input: &str) -> String {
 pub fn validate_text_length(text: &str, min: usize, max: usize) -> Result<()> {
     let length = text.len();
     if length < min {
-        return Err(AppError::Validation(
-            format!("Text must be at least {} characters", min)
-        ));
+        return Err(AppError::Validation(format!(
+            "Text must be at least {} characters",
+            min
+        )));
     }
     if length > max {
-        return Err(AppError::Validation(
-            format!("Text must be no more than {} characters", max)
-        ));
+        return Err(AppError::Validation(format!(
+            "Text must be no more than {} characters",
+            max
+        )));
     }
     Ok(())
 }
@@ -184,32 +186,56 @@ mod tests {
     fn test_calculate_distance_known_cities() {
         // Distance from NYC to LA (approx 3935 km)
         let distance = calculate_distance(40.7128, -74.0060, 34.0522, -118.2437);
-        assert!((distance - 3935.0).abs() < 50.0, "NYC to LA distance should be ~3935km, got {}", distance);
+        assert!(
+            (distance - 3935.0).abs() < 50.0,
+            "NYC to LA distance should be ~3935km, got {}",
+            distance
+        );
 
         // Distance from London to Paris (approx 344 km)
         let distance = calculate_distance(51.5074, -0.1278, 48.8566, 2.3522);
-        assert!((distance - 344.0).abs() < 20.0, "London to Paris distance should be ~344km, got {}", distance);
+        assert!(
+            (distance - 344.0).abs() < 20.0,
+            "London to Paris distance should be ~344km, got {}",
+            distance
+        );
 
         // Distance from Tokyo to Sydney (approx 7823 km)
         let distance = calculate_distance(35.6762, 139.6503, -33.8688, 151.2093);
-        assert!((distance - 7823.0).abs() < 100.0, "Tokyo to Sydney distance should be ~7823km, got {}", distance);
+        assert!(
+            (distance - 7823.0).abs() < 100.0,
+            "Tokyo to Sydney distance should be ~7823km, got {}",
+            distance
+        );
     }
 
     #[test]
     fn test_calculate_distance_same_point() {
         let distance = calculate_distance(40.7128, -74.0060, 40.7128, -74.0060);
-        assert!(distance < 0.001, "Distance to same point should be ~0, got {}", distance);
+        assert!(
+            distance < 0.001,
+            "Distance to same point should be ~0, got {}",
+            distance
+        );
     }
 
     #[test]
     fn test_calculate_distance_edge_cases() {
         // Antipodal points (opposite sides of Earth)
         let distance = calculate_distance(0.0, 0.0, 0.0, 180.0);
-        assert!((distance - 20003.9).abs() < 100.0, "Half Earth circumference should be ~20004km, got {}", distance);
+        assert!(
+            (distance - 20003.9).abs() < 100.0,
+            "Half Earth circumference should be ~20004km, got {}",
+            distance
+        );
 
         // North to South pole
         let distance = calculate_distance(90.0, 0.0, -90.0, 0.0);
-        assert!((distance - 20003.9).abs() < 100.0, "Pole to pole distance should be ~20004km, got {}", distance);
+        assert!(
+            (distance - 20003.9).abs() < 100.0,
+            "Pole to pole distance should be ~20004km, got {}",
+            distance
+        );
     }
 
     // Text validation tests
@@ -276,7 +302,8 @@ mod tests {
     // Performance tests
     #[test]
     fn test_slug_generation_performance() {
-        let input = "This is a test string for performance testing with special chars!@#$%^&*()".repeat(10);
+        let input =
+            "This is a test string for performance testing with special chars!@#$%^&*()".repeat(10);
 
         let start = std::time::Instant::now();
         for _ in 0..1000 {
@@ -285,7 +312,11 @@ mod tests {
         let duration = start.elapsed();
 
         // Should complete 1000 operations in reasonable time (increased for CI)
-        assert!(duration.as_millis() < 10000, "Slug generation too slow: {:?}", duration);
+        assert!(
+            duration.as_millis() < 10000,
+            "Slug generation too slow: {:?}",
+            duration
+        );
     }
 
     #[test]
@@ -301,7 +332,11 @@ mod tests {
         let duration = start.elapsed();
 
         // Should complete 1000 calculations in reasonable time
-        assert!(duration.as_millis() < 100, "Distance calculation too slow: {:?}", duration);
+        assert!(
+            duration.as_millis() < 100,
+            "Distance calculation too slow: {:?}",
+            duration
+        );
     }
 
     // Edge case and robustness tests
@@ -334,7 +369,12 @@ mod tests {
         ];
 
         for (input, expected) in unicode_tests {
-            assert_eq!(generate_slug(input), expected, "Failed for input: {}", input);
+            assert_eq!(
+                generate_slug(input),
+                expected,
+                "Failed for input: {}",
+                input
+            );
         }
     }
 
@@ -349,7 +389,10 @@ mod tests {
         let duration = start.elapsed();
 
         assert_eq!(slug, long_string.to_lowercase());
-        assert!(duration.as_millis() < 100, "Long string processing too slow");
+        assert!(
+            duration.as_millis() < 100,
+            "Long string processing too slow"
+        );
     }
 
     #[test]

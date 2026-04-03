@@ -28,7 +28,6 @@ pub struct Config {
     /// WebSocket heartbeat interval in seconds
     pub heartbeat_interval_seconds: u64,
 
-
     /// Maximum message size in bytes (64KB default)
     pub max_message_size: usize,
 
@@ -50,19 +49,16 @@ impl Config {
         let database_url = env::var("DATABASE_URL")
             .map_err(|_| AppError::Config("DATABASE_URL not set".to_string()))?;
 
-        let host = env::var("CHAT_HOST")
-            .unwrap_or_else(|_| "0.0.0.0".to_string());
+        let host = env::var("CHAT_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
 
         let port = env::var("CHAT_PORT")
             .unwrap_or_else(|_| "8080".to_string())
             .parse()
             .map_err(|e| AppError::Config(format!("Invalid CHAT_PORT: {}", e)))?;
 
-        let sqs_queue_url = env::var("SQS_QUEUE_URL").ok()
-            .filter(|s| !s.is_empty());
+        let sqs_queue_url = env::var("SQS_QUEUE_URL").ok().filter(|s| !s.is_empty());
 
-        let sns_topic_arn = env::var("SNS_TOPIC_ARN").ok()
-            .filter(|s| !s.is_empty());
+        let sns_topic_arn = env::var("SNS_TOPIC_ARN").ok().filter(|s| !s.is_empty());
 
         let max_connections = env::var("MAX_WEBSOCKET_CONNECTIONS")
             .unwrap_or_else(|_| "1000".to_string())
@@ -92,12 +88,16 @@ impl Config {
         let rate_limit_messages_per_minute = env::var("RATE_LIMIT_MESSAGES_PER_MINUTE")
             .unwrap_or_else(|_| "30".to_string())
             .parse()
-            .map_err(|e| AppError::Config(format!("Invalid RATE_LIMIT_MESSAGES_PER_MINUTE: {}", e)))?;
+            .map_err(|e| {
+                AppError::Config(format!("Invalid RATE_LIMIT_MESSAGES_PER_MINUTE: {}", e))
+            })?;
 
         let rate_limit_typing_per_minute = env::var("RATE_LIMIT_TYPING_PER_MINUTE")
             .unwrap_or_else(|_| "60".to_string())
             .parse()
-            .map_err(|e| AppError::Config(format!("Invalid RATE_LIMIT_TYPING_PER_MINUTE: {}", e)))?;
+            .map_err(|e| {
+                AppError::Config(format!("Invalid RATE_LIMIT_TYPING_PER_MINUTE: {}", e))
+            })?;
 
         Ok(Config {
             database_url,
@@ -117,8 +117,6 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_config_default_values() {
         // Test that default values are applied correctly

@@ -9,11 +9,11 @@ pub struct ChatRoom {
     pub community_id: Uuid,
     pub name: String,
     pub description: Option<String>,
-    pub room_type: Option<RoomType>,  // DB has DEFAULT 'public'
-    pub is_private: Option<bool>,     // DB has DEFAULT false
+    pub room_type: Option<RoomType>, // DB has DEFAULT 'public'
+    pub is_private: Option<bool>,    // DB has DEFAULT false
     pub created_by: Uuid,
-    pub created_at: Option<DateTime<Utc>>,  // DB has DEFAULT NOW()
-    pub updated_at: Option<DateTime<Utc>>,  // DB has DEFAULT NOW()
+    pub created_at: Option<DateTime<Utc>>, // DB has DEFAULT NOW()
+    pub updated_at: Option<DateTime<Utc>>, // DB has DEFAULT NOW()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
@@ -52,7 +52,7 @@ pub struct TemporaryMessage {
     pub room_id: Uuid,
     pub sender_id: Uuid,
     pub recipient_id: Option<Uuid>, // For direct messages
-    pub encrypted_content: String, // Encrypted message content
+    pub encrypted_content: String,  // Encrypted message content
     pub message_type: MessageType,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>, // Auto-delete after 24 hours

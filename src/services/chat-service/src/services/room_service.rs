@@ -112,7 +112,7 @@ impl RoomService {
             ON CONFLICT (room_id, user_id) DO UPDATE SET
                 role = $3,
                 joined_at = NOW()
-            "#
+            "#,
         )
         .bind(room_id)
         .bind(user_id)
@@ -121,7 +121,10 @@ impl RoomService {
         .await
         .map_err(AppError::Database)?;
 
-        info!("User {} added to room {} with role {}", user_id, room_id, participant_role);
+        info!(
+            "User {} added to room {} with role {}",
+            user_id, room_id, participant_role
+        );
         Ok(())
     }
 
@@ -158,7 +161,10 @@ impl RoomService {
             Some("admin") => Ok(true), // Admins can do everything
             Some("moderator") => {
                 // Moderators can moderate but not manage participants
-                Ok(matches!(required_permission, "send_message" | "delete_message" | "moderate"))
+                Ok(matches!(
+                    required_permission,
+                    "send_message" | "delete_message" | "moderate"
+                ))
             }
             Some("member") => {
                 // Members can only send messages
@@ -176,4 +182,3 @@ impl RoomService {
         }
     }
 }
-

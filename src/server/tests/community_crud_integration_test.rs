@@ -4,30 +4,24 @@
 #[cfg(test)]
 mod community_crud_integration {
     use serde_json::json;
-    use uuid::Uuid;
     use sqlx::Row;
+    use uuid::Uuid;
 
     // Helper function to create test user
     async fn create_test_user(pool: &sqlx::PgPool) -> Uuid {
         let user_id = Uuid::new_v4();
-        sqlx::query(
-            "INSERT INTO users (id, email, name) VALUES ($1, $2, $3)"
-        )
-        .bind(user_id)
-        .bind(format!("test-{}@example.com", user_id))
-        .bind("Test User")
-        .execute(pool)
-        .await
-        .expect("Failed to create test user");
+        sqlx::query("INSERT INTO users (id, email, name) VALUES ($1, $2, $3)")
+            .bind(user_id)
+            .bind(format!("test-{}@example.com", user_id))
+            .bind("Test User")
+            .execute(pool)
+            .await
+            .expect("Failed to create test user");
         user_id
     }
 
     // Helper function to create test community
-    async fn create_test_community(
-        pool: &sqlx::PgPool,
-        creator_id: Uuid,
-        slug: &str,
-    ) -> i64 {
+    async fn create_test_community(pool: &sqlx::PgPool, creator_id: Uuid, slug: &str) -> i64 {
         let result = sqlx::query(
             "INSERT INTO communities (name, description, slug, is_public, created_by, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
@@ -47,13 +41,11 @@ mod community_crud_integration {
 
     // Helper function to verify community exists
     async fn community_exists(pool: &sqlx::PgPool, community_id: i64) -> bool {
-        let result: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM communities WHERE id = $1"
-        )
-        .bind(community_id)
-        .fetch_one(pool)
-        .await
-        .expect("Failed to check community existence");
+        let result: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_one(pool)
+            .await
+            .expect("Failed to check community existence");
 
         result.0 > 0
     }
@@ -67,7 +59,7 @@ mod community_crud_integration {
         let result: Option<(String,)> = sqlx::query_as(
             "SELECT r.name FROM community_members cm
              JOIN roles r ON cm.role_id = r.id
-             WHERE cm.community_id = $1 AND cm.user_id = $2"
+             WHERE cm.community_id = $1 AND cm.user_id = $2",
         )
         .bind(community_id)
         .bind(user_id)
@@ -81,22 +73,20 @@ mod community_crud_integration {
     // Helper function to verify cascade delete
     async fn verify_cascade_delete(pool: &sqlx::PgPool, community_id: i64) -> bool {
         // Check community deleted
-        let community_exists: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM communities WHERE id = $1"
-        )
-        .bind(community_id)
-        .fetch_one(pool)
-        .await
-        .expect("Failed to check community");
+        let community_exists: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM communities WHERE id = $1")
+                .bind(community_id)
+                .fetch_one(pool)
+                .await
+                .expect("Failed to check community");
 
         // Check members deleted
-        let members_exist: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM community_members WHERE community_id = $1"
-        )
-        .bind(community_id)
-        .fetch_one(pool)
-        .await
-        .expect("Failed to check members");
+        let members_exist: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM community_members WHERE community_id = $1")
+                .bind(community_id)
+                .fetch_one(pool)
+                .await
+                .expect("Failed to check members");
 
         community_exists.0 == 0 && members_exist.0 == 0
     }
@@ -113,7 +103,7 @@ mod community_crud_integration {
         let user_id = create_test_user(&pool).await;
 
         // Test: Create community with all fields
-        let payload = json!({
+        let _payload = json!({
             "name": "Test Community",
             "slug": "test-community",
             "description": "A test community",
@@ -122,7 +112,7 @@ mod community_crud_integration {
 
         // Verify: Community created
         let community_exists = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM communities WHERE slug = 'test-community')"
+            "SELECT EXISTS(SELECT 1 FROM communities WHERE slug = 'test-community')",
         )
         .fetch_one(&pool)
         .await
@@ -136,7 +126,7 @@ mod community_crud_integration {
                 SELECT 1 FROM community_members cm
                 JOIN roles r ON cm.role_id = r.id
                 WHERE cm.user_id = $1 AND r.name = 'admin'
-            )"
+            )",
         )
         .bind(user_id)
         .fetch_one(&pool)
@@ -155,14 +145,14 @@ mod community_crud_integration {
         let _user_id = create_test_user(&pool).await;
 
         // Test: Create with only name + slug
-        let payload = json!({
+        let _payload = json!({
             "name": "Minimal Community",
             "slug": "minimal-community"
         });
 
         // Verify: is_public defaults to true
         let is_public: bool = sqlx::query_scalar(
-            "SELECT is_public FROM communities WHERE slug = 'minimal-community'"
+            "SELECT is_public FROM communities WHERE slug = 'minimal-community'",
         )
         .fetch_one(&pool)
         .await
@@ -222,7 +212,9 @@ mod community_crud_integration {
     async fn test_create_community_invalid_slug_format() {
         // Test: Slug with uppercase should be rejected
         let slug = "Test-Community";
-        let is_valid = slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        let is_valid = slug
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
         assert!(!is_valid, "Slug validation: uppercase not allowed");
     }
 
@@ -246,24 +238,21 @@ mod community_crud_integration {
         let community_id = create_test_community(&pool, user_id, "update-test").await;
 
         // Test: Update name
-        let result = sqlx::query(
-            "UPDATE communities SET name = $1, updated_at = NOW() WHERE id = $2"
-        )
-        .bind("Updated Community")
-        .bind(community_id)
-        .execute(&pool)
-        .await;
+        let result =
+            sqlx::query("UPDATE communities SET name = $1, updated_at = NOW() WHERE id = $2")
+                .bind("Updated Community")
+                .bind(community_id)
+                .execute(&pool)
+                .await;
 
         assert!(result.is_ok(), "Update should succeed");
 
         // Verify: Name updated
-        let name: String = sqlx::query_scalar(
-            "SELECT name FROM communities WHERE id = $1"
-        )
-        .bind(community_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Community not found");
+        let name: String = sqlx::query_scalar("SELECT name FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Community not found");
 
         assert_eq!(name, "Updated Community", "Name should be updated");
 
@@ -278,32 +267,28 @@ mod community_crud_integration {
         let community_id = create_test_community(&pool, user_id, "partial-update").await;
 
         // Get original values
-        let (original_name, original_desc): (String, Option<String>) = sqlx::query_as(
-            "SELECT name, description FROM communities WHERE id = $1"
-        )
-        .bind(community_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Community not found");
+        let (original_name, original_desc): (String, Option<String>) =
+            sqlx::query_as("SELECT name, description FROM communities WHERE id = $1")
+                .bind(community_id)
+                .fetch_one(&pool)
+                .await
+                .expect("Community not found");
 
         // Update only is_public
-        sqlx::query(
-            "UPDATE communities SET is_public = $1, updated_at = NOW() WHERE id = $2"
-        )
-        .bind(false)
-        .bind(community_id)
-        .execute(&pool)
-        .await
-        .expect("Update failed");
+        sqlx::query("UPDATE communities SET is_public = $1, updated_at = NOW() WHERE id = $2")
+            .bind(false)
+            .bind(community_id)
+            .execute(&pool)
+            .await
+            .expect("Update failed");
 
         // Verify: Only is_public changed
-        let (name, desc, is_public): (String, Option<String>, bool) = sqlx::query_as(
-            "SELECT name, description, is_public FROM communities WHERE id = $1"
-        )
-        .bind(community_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Community not found");
+        let (name, desc, is_public): (String, Option<String>, bool) =
+            sqlx::query_as("SELECT name, description, is_public FROM communities WHERE id = $1")
+                .bind(community_id)
+                .fetch_one(&pool)
+                .await
+                .expect("Community not found");
 
         assert_eq!(name, original_name, "Name should not change");
         assert_eq!(desc, original_desc, "Description should not change");
@@ -320,37 +305,36 @@ mod community_crud_integration {
         let community_id = create_test_community(&pool, user_id, "timestamp-test").await;
 
         // Get original updated_at
-        let original_updated_at: chrono::DateTime<chrono::Utc> = sqlx::query_scalar(
-            "SELECT updated_at FROM communities WHERE id = $1"
-        )
-        .bind(community_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Community not found");
+        let original_updated_at: chrono::DateTime<chrono::Utc> =
+            sqlx::query_scalar("SELECT updated_at FROM communities WHERE id = $1")
+                .bind(community_id)
+                .fetch_one(&pool)
+                .await
+                .expect("Community not found");
 
         // Wait a bit
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         // Update
-        sqlx::query(
-            "UPDATE communities SET name = $1, updated_at = NOW() WHERE id = $2"
-        )
-        .bind("Updated")
-        .bind(community_id)
-        .execute(&pool)
-        .await
-        .expect("Update failed");
+        sqlx::query("UPDATE communities SET name = $1, updated_at = NOW() WHERE id = $2")
+            .bind("Updated")
+            .bind(community_id)
+            .execute(&pool)
+            .await
+            .expect("Update failed");
 
         // Verify: updated_at changed
-        let new_updated_at: chrono::DateTime<chrono::Utc> = sqlx::query_scalar(
-            "SELECT updated_at FROM communities WHERE id = $1"
-        )
-        .bind(community_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Community not found");
+        let new_updated_at: chrono::DateTime<chrono::Utc> =
+            sqlx::query_scalar("SELECT updated_at FROM communities WHERE id = $1")
+                .bind(community_id)
+                .fetch_one(&pool)
+                .await
+                .expect("Community not found");
 
-        assert!(new_updated_at > original_updated_at, "updated_at should be newer");
+        assert!(
+            new_updated_at > original_updated_at,
+            "updated_at should be newer"
+        );
 
         cleanup_test_pool(&pool).await;
     }
@@ -367,20 +351,24 @@ mod community_crud_integration {
         let community_id = create_test_community(&pool, user_id, "delete-test").await;
 
         // Verify: Community exists
-        assert!(community_exists(&pool, community_id).await, "Community should exist");
+        assert!(
+            community_exists(&pool, community_id).await,
+            "Community should exist"
+        );
 
         // Test: Delete community
-        let result = sqlx::query(
-            "DELETE FROM communities WHERE id = $1"
-        )
-        .bind(community_id)
-        .execute(&pool)
-        .await;
+        let result = sqlx::query("DELETE FROM communities WHERE id = $1")
+            .bind(community_id)
+            .execute(&pool)
+            .await;
 
         assert!(result.is_ok(), "Delete should succeed");
 
         // Verify: Community deleted
-        assert!(!community_exists(&pool, community_id).await, "Community should be deleted");
+        assert!(
+            !community_exists(&pool, community_id).await,
+            "Community should be deleted"
+        );
 
         cleanup_test_pool(&pool).await;
     }
@@ -420,12 +408,10 @@ mod community_crud_integration {
         let pool = create_test_pool().await;
 
         // Test: Delete non-existent community
-        let result = sqlx::query(
-            "DELETE FROM communities WHERE id = $1"
-        )
-        .bind(99999i64)
-        .execute(&pool)
-        .await;
+        let result = sqlx::query("DELETE FROM communities WHERE id = $1")
+            .bind(99999i64)
+            .execute(&pool)
+            .await;
 
         // Verify: Should succeed but affect 0 rows
         assert!(result.is_ok(), "Delete should not error");
@@ -449,7 +435,7 @@ mod community_crud_integration {
 
         let result = sqlx::query(
             "INSERT INTO communities (name, slug, is_public, created_by, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, NOW(), NOW())"
+             VALUES ($1, $2, $3, $4, NOW(), NOW())",
         )
         .bind(malicious_name)
         .bind("safe-slug")
@@ -459,7 +445,10 @@ mod community_crud_integration {
         .await;
 
         // Verify: Should insert safely (parameterized query)
-        assert!(result.is_ok(), "Parameterized query should prevent SQL injection");
+        assert!(
+            result.is_ok(),
+            "Parameterized query should prevent SQL injection"
+        );
 
         // Verify: Communities table still exists
         let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM communities")
@@ -485,7 +474,7 @@ mod community_crud_integration {
         // Test: Try to create another with same slug
         let result = sqlx::query(
             "INSERT INTO communities (name, slug, is_public, created_by, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, NOW(), NOW())"
+             VALUES ($1, $2, $3, $4, NOW(), NOW())",
         )
         .bind("Another Community")
         .bind(slug)
@@ -495,7 +484,10 @@ mod community_crud_integration {
         .await;
 
         // Verify: Should fail with unique constraint violation
-        assert!(result.is_err(), "Duplicate slug should violate unique constraint");
+        assert!(
+            result.is_err(),
+            "Duplicate slug should violate unique constraint"
+        );
 
         cleanup_test_pool(&pool).await;
     }
@@ -516,7 +508,7 @@ mod community_crud_integration {
 
         let result = sqlx::query(
             "INSERT INTO communities (name, slug, is_public, created_by, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, NOW(), NOW())"
+             VALUES ($1, $2, $3, $4, NOW(), NOW())",
         )
         .bind(&name)
         .bind("max-name-test")
@@ -542,7 +534,7 @@ mod community_crud_integration {
 
         let result = sqlx::query(
             "INSERT INTO communities (name, slug, is_public, created_by, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, NOW(), NOW())"
+             VALUES ($1, $2, $3, $4, NOW(), NOW())",
         )
         .bind("Max Slug Test")
         .bind(&slug)
@@ -578,12 +570,11 @@ mod community_crud_integration {
         assert!(result.is_ok(), "Empty description should be accepted");
 
         // Verify: Description is NULL
-        let desc: Option<String> = sqlx::query_scalar(
-            "SELECT description FROM communities WHERE slug = 'no-desc-test'"
-        )
-        .fetch_one(&pool)
-        .await
-        .expect("Community not found");
+        let desc: Option<String> =
+            sqlx::query_scalar("SELECT description FROM communities WHERE slug = 'no-desc-test'")
+                .fetch_one(&pool)
+                .await
+                .expect("Community not found");
 
         assert!(desc.is_none(), "Description should be NULL");
 

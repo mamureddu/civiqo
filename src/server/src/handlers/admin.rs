@@ -1,19 +1,19 @@
 //! Admin Handlers - Phase 7 Implementation
-//! 
+//!
 //! Handles admin-related API endpoints including:
 //! - Analytics dashboard
 //! - Moderation queue
 //! - Audit logs
 //! - Admin settings
 
+use crate::auth::AuthUser;
+use crate::handlers::pages::{AppError, AppState};
 use axum::{
     extract::{Path, Query, State},
     response::{Html, Json},
 };
 use sqlx::Row;
 use std::sync::Arc;
-use crate::handlers::pages::{AppState, AppError};
-use crate::auth::AuthUser;
 
 // ============================================================================
 // Request/Response Types
@@ -84,14 +84,16 @@ pub async fn get_analytics_summary(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<AnalyticsSummary>, AppError> {
     if !crate::handlers::instance::is_instance_admin(&state, &user.user_id).await {
-        return Err(AppError::Internal(anyhow::anyhow!("Unauthorized: admin access required")));
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "Unauthorized: admin access required"
+        )));
     }
-    
+
     let total_users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
+
     let active_users_today: i64 = sqlx::query_scalar(
         "SELECT COUNT(DISTINCT user_id) FROM analytics_events WHERE created_at > NOW() - INTERVAL '24 hours'"
     )
@@ -100,31 +102,30 @@ pub async fn get_analytics_summary(
     .ok()
     .flatten()
     .unwrap_or(0);
-    
+
     let total_communities: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM communities")
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
+
     let total_posts: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts")
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
+
     let total_proposals: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM proposals")
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
-    let pending_moderation: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM moderation_queue WHERE status = 'pending'"
-    )
-    .fetch_optional(&state.db.pool)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or(0);
-    
+
+    let pending_moderation: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM moderation_queue WHERE status = 'pending'")
+            .fetch_optional(&state.db.pool)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+
     Ok(Json(AnalyticsSummary {
         total_users,
         active_users_today,
@@ -142,36 +143,41 @@ pub async fn list_analytics_events(
     Query(params): Query<AnalyticsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !crate::handlers::instance::is_instance_admin(&state, &user.user_id).await {
-        return Err(AppError::Internal(anyhow::anyhow!("Unauthorized: admin access required")));
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "Unauthorized: admin access required"
+        )));
     }
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(50).min(100);
     let offset = (page - 1) * limit;
-    
+
     let events = sqlx::query(
         r#"SELECT id, event_type, user_id, community_id, session_id, metadata, created_at
            FROM analytics_events
            ORDER BY created_at DESC
-           LIMIT $1 OFFSET $2"#
+           LIMIT $1 OFFSET $2"#,
     )
     .bind(limit)
     .bind(offset)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
-    let result: Vec<serde_json::Value> = events.iter().map(|row| {
-        serde_json::json!({
-            "id": row.get::<i64, _>("id"),
-            "event_type": row.get::<String, _>("event_type"),
-            "user_id": row.get::<Option<uuid::Uuid>, _>("user_id"),
-            "community_id": row.get::<Option<uuid::Uuid>, _>("community_id"),
-            "session_id": row.get::<Option<String>, _>("session_id"),
-            "metadata": row.get::<serde_json::Value, _>("metadata"),
-            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339()
+
+    let result: Vec<serde_json::Value> = events
+        .iter()
+        .map(|row| {
+            serde_json::json!({
+                "id": row.get::<i64, _>("id"),
+                "event_type": row.get::<String, _>("event_type"),
+                "user_id": row.get::<Option<uuid::Uuid>, _>("user_id"),
+                "community_id": row.get::<Option<uuid::Uuid>, _>("community_id"),
+                "session_id": row.get::<Option<String>, _>("session_id"),
+                "metadata": row.get::<serde_json::Value, _>("metadata"),
+                "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339()
+            })
         })
-    }).collect();
-    
+        .collect();
+
     Ok(Json(serde_json::json!({
         "events": result,
         "page": page,
@@ -184,22 +190,26 @@ pub async fn track_event(
     State(state): State<Arc<AppState>>,
     Json(event): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let event_type = event.get("event_type")
+    let event_type = event
+        .get("event_type")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
-    
-    let user_id = event.get("user_id")
+
+    let user_id = event
+        .get("user_id")
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok());
-    
-    let community_id = event.get("community_id")
+
+    let community_id = event
+        .get("community_id")
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok());
-    
-    let metadata = event.get("metadata")
+
+    let metadata = event
+        .get("metadata")
         .cloned()
         .unwrap_or(serde_json::json!({}));
-    
+
     sqlx::query(
         "INSERT INTO analytics_events (event_type, user_id, community_id, metadata) VALUES ($1, $2, $3, $4)"
     )
@@ -210,7 +220,7 @@ pub async fn track_event(
     .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to track event: {}", e)))?;
-    
+
     Ok(Json(serde_json::json!({"success": true})))
 }
 
@@ -225,13 +235,15 @@ pub async fn list_moderation_queue(
     Query(params): Query<ModerationQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !crate::handlers::instance::is_instance_admin(&state, &user.user_id).await {
-        return Err(AppError::Internal(anyhow::anyhow!("Unauthorized: admin access required")));
+        return Err(AppError::Internal(anyhow::anyhow!(
+            "Unauthorized: admin access required"
+        )));
     }
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20).min(50);
     let offset = (page - 1) * limit;
     let status = params.status.unwrap_or_else(|| "pending".to_string());
-    
+
     let items = sqlx::query(
         r#"SELECT m.id, m.content_type, m.content_id, m.reason, m.details, 
                   m.status, m.priority, m.created_at, m.resolved_at,
@@ -248,7 +260,7 @@ pub async fn list_moderation_queue(
                    ELSE 4 
                END,
                m.created_at ASC
-           LIMIT $2 OFFSET $3"#
+           LIMIT $2 OFFSET $3"#,
     )
     .bind(&status)
     .bind(limit)
@@ -256,21 +268,24 @@ pub async fn list_moderation_queue(
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
-    let result: Vec<serde_json::Value> = items.iter().map(|row| {
-        serde_json::json!({
-            "id": row.get::<uuid::Uuid, _>("id").to_string(),
-            "content_type": row.get::<String, _>("content_type"),
-            "content_id": row.get::<String, _>("content_id"),
-            "reason": row.get::<String, _>("reason"),
-            "details": row.get::<Option<String>, _>("details"),
-            "status": row.get::<String, _>("status"),
-            "priority": row.get::<String, _>("priority"),
-            "reporter_name": row.get::<Option<String>, _>("reporter_name"),
-            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339()
+
+    let result: Vec<serde_json::Value> = items
+        .iter()
+        .map(|row| {
+            serde_json::json!({
+                "id": row.get::<uuid::Uuid, _>("id").to_string(),
+                "content_type": row.get::<String, _>("content_type"),
+                "content_id": row.get::<String, _>("content_id"),
+                "reason": row.get::<String, _>("reason"),
+                "details": row.get::<Option<String>, _>("details"),
+                "status": row.get::<String, _>("status"),
+                "priority": row.get::<String, _>("priority"),
+                "reporter_name": row.get::<Option<String>, _>("reporter_name"),
+                "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339()
+            })
         })
-    }).collect();
-    
+        .collect();
+
     Ok(Json(serde_json::json!({
         "items": result,
         "page": page,
@@ -288,18 +303,18 @@ pub async fn update_moderation_item(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     let resolved_at = if request.status == "approved" || request.status == "rejected" {
         Some(chrono::Utc::now())
     } else {
         None
     };
-    
+
     sqlx::query(
         r#"UPDATE moderation_queue 
            SET status = $1, resolution = $2, moderator_id = $3, 
                resolved_at = $4, updated_at = NOW()
-           WHERE id = $5"#
+           WHERE id = $5"#,
     )
     .bind(&request.status)
     .bind(&request.resolution)
@@ -309,7 +324,7 @@ pub async fn update_moderation_item(
     .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update moderation item: {}", e)))?;
-    
+
     Ok(Json(serde_json::json!({
         "success": true,
         "id": item_id.to_string(),
@@ -325,12 +340,12 @@ pub async fn report_content(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     let id = uuid::Uuid::now_v7();
-    
+
     sqlx::query(
         r#"INSERT INTO moderation_queue (id, content_type, content_id, reported_by, reason, details)
-           VALUES ($1, $2, $3, $4, $5, $6)"#
+           VALUES ($1, $2, $3, $4, $5, $6)"#,
     )
     .bind(id)
     .bind(&request.content_type)
@@ -341,7 +356,7 @@ pub async fn report_content(
     .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to report content: {}", e)))?;
-    
+
     Ok(Json(serde_json::json!({
         "success": true,
         "id": id.to_string(),
@@ -362,7 +377,7 @@ pub async fn list_audit_logs(
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(50).min(100);
     let offset = (page - 1) * limit;
-    
+
     let logs = sqlx::query(
         r#"SELECT a.id, a.user_id, a.action, a.target_type, a.target_id, 
                   a.old_value, a.new_value, a.ip_address, a.created_at,
@@ -371,27 +386,30 @@ pub async fn list_audit_logs(
            LEFT JOIN users u ON a.user_id = u.id
            LEFT JOIN user_profiles up ON u.id = up.user_id
            ORDER BY a.created_at DESC
-           LIMIT $1 OFFSET $2"#
+           LIMIT $1 OFFSET $2"#,
     )
     .bind(limit)
     .bind(offset)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
-    let result: Vec<serde_json::Value> = logs.iter().map(|row| {
-        serde_json::json!({
-            "id": row.get::<i64, _>("id"),
-            "user_id": row.get::<Option<uuid::Uuid>, _>("user_id"),
-            "user_name": row.get::<Option<String>, _>("user_name"),
-            "action": row.get::<String, _>("action"),
-            "target_type": row.get::<Option<String>, _>("target_type"),
-            "target_id": row.get::<Option<String>, _>("target_id"),
-            "ip_address": row.get::<Option<String>, _>("ip_address"),
-            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339()
+
+    let result: Vec<serde_json::Value> = logs
+        .iter()
+        .map(|row| {
+            serde_json::json!({
+                "id": row.get::<i64, _>("id"),
+                "user_id": row.get::<Option<uuid::Uuid>, _>("user_id"),
+                "user_name": row.get::<Option<String>, _>("user_name"),
+                "action": row.get::<String, _>("action"),
+                "target_type": row.get::<Option<String>, _>("target_type"),
+                "target_id": row.get::<Option<String>, _>("target_id"),
+                "ip_address": row.get::<Option<String>, _>("ip_address"),
+                "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339()
+            })
         })
-    }).collect();
-    
+        .collect();
+
     Ok(Json(serde_json::json!({
         "logs": result,
         "page": page,
@@ -412,27 +430,27 @@ pub async fn admin_dashboard_fragment(
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
+
     let total_communities: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM communities")
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
+
     let total_posts: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts")
         .fetch_one(&state.db.pool)
         .await
         .unwrap_or(0);
-    
-    let pending_moderation: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM moderation_queue WHERE status = 'pending'"
-    )
-    .fetch_optional(&state.db.pool)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or(0);
-    
-    let html = format!(r#"
+
+    let pending_moderation: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM moderation_queue WHERE status = 'pending'")
+            .fetch_optional(&state.db.pool)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+
+    let html = format!(
+        r#"
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div class="bg-white rounded-xl shadow-sm p-6 border border-civiqo-gray-200">
             <div class="flex items-center justify-between">
@@ -494,12 +512,24 @@ pub async fn admin_dashboard_fragment(
         total_users,
         total_communities,
         total_posts,
-        if pending_moderation > 0 { "text-red-600" } else { "text-civiqo-gray-900" },
+        if pending_moderation > 0 {
+            "text-red-600"
+        } else {
+            "text-civiqo-gray-900"
+        },
         pending_moderation,
-        if pending_moderation > 0 { "bg-red-100" } else { "bg-civiqo-gray-100" },
-        if pending_moderation > 0 { "text-red-600" } else { "text-civiqo-gray-600" }
+        if pending_moderation > 0 {
+            "bg-red-100"
+        } else {
+            "bg-civiqo-gray-100"
+        },
+        if pending_moderation > 0 {
+            "text-red-600"
+        } else {
+            "text-civiqo-gray-600"
+        }
     );
-    
+
     Ok(Html(html))
 }
 
@@ -536,7 +566,7 @@ pub async fn admin_moderation_fragment(
                    ELSE 4
                END,
                m.created_at ASC
-           LIMIT 50"#
+           LIMIT 50"#,
     )
     .bind(&status)
     .fetch_all(&state.db.pool)
@@ -563,9 +593,15 @@ pub async fn admin_moderation_fragment(
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
 
         let priority_badge = match priority.as_str() {
-            "urgent" => r#"<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">Urgente</span>"#,
-            "high" => r#"<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-700">Alta</span>"#,
-            _ => r#"<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-civiqo-gray-100 text-civiqo-gray-600">Normale</span>"#,
+            "urgent" => {
+                r#"<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">Urgente</span>"#
+            }
+            "high" => {
+                r#"<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-700">Alta</span>"#
+            }
+            _ => {
+                r#"<span class="px-2 py-0.5 text-xs font-medium rounded-full bg-civiqo-gray-100 text-civiqo-gray-600">Normale</span>"#
+            }
         };
 
         let reporter_name = reporter.unwrap_or_else(|| "Anonimo".to_string());
@@ -624,7 +660,7 @@ pub async fn admin_analytics_fragment(
            LEFT JOIN user_profiles up ON u.id = up.user_id
            LEFT JOIN communities c ON ae.community_id = c.id
            ORDER BY ae.created_at DESC
-           LIMIT $1 OFFSET $2"#
+           LIMIT $1 OFFSET $2"#,
     )
     .bind(limit)
     .bind(offset)
@@ -642,7 +678,8 @@ pub async fn admin_analytics_fragment(
         </div>"#.to_string());
     }
 
-    let mut html = String::from(r#"<table class="w-full text-sm">
+    let mut html = String::from(
+        r#"<table class="w-full text-sm">
         <thead>
             <tr class="text-left text-civiqo-gray-500 border-b border-civiqo-gray-200">
                 <th class="pb-2 font-medium">Evento</th>
@@ -651,7 +688,8 @@ pub async fn admin_analytics_fragment(
                 <th class="pb-2 font-medium">Data</th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-civiqo-gray-100">"#);
+        <tbody class="divide-y divide-civiqo-gray-100">"#,
+    );
 
     for row in &events {
         let event_type: String = row.get("event_type");
@@ -699,7 +737,7 @@ pub async fn admin_audit_logs_fragment(
            LEFT JOIN users u ON a.user_id = u.id
            LEFT JOIN user_profiles up ON u.id = up.user_id
            ORDER BY a.created_at DESC
-           LIMIT $1 OFFSET $2"#
+           LIMIT $1 OFFSET $2"#,
     )
     .bind(limit)
     .bind(offset)

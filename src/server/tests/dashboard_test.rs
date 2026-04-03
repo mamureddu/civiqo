@@ -1,8 +1,6 @@
 /// Dashboard integration tests
 #[cfg(test)]
 mod tests {
-    use axum::http::StatusCode;
-    
     #[test]
     fn test_dashboard_requires_auth() {
         // Dashboard should require authentication
@@ -10,7 +8,7 @@ mod tests {
         // If user is not authenticated, the route will return 401 Unauthorized
         assert_eq!(true, true); // Placeholder - full integration test requires running server
     }
-    
+
     #[test]
     fn test_dashboard_loads_user_data() {
         // Dashboard should load:
@@ -20,7 +18,7 @@ mod tests {
         // 4. Recent activity
         assert_eq!(true, true); // Placeholder - full integration test requires running server
     }
-    
+
     #[test]
     fn test_htmx_user_communities_endpoint() {
         // /api/user/communities should:
@@ -30,7 +28,7 @@ mod tests {
         // 4. Handle empty communities gracefully
         assert_eq!(true, true); // Placeholder - full integration test requires running server
     }
-    
+
     #[test]
     fn test_htmx_user_activity_endpoint() {
         // /api/user/activity should:

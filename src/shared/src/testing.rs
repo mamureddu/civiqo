@@ -1,9 +1,9 @@
+use crate::database::Database;
+use crate::error::{AppError, Result};
+use crate::models::*;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Once;
 use uuid::Uuid;
-use crate::database::Database;
-use crate::models::*;
-use crate::error::{AppError, Result};
 
 static INIT: Once = Once::new();
 
@@ -20,8 +20,9 @@ pub fn init_test_logging() {
 /// Create a test database connection using rustls
 pub async fn create_test_db() -> Result<Database> {
     // Use a test database URL with rustls
-    let database_url = std::env::var("TEST_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/community_manager_test".to_string());
+    let database_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://postgres:postgres@localhost:5432/community_manager_test".to_string()
+    });
 
     let pool = PgPoolOptions::new()
         .min_connections(1)
@@ -42,13 +43,29 @@ pub async fn create_test_db() -> Result<Database> {
 /// Clean up test data
 pub async fn cleanup_test_db(db: &Database) -> Result<()> {
     // Clean up in reverse order of dependencies
-    sqlx::query("TRUNCATE chat_messages, chat_rooms, chat_participants CASCADE").execute(&db.pool).await?;
-    sqlx::query("TRUNCATE decision_votes, decisions CASCADE").execute(&db.pool).await?;
-    sqlx::query("TRUNCATE poll_votes, poll_options, polls CASCADE").execute(&db.pool).await?;
-    sqlx::query("TRUNCATE products, businesses CASCADE").execute(&db.pool).await?;
-    sqlx::query("TRUNCATE community_members, community_boundaries, community_settings, communities CASCADE").execute(&db.pool).await?;
-    sqlx::query("TRUNCATE user_profiles, users CASCADE").execute(&db.pool).await?;
-    sqlx::query("TRUNCATE roles CASCADE").execute(&db.pool).await?;
+    sqlx::query("TRUNCATE chat_messages, chat_rooms, chat_participants CASCADE")
+        .execute(&db.pool)
+        .await?;
+    sqlx::query("TRUNCATE decision_votes, decisions CASCADE")
+        .execute(&db.pool)
+        .await?;
+    sqlx::query("TRUNCATE poll_votes, poll_options, polls CASCADE")
+        .execute(&db.pool)
+        .await?;
+    sqlx::query("TRUNCATE products, businesses CASCADE")
+        .execute(&db.pool)
+        .await?;
+    sqlx::query(
+        "TRUNCATE community_members, community_boundaries, community_settings, communities CASCADE",
+    )
+    .execute(&db.pool)
+    .await?;
+    sqlx::query("TRUNCATE user_profiles, users CASCADE")
+        .execute(&db.pool)
+        .await?;
+    sqlx::query("TRUNCATE roles CASCADE")
+        .execute(&db.pool)
+        .await?;
     Ok(())
 }
 
@@ -69,7 +86,11 @@ pub async fn create_test_user(db: &Database, email: Option<String>) -> Result<Us
 }
 
 /// Create a test community
-pub async fn create_test_community(db: &Database, creator_id: Uuid, name: Option<String>) -> Result<Community> {
+pub async fn create_test_community(
+    db: &Database,
+    creator_id: Uuid,
+    name: Option<String>,
+) -> Result<Community> {
     let name = name.unwrap_or_else(|| format!("Test Community {}", Uuid::new_v4()));
     let slug = crate::utils::generate_slug(&name);
 
@@ -77,7 +98,7 @@ pub async fn create_test_community(db: &Database, creator_id: Uuid, name: Option
         r#"INSERT INTO communities (name, description, slug, created_by)
            VALUES ($1, $2, $3, $4)
            RETURNING id, name, description, slug, is_public, requires_approval,
-                     created_by, created_at, updated_at"#
+                     created_by, created_at, updated_at"#,
     )
     .bind(&name)
     .bind("Test community description")
@@ -90,13 +111,17 @@ pub async fn create_test_community(db: &Database, creator_id: Uuid, name: Option
 }
 
 /// Create a test role
-pub async fn create_test_role(db: &Database, name: String, permissions: Vec<String>) -> Result<Role> {
+pub async fn create_test_role(
+    db: &Database,
+    name: String,
+    permissions: Vec<String>,
+) -> Result<Role> {
     let permissions_json = serde_json::to_value(permissions)?;
 
     let role = sqlx::query_as::<_, Role>(
         r#"INSERT INTO roles (name, description, permissions)
            VALUES ($1, $2, $3)
-           RETURNING id, name, description, permissions, is_default, created_at, updated_at"#
+           RETURNING id, name, description, permissions, is_default, created_at, updated_at"#,
     )
     .bind(&name)
     .bind("Test role description")
@@ -123,8 +148,9 @@ pub fn create_mock_jwt_claims(user_id: Uuid, email: String) -> Claims {
 
 /// Test rustls database connection specifically
 pub async fn test_rustls_db_connection() -> Result<()> {
-    let database_url = std::env::var("TEST_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/community_manager_test".to_string());
+    let database_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://postgres:postgres@localhost:5432/community_manager_test".to_string()
+    });
 
     // This specifically tests that SQLx with rustls can connect
     let pool = PgPoolOptions::new()
@@ -160,7 +186,9 @@ pub async fn test_rustls_http_client() -> Result<()> {
         .map_err(|e| AppError::ExternalService(format!("HTTP request failed: {}", e)))?;
 
     if !response.status().is_success() {
-        return Err(AppError::ExternalService("HTTP request unsuccessful".to_string()));
+        return Err(AppError::ExternalService(
+            "HTTP request unsuccessful".to_string(),
+        ));
     }
 
     Ok(())
@@ -203,7 +231,9 @@ mod tests {
             return;
         }
 
-        test_rustls_db_connection().await.expect("rustls database connection should work");
+        test_rustls_db_connection()
+            .await
+            .expect("rustls database connection should work");
     }
 
     #[tokio::test]

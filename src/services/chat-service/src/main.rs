@@ -1,8 +1,4 @@
-use axum::{
-    http::StatusCode,
-    routing::get,
-    Router,
-};
+use axum::{http::StatusCode, routing::get, Router};
 use shared::{
     auth::JwtService,
     database::Database,
@@ -10,10 +6,7 @@ use shared::{
 };
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
-use tower_http::{
-    cors::CorsLayer,
-    trace::TraceLayer,
-};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 
 mod config;
@@ -25,7 +18,7 @@ mod state;
 // Integration tests disabled - require full DB setup
 // #[cfg(test)]
 // mod integration_tests;
-// 
+//
 // #[cfg(test)]
 // mod security_integration_tests;
 
@@ -46,7 +39,7 @@ fn create_app(state: AppState) -> Router {
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive()) // TODO: Restrict in production
+                .layer(CorsLayer::permissive()), // TODO: Restrict in production
         )
         .with_state(state)
 }
@@ -79,11 +72,7 @@ async fn main() -> Result<()> {
     info!("JWT auth initialized");
 
     // Create application state
-    let app_state = AppState::new(
-        database,
-        config.clone(),
-        jwt_service,
-    );
+    let app_state = AppState::new(database, config.clone(), jwt_service);
 
     // Build the application
     let app = create_app(app_state);
@@ -111,7 +100,7 @@ async fn main() -> Result<()> {
 //     use super::*;
 //     use axum::http::StatusCode;
 //     use axum_test::TestServer;
-// 
+//
 //     #[tokio::test]
 //     async fn test_health_check() {
 //         let response = health_check().await;

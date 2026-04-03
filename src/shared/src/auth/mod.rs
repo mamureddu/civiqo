@@ -1,6 +1,6 @@
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation, Algorithm};
-use crate::models::{Claims, CommunityRole};
 use crate::error::{AppError, Result};
+use crate::models::{Claims, CommunityRole};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 
 /// JWT configuration for self-issued tokens
 #[derive(Debug, Clone)]
@@ -15,8 +15,7 @@ impl JwtConfig {
         Ok(Self {
             secret: std::env::var("JWT_SECRET")
                 .map_err(|_| AppError::Config("JWT_SECRET not set (min 32 bytes)".to_string()))?,
-            issuer: std::env::var("JWT_ISSUER")
-                .unwrap_or_else(|_| "civiqo".to_string()),
+            issuer: std::env::var("JWT_ISSUER").unwrap_or_else(|_| "civiqo".to_string()),
             expiry_hours: std::env::var("JWT_EXPIRY_HOURS")
                 .unwrap_or_else(|_| "24".to_string())
                 .parse()
@@ -117,15 +116,18 @@ pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
     if auth_header.starts_with("Bearer ") {
         Ok(&auth_header[7..])
     } else {
-        Err(AppError::Auth("Invalid Authorization header format".to_string()))
+        Err(AppError::Auth(
+            "Invalid Authorization header format".to_string(),
+        ))
     }
 }
 
 /// Check if user has required role in community
 pub fn has_community_role(claims: &Claims, community_id: uuid::Uuid, required_role: &str) -> bool {
-    claims.community_roles.iter().any(|role| {
-        role.community_id == community_id && role.role == required_role
-    })
+    claims
+        .community_roles
+        .iter()
+        .any(|role| role.community_id == community_id && role.role == required_role)
 }
 
 /// Check if user has any of the required permissions
@@ -175,10 +177,12 @@ mod tests {
             permissions: vec!["read".to_string(), "write".to_string()],
         }];
 
-        let token = jwt_service.issue_token(user_id, email, name, roles.clone())
+        let token = jwt_service
+            .issue_token(user_id, email, name, roles.clone())
             .expect("Should issue token");
 
-        let claims = jwt_service.validate_token(&token)
+        let claims = jwt_service
+            .validate_token(&token)
             .expect("Should validate token");
 
         assert_eq!(claims.sub, user_id.to_string());
@@ -199,7 +203,8 @@ mod tests {
     #[rstest]
     fn test_validate_token_wrong_secret(jwt_service: JwtService) {
         let user_id = uuid::Uuid::new_v4();
-        let token = jwt_service.issue_token(user_id, "test@example.com", None, vec![])
+        let token = jwt_service
+            .issue_token(user_id, "test@example.com", None, vec![])
             .expect("Should issue token");
 
         let wrong_config = JwtConfig {
@@ -216,13 +221,16 @@ mod tests {
     #[rstest]
     fn test_refresh_token(jwt_service: JwtService) {
         let user_id = uuid::Uuid::new_v4();
-        let token = jwt_service.issue_token(user_id, "test@example.com", Some("Test"), vec![])
+        let token = jwt_service
+            .issue_token(user_id, "test@example.com", Some("Test"), vec![])
             .expect("Should issue token");
 
         let claims = jwt_service.validate_token(&token).expect("Should validate");
         let refreshed = jwt_service.refresh_token(&claims).expect("Should refresh");
 
-        let new_claims = jwt_service.validate_token(&refreshed).expect("Should validate refreshed");
+        let new_claims = jwt_service
+            .validate_token(&refreshed)
+            .expect("Should validate refreshed");
         assert_eq!(new_claims.sub, user_id.to_string());
         assert!(new_claims.iat >= claims.iat);
     }

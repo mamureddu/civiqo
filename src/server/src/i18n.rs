@@ -7,13 +7,8 @@
 //! - Middleware for injecting locale into request extensions
 //! - Helper functions for template integration
 
-use axum::{
-    extract::Request,
-    http::HeaderMap,
-    middleware::Next,
-    response::Response,
-};
-use fluent_templates::{static_loader, Loader, fluent_bundle::FluentValue};
+use axum::{extract::Request, http::HeaderMap, middleware::Next, response::Response};
+use fluent_templates::{fluent_bundle::FluentValue, static_loader, Loader};
 use std::collections::HashMap;
 use unic_langid::LanguageIdentifier;
 
@@ -41,7 +36,9 @@ pub struct Locale {
 impl Locale {
     pub fn new(code: &str) -> Self {
         let lang_id: LanguageIdentifier = code.parse().unwrap_or_else(|_| {
-            DEFAULT_LANGUAGE.parse().expect("Default language must be valid")
+            DEFAULT_LANGUAGE
+                .parse()
+                .expect("Default language must be valid")
         });
         Self {
             lang_id,
@@ -145,12 +142,13 @@ pub struct LanguageInfo {
 pub fn create_translation_context(locale: &Locale) -> HashMap<String, String> {
     let mut context = HashMap::new();
     context.insert("lang".to_string(), locale.code.clone());
-    context.insert("lang_name".to_string(), 
+    context.insert(
+        "lang_name".to_string(),
         get_available_languages()
             .iter()
             .find(|l| l.code == locale.code)
             .map(|l| l.name.clone())
-            .unwrap_or_else(|| locale.code.clone())
+            .unwrap_or_else(|| locale.code.clone()),
     );
     context
 }
@@ -195,14 +193,20 @@ mod tests {
     #[test]
     fn test_extract_language_from_cookie() {
         let mut headers = HeaderMap::new();
-        headers.insert("cookie", HeaderValue::from_static("civiqo_lang=en; other=value"));
+        headers.insert(
+            "cookie",
+            HeaderValue::from_static("civiqo_lang=en; other=value"),
+        );
         assert_eq!(extract_language(&headers), "en");
     }
 
     #[test]
     fn test_extract_language_from_accept_header() {
         let mut headers = HeaderMap::new();
-        headers.insert("accept-language", HeaderValue::from_static("en-US,en;q=0.9,it;q=0.8"));
+        headers.insert(
+            "accept-language",
+            HeaderValue::from_static("en-US,en;q=0.9,it;q=0.8"),
+        );
         assert_eq!(extract_language(&headers), "en");
     }
 

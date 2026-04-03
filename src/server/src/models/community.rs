@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use validator::Validate;
 use lazy_static::lazy_static;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 lazy_static! {
     static ref SLUG_REGEX: Regex = Regex::new(r"^[a-z0-9-]+$").unwrap();

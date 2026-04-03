@@ -25,12 +25,9 @@ impl Config {
                 .unwrap_or(false),
             s3_bucket: std::env::var("S3_BUCKET")
                 .map_err(|_| AppError::Config("S3_BUCKET not set".to_string()))?,
-            s3_region: std::env::var("S3_REGION")
-                .unwrap_or_else(|_| "us-east-1".to_string()),
-            aws_region: std::env::var("AWS_REGION")
-                .unwrap_or_else(|_| "us-east-1".to_string()),
-            log_level: std::env::var("LOG_LEVEL")
-                .unwrap_or_else(|_| "info".to_string()),
+            s3_region: std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
+            aws_region: std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
+            log_level: std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
         })
     }
 

@@ -7,15 +7,15 @@
 pub mod stubs;
 
 // HTMX handlers
-pub mod pages;
 pub mod htmx;
+pub mod pages;
 
 // API handlers
-pub mod api;
-pub mod posts;
-pub mod comments;
-pub mod reactions;
-pub mod proposals;
-pub mod businesses;
 pub mod admin;
+pub mod api;
+pub mod businesses;
+pub mod comments;
 pub mod instance;
+pub mod posts;
+pub mod proposals;
+pub mod reactions;

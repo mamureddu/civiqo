@@ -1,15 +1,15 @@
 use axum::{
     extract::{Path, State},
-    http::{StatusCode, HeaderMap},
-    response::{Json, IntoResponse, Html},
+    http::{HeaderMap, StatusCode},
+    response::{Html, IntoResponse, Json},
 };
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use std::sync::Arc;
 use uuid::Uuid;
-use sqlx::Row;
 
-use crate::handlers::pages::AppState;
 use crate::auth::{AuthUser, OptionalAuthUser};
+use crate::handlers::pages::AppState;
 
 // ============================================================================
 // Request/Response Types
@@ -41,7 +41,15 @@ pub struct ApiResponse<T> {
 }
 
 // Valid reaction types
-const VALID_REACTIONS: &[&str] = &["like", "upvote", "heart", "celebrate", "laugh", "sad", "thinking"];
+const VALID_REACTIONS: &[&str] = &[
+    "like",
+    "upvote",
+    "heart",
+    "celebrate",
+    "laugh",
+    "sad",
+    "thinking",
+];
 
 // ============================================================================
 // Reactions Endpoints
@@ -56,7 +64,8 @@ pub async fn add_reaction(
     body: axum::body::Bytes,
 ) -> Result<axum::response::Response, StatusCode> {
     let payload: AddReactionRequest = {
-        let content_type = headers.get("content-type")
+        let content_type = headers
+            .get("content-type")
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
         if content_type.contains("application/json") {
@@ -65,41 +74,67 @@ pub async fn add_reaction(
             serde_urlencoded::from_bytes(&body).map_err(|_| StatusCode::BAD_REQUEST)?
         }
     };
-    let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let reaction_type = payload.reaction_type.trim().to_lowercase();
 
     if !VALID_REACTIONS.contains(&reaction_type.as_str()) {
         return Ok(Json(ApiResponse::<ReactionsListResponse> {
-            success: false, data: None,
-            message: Some(format!("Invalid reaction type. Valid types: {:?}", VALID_REACTIONS)),
-        }).into_response());
+            success: false,
+            data: None,
+            message: Some(format!(
+                "Invalid reaction type. Valid types: {:?}",
+                VALID_REACTIONS
+            )),
+        })
+        .into_response());
     }
 
     // Check post exists
     let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM posts WHERE id = $1)")
-        .bind(post_id).fetch_one(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .bind(post_id)
+        .fetch_one(&state.db.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if !exists {
-        return Ok(Json(ApiResponse::<ReactionsListResponse> { success: false, data: None, message: Some("Post not found".to_string()) }).into_response());
+        return Ok(Json(ApiResponse::<ReactionsListResponse> {
+            success: false,
+            data: None,
+            message: Some("Post not found".to_string()),
+        })
+        .into_response());
     }
 
     // Upsert reaction (insert or update)
     sqlx::query(
         "INSERT INTO reactions (post_id, user_id, reaction_type, created_at)
          VALUES ($1, $2, $3, NOW())
-         ON CONFLICT (post_id, user_id) DO UPDATE SET reaction_type = $3"
-    ).bind(post_id).bind(user_uuid).bind(&reaction_type)
-    .execute(&state.db.pool).await.map_err(|e| {
-        tracing::error!("Failed to add reaction: {}", e); StatusCode::INTERNAL_SERVER_ERROR
+         ON CONFLICT (post_id, user_id) DO UPDATE SET reaction_type = $3",
+    )
+    .bind(post_id)
+    .bind(user_uuid)
+    .bind(&reaction_type)
+    .execute(&state.db.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to add reaction: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    tracing::info!("User {} reacted {} to post {}", user.user_id, reaction_type, post_id);
+    tracing::info!(
+        "User {} reacted {} to post {}",
+        user.user_id,
+        reaction_type,
+        post_id
+    );
 
     // If HTMX request, return HTML fragment
     let is_htmx = headers.get("hx-request").is_some();
     if is_htmx {
-        let html = render_reaction_buttons_html(&state, post_id, Some(user_uuid)).await
+        let html = render_reaction_buttons_html(&state, post_id, Some(user_uuid))
+            .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         return Ok(Html(html).into_response());
     }
@@ -116,15 +151,25 @@ pub async fn remove_reaction(
     Path(post_id): Path<Uuid>,
     headers: HeaderMap,
 ) -> Result<axum::response::Response, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     sqlx::query("DELETE FROM reactions WHERE post_id = $1 AND user_id = $2")
-        .bind(post_id).bind(user_uuid).execute(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .bind(post_id)
+        .bind(user_uuid)
+        .execute(&state.db.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    tracing::info!("User {} removed reaction from post {}", user.user_id, post_id);
+    tracing::info!(
+        "User {} removed reaction from post {}",
+        user.user_id,
+        post_id
+    );
 
     if headers.get("hx-request").is_some() {
-        let html = render_reaction_buttons_html(&state, post_id, Some(user_uuid)).await
+        let html = render_reaction_buttons_html(&state, post_id, Some(user_uuid))
+            .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         return Ok(Html(html).into_response());
     }
@@ -141,10 +186,17 @@ pub async fn list_reactions(
 ) -> Result<Json<ApiResponse<ReactionsListResponse>>, StatusCode> {
     // Check post exists
     let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM posts WHERE id = $1)")
-        .bind(post_id).fetch_one(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .bind(post_id)
+        .fetch_one(&state.db.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if !exists {
-        return Ok(Json(ApiResponse { success: false, data: None, message: Some("Post not found".to_string()) }));
+        return Ok(Json(ApiResponse {
+            success: false,
+            data: None,
+            message: Some("Post not found".to_string()),
+        }));
     }
 
     let user_uuid = user.and_then(|u| Uuid::parse_str(&u.user_id).ok());
@@ -162,24 +214,37 @@ async fn get_reactions_internal(
         "SELECT reaction_type, COUNT(*) as count FROM reactions WHERE post_id = $1 GROUP BY reaction_type ORDER BY count DESC"
     ).bind(post_id).fetch_all(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let reactions: Vec<ReactionCountResponse> = rows.iter().map(|row| ReactionCountResponse {
-        reaction_type: row.get("reaction_type"),
-        count: row.get("count"),
-    }).collect();
+    let reactions: Vec<ReactionCountResponse> = rows
+        .iter()
+        .map(|row| ReactionCountResponse {
+            reaction_type: row.get("reaction_type"),
+            count: row.get("count"),
+        })
+        .collect();
 
     let total: i64 = reactions.iter().map(|r| r.count).sum();
 
     // Get user's reaction if authenticated
     let user_reaction: Option<String> = if let Some(uid) = user_uuid {
-        sqlx::query_scalar("SELECT reaction_type FROM reactions WHERE post_id = $1 AND user_id = $2")
-            .bind(post_id).bind(uid).fetch_optional(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        sqlx::query_scalar(
+            "SELECT reaction_type FROM reactions WHERE post_id = $1 AND user_id = $2",
+        )
+        .bind(post_id)
+        .bind(uid)
+        .fetch_optional(&state.db.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     } else {
         None
     };
 
     Ok(Json(ApiResponse {
         success: true,
-        data: Some(ReactionsListResponse { reactions, user_reaction, total }),
+        data: Some(ReactionsListResponse {
+            reactions,
+            user_reaction,
+            total,
+        }),
         message: None,
     }))
 }
@@ -202,8 +267,14 @@ async fn render_reaction_buttons_html(
     }
 
     let user_reaction: Option<String> = if let Some(uid) = user_uuid {
-        sqlx::query_scalar("SELECT reaction_type FROM reactions WHERE post_id = $1 AND user_id = $2")
-            .bind(post_id).bind(uid).fetch_optional(&state.db.pool).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        sqlx::query_scalar(
+            "SELECT reaction_type FROM reactions WHERE post_id = $1 AND user_id = $2",
+        )
+        .bind(post_id)
+        .bind(uid)
+        .fetch_optional(&state.db.pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     } else {
         None
     };
@@ -213,7 +284,9 @@ async fn render_reaction_buttons_html(
     ctx.insert("reactions", &reactions);
     ctx.insert("user_reaction", &user_reaction);
 
-    state.tera.render("fragments/reaction-buttons.html", &ctx)
+    state
+        .tera
+        .render("fragments/reaction-buttons.html", &ctx)
         .map_err(|e| {
             tracing::error!("Failed to render reaction buttons: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR

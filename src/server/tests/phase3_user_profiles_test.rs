@@ -1,5 +1,5 @@
 //! Phase 3: User Profiles & Search Tests
-//! 
+//!
 //! Tests for:
 //! - User profile CRUD
 //! - Follow/unfollow functionality
@@ -196,14 +196,14 @@ async fn test_search_results_link_to_profiles() {
 #[tokio::test]
 async fn phase3_completion_checklist() {
     // Phase 3: User Profiles & Search
-    
+
     // Model (M) ✅
     // - [x] user_profiles extended (cover_image, is_public, avatar_url)
     // - [x] user_follows table
     // - [x] notifications table
     // - [x] Full-text search indexes
     // - [x] Follower/following count cache
-    
+
     // View (V) ✅
     // - [x] profile.html - User profile page
     // - [x] profile_edit.html - Edit profile page
@@ -213,7 +213,7 @@ async fn phase3_completion_checklist() {
     // - [x] fragments/follow-button.html
     // - [x] fragments/notifications-list.html
     // - [x] fragments/empty-state.html
-    
+
     // Controller (C) ✅
     // - [x] user_profile page handler
     // - [x] edit_profile_page handler
@@ -223,10 +223,10 @@ async fn phase3_completion_checklist() {
     // - [x] update_profile API
     // - [x] HTMX: user_posts, user_communities, user_followers, user_following
     // - [x] HTMX: notifications_list, mark_notification_read, mark_all_read
-    
+
     // Tests ✅
     // - [x] 25 test cases defined
-    
+
     assert!(true, "Phase 3 complete!");
 }
 

@@ -1,6 +1,6 @@
-use ring::rand::{SecureRandom, SystemRandom};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::error::{AppError, Result};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use ring::rand::{SecureRandom, SystemRandom};
 
 pub fn generate_random_bytes(length: usize) -> Result<Vec<u8>> {
     let rng = SystemRandom::new();
@@ -16,10 +16,7 @@ pub fn generate_keypair() -> Result<(String, String)> {
     let private_key = generate_random_bytes(32)?;
     let public_key = generate_random_bytes(32)?;
 
-    Ok((
-        BASE64.encode(private_key),
-        BASE64.encode(public_key),
-    ))
+    Ok((BASE64.encode(private_key), BASE64.encode(public_key)))
 }
 
 pub fn hash_data(data: &[u8]) -> String {
@@ -44,10 +41,10 @@ pub fn encrypt_message(message: &str, _public_key: &str) -> Result<String> {
 pub fn decrypt_message(encrypted_message: &str, _private_key: &str) -> Result<String> {
     // Placeholder implementation
     // In production: use proper E2EE decryption
-    let bytes = BASE64.decode(encrypted_message)
+    let bytes = BASE64
+        .decode(encrypted_message)
         .map_err(|e| AppError::Crypto(format!("Decryption failed: {}", e)))?;
-    String::from_utf8(bytes)
-        .map_err(|e| AppError::Crypto(format!("Invalid UTF-8: {}", e)))
+    String::from_utf8(bytes).map_err(|e| AppError::Crypto(format!("Invalid UTF-8: {}", e)))
 }
 
 #[cfg(test)]
@@ -136,12 +133,11 @@ mod tests {
         let private_key = "test_private_key";
 
         // Encrypt message
-        let encrypted = encrypt_message(message, public_key)
-            .expect("Encryption should succeed");
+        let encrypted = encrypt_message(message, public_key).expect("Encryption should succeed");
 
         // Decrypt message
-        let decrypted = decrypt_message(&encrypted, private_key)
-            .expect("Decryption should succeed");
+        let decrypted =
+            decrypt_message(&encrypted, private_key).expect("Decryption should succeed");
 
         assert_eq!(message, decrypted);
     }

@@ -1,5 +1,5 @@
-use sqlx::{PgPool, postgres::PgPoolOptions};
 use crate::error::{AppError, Result};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 
 // pub mod repositories;
 
@@ -53,8 +53,7 @@ impl Database {
 
 // Helper function to get database URL from environment
 pub fn get_database_url() -> Result<String> {
-    std::env::var("DATABASE_URL")
-        .map_err(|_| AppError::Config("DATABASE_URL not set".to_string()))
+    std::env::var("DATABASE_URL").map_err(|_| AppError::Config("DATABASE_URL not set".to_string()))
 }
 
 #[cfg(test)]
@@ -98,7 +97,10 @@ mod tests {
                 assert_eq!(row.0, "rustls-test");
             }
             Err(e) => {
-                println!("Warning: Could not connect to test database (this is okay in CI): {}", e);
+                println!(
+                    "Warning: Could not connect to test database (this is okay in CI): {}",
+                    e
+                );
             }
         }
     }
@@ -107,8 +109,9 @@ mod tests {
     #[serial]
     async fn test_database_connection_configuration() {
         // Test with custom connection parameters
-        let database_url = std::env::var("TEST_DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/community_manager_test".to_string());
+        let database_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://postgres:postgres@localhost:5432/community_manager_test".to_string()
+        });
 
         // Set custom environment variables
         std::env::set_var("DB_MAX_CONNECTIONS", "3");
@@ -161,7 +164,7 @@ mod tests {
 
                     // Test that we can query a table that should exist after migration
                     let count_result = sqlx::query_scalar::<_, i64>(
-                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'users'"
+                        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'users'",
                     )
                     .fetch_one(&database.pool)
                     .await;
@@ -171,7 +174,10 @@ mod tests {
                     }
                 }
                 Err(e) => {
-                    println!("Migration failed (this might be expected in some test environments): {}", e);
+                    println!(
+                        "Migration failed (this might be expected in some test environments): {}",
+                        e
+                    );
                 }
             }
         } else {
@@ -242,14 +248,18 @@ mod tests {
 
         assert!(result.is_err());
         // Should timeout relatively quickly (within reasonable bounds)
-        assert!(elapsed < Duration::from_secs(30), "Connection should timeout within 30 seconds");
+        assert!(
+            elapsed < Duration::from_secs(30),
+            "Connection should timeout within 30 seconds"
+        );
     }
 
     #[tokio::test]
     #[serial]
     async fn test_pool_configuration() {
-        let database_url = std::env::var("TEST_DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/community_manager_test".to_string());
+        let database_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://postgres:postgres@localhost:5432/community_manager_test".to_string()
+        });
 
         // Set specific pool configuration
         std::env::set_var("DB_MAX_CONNECTIONS", "2");
@@ -262,9 +272,8 @@ mod tests {
             let pool_ref = db.pool();
 
             // Test a query using the pool reference
-            let result: std::result::Result<(i32,), sqlx::Error> = sqlx::query_as("SELECT 1")
-                .fetch_one(pool_ref)
-                .await;
+            let result: std::result::Result<(i32,), sqlx::Error> =
+                sqlx::query_as("SELECT 1").fetch_one(pool_ref).await;
 
             if result.is_ok() {
                 assert_eq!(result.unwrap().0, 1);

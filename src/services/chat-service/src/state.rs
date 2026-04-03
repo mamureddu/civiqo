@@ -1,17 +1,12 @@
 use std::sync::Arc;
 
-use shared::{
-    auth::JwtService,
-    database::Database,
-};
+use shared::{auth::JwtService, database::Database};
 
 use crate::{
     config::Config,
     services::{
-        connection_manager::ConnectionManager,
-        message_router::MessageRouter,
-        message_validator::MessageValidator,
-        rate_limiter::RateLimiter,
+        connection_manager::ConnectionManager, message_router::MessageRouter,
+        message_validator::MessageValidator, rate_limiter::RateLimiter,
     },
 };
 
@@ -42,11 +37,7 @@ pub struct AppState {
 
 impl AppState {
     /// Create new application state
-    pub fn new(
-        database: Database,
-        config: Config,
-        jwt_service: JwtService,
-    ) -> Self {
+    pub fn new(database: Database, config: Config, jwt_service: JwtService) -> Self {
         // Create message router (without AWS clients — local mode)
         let message_router = Arc::new(MessageRouter::new(
             config.sqs_queue_url.clone(),

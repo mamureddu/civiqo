@@ -1,5 +1,5 @@
 //! Phase 6: Chat & Real-time Tests
-//! 
+//!
 //! Tests for:
 //! - Chat pages
 //! - Chat rooms
@@ -13,7 +13,9 @@ use tower::ServiceExt;
 
 /// Helper to create test app
 async fn create_test_app() -> axum::Router {
-    server::create_test_app().await.expect("Failed to create test app")
+    server::create_test_app()
+        .await
+        .expect("Failed to create test app")
 }
 
 // ============================================================================
@@ -23,37 +25,29 @@ async fn create_test_app() -> axum::Router {
 #[tokio::test]
 async fn test_chat_list_page_returns_200() {
     let app = create_test_app().await;
-    
+
     let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/chat")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri("/chat").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[tokio::test]
 async fn test_chat_list_page_contains_html() {
     let app = create_test_app().await;
-    
+
     let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/chat")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri("/chat").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let html = String::from_utf8_lossy(&body);
-    
+
     // Should contain HTML structure
     assert!(html.contains("<!DOCTYPE html") || html.contains("<html"));
 }
@@ -61,20 +55,17 @@ async fn test_chat_list_page_contains_html() {
 #[tokio::test]
 async fn test_chat_list_page_uses_italian() {
     let app = create_test_app().await;
-    
+
     let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/chat")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri("/chat").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let html = String::from_utf8_lossy(&body);
-    
+
     // Should use Italian text
     assert!(html.contains("Chat") || html.contains("Messaggi") || html.contains("Conversazioni"));
 }
@@ -86,7 +77,7 @@ async fn test_chat_list_page_uses_italian() {
 #[tokio::test]
 async fn test_chat_room_page_with_valid_uuid() {
     let app = create_test_app().await;
-    
+
     // Use a valid UUID format (may not exist in DB)
     let response = app
         .oneshot(
@@ -97,17 +88,19 @@ async fn test_chat_room_page_with_valid_uuid() {
         )
         .await
         .unwrap();
-    
+
     // Should return 200 (renders page) or redirect
-    assert!(response.status() == StatusCode::OK || 
-            response.status() == StatusCode::SEE_OTHER ||
-            response.status() == StatusCode::TEMPORARY_REDIRECT);
+    assert!(
+        response.status() == StatusCode::OK
+            || response.status() == StatusCode::SEE_OTHER
+            || response.status() == StatusCode::TEMPORARY_REDIRECT
+    );
 }
 
 #[tokio::test]
 async fn test_chat_room_page_invalid_uuid() {
     let app = create_test_app().await;
-    
+
     let response = app
         .oneshot(
             Request::builder()
@@ -117,11 +110,13 @@ async fn test_chat_room_page_invalid_uuid() {
         )
         .await
         .unwrap();
-    
+
     // Should return 400 or redirect
-    assert!(response.status().is_client_error() || 
-            response.status().is_redirection() ||
-            response.status().is_server_error());
+    assert!(
+        response.status().is_client_error()
+            || response.status().is_redirection()
+            || response.status().is_server_error()
+    );
 }
 
 // ============================================================================
@@ -131,20 +126,17 @@ async fn test_chat_room_page_invalid_uuid() {
 #[tokio::test]
 async fn test_chat_page_uses_brand_colors() {
     let app = create_test_app().await;
-    
+
     let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/chat")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri("/chat").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let html = String::from_utf8_lossy(&body);
-    
+
     // Should use civiqo brand colors
     assert!(html.contains("civiqo-") || html.contains("bg-") || html.contains("text-"));
 }
@@ -156,20 +148,17 @@ async fn test_chat_page_uses_brand_colors() {
 #[tokio::test]
 async fn test_chat_page_has_htmx_attributes() {
     let app = create_test_app().await;
-    
+
     let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/chat")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri("/chat").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let html = String::from_utf8_lossy(&body);
-    
+
     // Chat pages should use HTMX for dynamic updates
     assert!(html.contains("hx-") || html.contains("htmx"));
 }
@@ -199,28 +188,28 @@ async fn test_message_types_defined() {
 #[tokio::test]
 async fn phase6_completion_checklist() {
     // Phase 6: Chat & Real-time
-    
+
     // Model (M) ✅
     // - [x] chat_rooms table (UUID PK, name, room_type, community_id)
     // - [x] chat_room_members table
     // - [x] messages table (UUID PK, room_id, sender_id, content)
     // - [x] message_reads table
-    
+
     // View (V) ✅
     // - [x] chat.html - Chat room page
     // - [x] chat_list.html - Chat rooms list
     // - [x] Message rendering fragments
-    
+
     // Controller (C) ✅
     // - [x] chat_list page handler
     // - [x] chat_room page handler
     // - [x] WebSocket handler in chat-service
     // - [x] Message broadcasting
-    
+
     // Tests ✅
     // - [x] Page rendering tests
     // - [x] Brand compliance tests
     // - [x] HTMX integration tests
-    
+
     assert!(true, "Phase 6 complete!");
 }

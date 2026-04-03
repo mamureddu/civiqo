@@ -1,27 +1,24 @@
 use std::time::Duration;
 
+use crate::middleware::auth::extract_token_from_headers;
 use axum::{
-    extract::{ws::{WebSocket, Message}, WebSocketUpgrade, State},
+    extract::{
+        ws::{Message, WebSocket},
+        State, WebSocketUpgrade,
+    },
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use shared::{
     error::{AppError, Result},
-    models::{chat::{WebSocketMessage}, Claims},
+    models::{chat::WebSocketMessage, Claims},
 };
-use crate::middleware::auth::extract_token_from_headers;
-use tokio::{
-    sync::mpsc,
-    time::interval,
-};
+use tokio::{sync::mpsc, time::interval};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::{
-    services::room_service::RoomService,
-    state::AppState,
-};
+use crate::{services::room_service::RoomService, state::AppState};
 
 /// Query params for WebSocket auth (browsers can't send custom headers)
 #[derive(serde::Deserialize)]
@@ -43,14 +40,22 @@ pub async fn websocket_handler(
         t.clone()
     } else {
         warn!("WebSocket connection attempt without token");
-        return (axum::http::StatusCode::UNAUTHORIZED, "Missing authorization").into_response();
+        return (
+            axum::http::StatusCode::UNAUTHORIZED,
+            "Missing authorization",
+        )
+            .into_response();
     };
 
     let claims = match state.jwt_service().validate_token(&token_string) {
         Ok(claims) => claims,
         Err(e) => {
             warn!("WebSocket authentication failed: {}", e);
-            return (axum::http::StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)).into_response();
+            return (
+                axum::http::StatusCode::UNAUTHORIZED,
+                format!("Invalid token: {}", e),
+            )
+                .into_response();
         }
     };
 
@@ -86,7 +91,10 @@ async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
         }
     };
 
-    info!("WebSocket connection established: {} for user {}", connection_id, user_id);
+    info!(
+        "WebSocket connection established: {} for user {}",
+        connection_id, user_id
+    );
 
     // Split socket into sender and receiver
     let (mut ws_sender, mut ws_receiver) = socket.split();
@@ -118,12 +126,17 @@ async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
             .remove_connection(&outgoing_connection_id)
             .await
         {
-            error!("Failed to remove connection {}: {}", outgoing_connection_id, e);
+            error!(
+                "Failed to remove connection {}: {}",
+                outgoing_connection_id, e
+            );
         }
     });
 
     // Set up heartbeat interval
-    let mut heartbeat_interval = interval(Duration::from_secs(state.config().heartbeat_interval_seconds));
+    let mut heartbeat_interval = interval(Duration::from_secs(
+        state.config().heartbeat_interval_seconds,
+    ));
     let heartbeat_state = state.clone();
     let heartbeat_connection_id = connection_id.clone();
 
@@ -136,7 +149,10 @@ async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
                 .connection_manager()
                 .update_heartbeat(&heartbeat_connection_id)
             {
-                debug!("Heartbeat failed for connection {}: {}", heartbeat_connection_id, e);
+                debug!(
+                    "Heartbeat failed for connection {}: {}",
+                    heartbeat_connection_id, e
+                );
                 break;
             }
         }
@@ -146,13 +162,9 @@ async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
     while let Some(message_result) = ws_receiver.next().await {
         match message_result {
             Ok(Message::Text(text)) => {
-                if let Err(e) = handle_text_message(
-                    &text,
-                    &connection_id,
-                    user_id,
-                    &state,
-                    &room_service,
-                ).await {
+                if let Err(e) =
+                    handle_text_message(&text, &connection_id, user_id, &state, &room_service).await
+                {
                     error!("Error handling text message: {}", e);
 
                     // Send error response
@@ -197,11 +209,18 @@ async fn handle_websocket(socket: WebSocket, state: AppState, claims: Claims) {
     heartbeat_task.abort();
 
     // Remove connection
-    if let Err(e) = state.connection_manager().remove_connection(&connection_id).await {
+    if let Err(e) = state
+        .connection_manager()
+        .remove_connection(&connection_id)
+        .await
+    {
         error!("Failed to remove connection {}: {}", connection_id, e);
     }
 
-    info!("WebSocket connection closed: {} for user {}", connection_id, user_id);
+    info!(
+        "WebSocket connection closed: {} for user {}",
+        connection_id, user_id
+    );
 }
 
 /// Handle incoming text message
@@ -216,11 +235,29 @@ pub async fn handle_text_message(
     let ws_message: WebSocketMessage = serde_json::from_str(text)
         .map_err(|e| AppError::Validation(format!("Invalid message format: {}", e)))?;
 
-    debug!("Received message: {:?} from connection {}", ws_message, connection_id);
+    debug!(
+        "Received message: {:?} from connection {}",
+        ws_message, connection_id
+    );
 
     match ws_message {
-        WebSocketMessage::SendMessage { room_id, recipient_id, encrypted_content, message_type } => {
-            handle_send_message(room_id, recipient_id, encrypted_content, message_type, connection_id, user_id, state, room_service).await
+        WebSocketMessage::SendMessage {
+            room_id,
+            recipient_id,
+            encrypted_content,
+            message_type,
+        } => {
+            handle_send_message(
+                room_id,
+                recipient_id,
+                encrypted_content,
+                message_type,
+                connection_id,
+                user_id,
+                state,
+                room_service,
+            )
+            .await
         }
         WebSocketMessage::JoinRoom { room_id } => {
             handle_join_room(room_id, connection_id, user_id, state, room_service).await
@@ -228,21 +265,58 @@ pub async fn handle_text_message(
         WebSocketMessage::LeaveRoom { room_id } => {
             handle_leave_room(room_id, connection_id, user_id, state, room_service).await
         }
-        WebSocketMessage::Heartbeat => {
-            handle_heartbeat(connection_id, state).await
+        WebSocketMessage::Heartbeat => handle_heartbeat(connection_id, state).await,
+        WebSocketMessage::TypingStart {
+            room_id,
+            user_id: typing_user_id,
+        } => {
+            handle_typing_notification(
+                room_id,
+                typing_user_id,
+                true,
+                connection_id,
+                user_id,
+                state,
+                room_service,
+            )
+            .await
         }
-        WebSocketMessage::TypingStart { room_id, user_id: typing_user_id } => {
-            handle_typing_notification(room_id, typing_user_id, true, connection_id, user_id, state, room_service).await
+        WebSocketMessage::TypingStop {
+            room_id,
+            user_id: typing_user_id,
+        } => {
+            handle_typing_notification(
+                room_id,
+                typing_user_id,
+                false,
+                connection_id,
+                user_id,
+                state,
+                room_service,
+            )
+            .await
         }
-        WebSocketMessage::TypingStop { room_id, user_id: typing_user_id } => {
-            handle_typing_notification(room_id, typing_user_id, false, connection_id, user_id, state, room_service).await
-        }
-        WebSocketMessage::KeyExchange { sender_id, recipient_id, public_key } => {
-            handle_key_exchange(sender_id, recipient_id, public_key, connection_id, user_id, state).await
+        WebSocketMessage::KeyExchange {
+            sender_id,
+            recipient_id,
+            public_key,
+        } => {
+            handle_key_exchange(
+                sender_id,
+                recipient_id,
+                public_key,
+                connection_id,
+                user_id,
+                state,
+            )
+            .await
         }
         _ => {
             // Other message types (Connect, Disconnect, ReceiveMessage, UserPresence, Error) are not handled by clients
-            warn!("Client sent unsupported message type from connection {}", connection_id);
+            warn!(
+                "Client sent unsupported message type from connection {}",
+                connection_id
+            );
             Ok(())
         }
     }
@@ -261,7 +335,9 @@ pub async fn handle_send_message(
 ) -> Result<()> {
     // Rate limit check
     if !state.rate_limiter().check_message_limit(user_id).await? {
-        return Err(AppError::RateLimit("Message rate limit exceeded".to_string()));
+        return Err(AppError::RateLimit(
+            "Message rate limit exceeded".to_string(),
+        ));
     }
 
     // Validate message content and parameters
@@ -273,8 +349,13 @@ pub async fn handle_send_message(
     )?;
 
     // Verify user can send messages to this room
-    if !room_service.check_room_permission(user_id, room_id, "send_message").await? {
-        return Err(AppError::Authorization("Not authorized to send messages to this room".to_string()));
+    if !room_service
+        .check_room_permission(user_id, room_id, "send_message")
+        .await?
+    {
+        return Err(AppError::Authorization(
+            "Not authorized to send messages to this room".to_string(),
+        ));
     }
 
     // Create receive message for routing to other participants
@@ -306,19 +387,27 @@ async fn handle_join_room(
 ) -> Result<()> {
     // Check if user can access this room
     if !room_service.can_user_access_room(user_id, room_id).await? {
-        return Err(AppError::Authorization("Not authorized to join this room".to_string()));
+        return Err(AppError::Authorization(
+            "Not authorized to join this room".to_string(),
+        ));
     }
 
     // Add user to room participants if not already there
     room_service.add_participant(room_id, user_id, None).await?;
 
     // Join room in connection manager
-    state.connection_manager().join_room(connection_id, room_id).await?;
+    state
+        .connection_manager()
+        .join_room(connection_id, room_id)
+        .await?;
 
     // Update last read timestamp
     room_service.update_last_read(user_id, room_id).await?;
 
-    info!("User {} joined room {} via connection {}", user_id, room_id, connection_id);
+    info!(
+        "User {} joined room {} via connection {}",
+        user_id, room_id, connection_id
+    );
     Ok(())
 }
 
@@ -331,12 +420,18 @@ async fn handle_leave_room(
     _room_service: &RoomService,
 ) -> Result<()> {
     // Leave room in connection manager
-    state.connection_manager().leave_room(connection_id, room_id).await?;
+    state
+        .connection_manager()
+        .leave_room(connection_id, room_id)
+        .await?;
 
     // Note: We don't remove from room_participants table here
     // as users might want to rejoin later and maintain their role
 
-    info!("User {} left room {} via connection {}", user_id, room_id, connection_id);
+    info!(
+        "User {} left room {} via connection {}",
+        user_id, room_id, connection_id
+    );
     Ok(())
 }
 
@@ -358,25 +453,36 @@ async fn handle_typing_notification(
     room_service: &RoomService,
 ) -> Result<()> {
     // Rate limit typing notifications
-    if !state.rate_limiter().check_typing_limit(authenticated_user_id).await? {
-        return Err(AppError::RateLimit("Typing notification rate limit exceeded".to_string()));
+    if !state
+        .rate_limiter()
+        .check_typing_limit(authenticated_user_id)
+        .await?
+    {
+        return Err(AppError::RateLimit(
+            "Typing notification rate limit exceeded".to_string(),
+        ));
     }
 
     // Verify the typing user ID matches the authenticated user
     if typing_user_id != authenticated_user_id {
-        return Err(AppError::Authorization("Cannot send typing notifications as another user".to_string()));
+        return Err(AppError::Authorization(
+            "Cannot send typing notifications as another user".to_string(),
+        ));
     }
 
     // Validate typing notification parameters
-    state.message_validator().validate_typing_notification(
-        Some(room_id),
-        None,
-        typing_user_id,
-    )?;
+    state
+        .message_validator()
+        .validate_typing_notification(Some(room_id), None, typing_user_id)?;
 
     // Check if user can access this room
-    if !room_service.can_user_access_room(authenticated_user_id, room_id).await? {
-        return Err(AppError::Authorization("Not authorized to send typing notifications to this room".to_string()));
+    if !room_service
+        .can_user_access_room(authenticated_user_id, room_id)
+        .await?
+    {
+        return Err(AppError::Authorization(
+            "Not authorized to send typing notifications to this room".to_string(),
+        ));
     }
 
     // Route typing notification
@@ -397,7 +503,10 @@ async fn handle_typing_notification(
         .route_message(ws_message, Some(connection_id.to_string()))
         .await?;
 
-    debug!("Typing notification sent for user {} in room {}", typing_user_id, room_id);
+    debug!(
+        "Typing notification sent for user {} in room {}",
+        typing_user_id, room_id
+    );
     Ok(())
 }
 
@@ -411,15 +520,15 @@ async fn handle_key_exchange(
     state: &AppState,
 ) -> Result<()> {
     // Validate key exchange parameters
-    state.message_validator().validate_key_exchange(
-        recipient_id,
-        sender_id,
-        &public_key,
-    )?;
+    state
+        .message_validator()
+        .validate_key_exchange(recipient_id, sender_id, &public_key)?;
 
     // Verify the sender ID matches the authenticated user
     if sender_id != authenticated_user_id {
-        return Err(AppError::Authorization("Cannot send key exchange as another user".to_string()));
+        return Err(AppError::Authorization(
+            "Cannot send key exchange as another user".to_string(),
+        ));
     }
 
     // Create key exchange message
@@ -430,70 +539,46 @@ async fn handle_key_exchange(
     };
 
     // Send directly to the recipient user
-    if let Err(_) = state.connection_manager().send_to_user(recipient_id, ws_message).await {
+    if let Err(_) = state
+        .connection_manager()
+        .send_to_user(recipient_id, ws_message)
+        .await
+    {
         // If direct send fails, we could queue it for when the user comes online
         warn!("Failed to send key exchange to user {}", recipient_id);
     }
 
-    debug!("Key exchange sent from user {} to user {}", sender_id, recipient_id);
+    debug!(
+        "Key exchange sent from user {} to user {}",
+        sender_id, recipient_id
+    );
     Ok(())
-}
-
-/// Parse Auth0 user ID from JWT subject claim
-///
-/// Auth0 user IDs can be in different formats:
-/// - "auth0|<uuid>" for database connections
-/// - "<uuid>" for direct UUID format
-/// - Other provider formats like "google-oauth2|<id>"
-pub fn parse_auth0_user_id(subject: &str) -> Result<Uuid> {
-    // Try different Auth0 ID formats
-    let uuid_part = if let Some(stripped) = subject.strip_prefix("auth0|") {
-        stripped
-    } else if let Some(stripped) = subject.strip_prefix("database|") {
-        stripped
-    } else if subject.contains('|') {
-        // For other providers (google-oauth2|, etc.), we might need a user lookup
-        return Err(AppError::Auth(format!(
-            "Unsupported Auth0 provider format: {}. Please ensure user is registered in the system.",
-            subject
-        )));
-    } else {
-        // Assume direct UUID format
-        subject
-    };
-
-    Uuid::parse_str(uuid_part).map_err(|e| {
-        AppError::Auth(format!(
-            "Invalid UUID format in Auth0 subject '{}': {}",
-            subject, e
-        ))
-    })
 }
 
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
 //     use shared::models::chat::WebSocketMessage;
-// 
+//
 //     #[test]
 //     fn test_message_parsing() {
 //         let ws_message = WebSocketMessage::Heartbeat;
-// 
+//
 //         // Test serialization
 //         let json = serde_json::to_string(&ws_message).unwrap();
 //         assert!(!json.is_empty());
-// 
+//
 //         // Test deserialization
 //         let parsed: WebSocketMessage = serde_json::from_str(&json).unwrap();
 //         assert!(matches!(parsed, WebSocketMessage::Heartbeat));
 //     }
-// 
+//
 //     #[test]
 //     fn test_user_id_parsing() {
 //         // Test Auth0 user ID parsing
 //         let auth0_sub = "auth0|507f1f77bcf86cd799439011";
 //         let cleaned = auth0_sub.replace("auth0|", "");
-// 
+//
 //         // This should be a valid UUID format after Auth0 processing
 //         // In practice, Auth0 user IDs might not be UUIDs, so this test
 //         // represents the expected format after our user management system
@@ -501,7 +586,7 @@ pub fn parse_auth0_user_id(subject: &str) -> Result<Uuid> {
 //         assert!(!cleaned.is_empty());
 //         assert!(!cleaned.contains("auth0|"));
 //     }
-// 
+//
 //     #[test]
 //     fn test_permission_validation() {
 //         // Test permission string matching

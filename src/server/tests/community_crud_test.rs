@@ -3,9 +3,6 @@
 
 #[cfg(test)]
 mod community_crud_tests {
-    use axum_test::TestServer;
-    use serde_json::json;
-
     // Note: These tests require database connection
     // Run with: cargo test --test community_crud_test -- --test-threads=1
 
@@ -349,10 +346,16 @@ mod validation_tests {
         let valid_slug = "test-community";
         let invalid_slug_uppercase = "Test-Community";
         let invalid_slug_underscore = "test_community";
-        
-        assert!(valid_slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'));
-        assert!(!invalid_slug_uppercase.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'));
-        assert!(!invalid_slug_underscore.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'));
+
+        assert!(valid_slug
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'));
+        assert!(!invalid_slug_uppercase
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'));
+        assert!(!invalid_slug_underscore
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'));
     }
 
     #[test]
@@ -361,7 +364,7 @@ mod validation_tests {
         let short_slug = "ab";
         let valid_slug = "test-community";
         let long_slug = "a".repeat(51);
-        
+
         assert!(short_slug.len() < 3);
         assert!(valid_slug.len() >= 3 && valid_slug.len() <= 50);
         assert!(long_slug.len() > 50);
@@ -372,7 +375,7 @@ mod validation_tests {
         // Description must not exceed 1000 characters
         let valid_desc = "A test community".to_string();
         let long_desc = "a".repeat(1001);
-        
+
         assert!(valid_desc.len() <= 1000);
         assert!(long_desc.len() > 1000);
     }

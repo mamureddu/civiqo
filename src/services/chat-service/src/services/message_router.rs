@@ -6,11 +6,12 @@ use shared::{
     models::chat::WebSocketMessage,
 };
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// Routes messages between local connections.
 /// In single-instance mode (VPS), all routing is in-process.
+#[allow(dead_code)]
 pub struct MessageRouter {
     /// SQS queue URL (optional — disabled when None)
     sqs_queue_url: Option<String>,
@@ -54,7 +55,8 @@ impl MessageRouter {
     ) -> Result<()> {
         match &message {
             WebSocketMessage::ReceiveMessage { .. } => {
-                self.route_receive_message(&message, sender_connection_id).await
+                self.route_receive_message(&message, sender_connection_id)
+                    .await
             }
             WebSocketMessage::JoinRoom { room_id } => {
                 debug!("Join room message for room {}", room_id);
@@ -68,9 +70,10 @@ impl MessageRouter {
                 debug!("Heartbeat message received");
                 Ok(())
             }
-            WebSocketMessage::TypingStart { room_id, user_id } |
-            WebSocketMessage::TypingStop { room_id, user_id } => {
-                self.route_typing_notification(*room_id, *user_id, &message).await
+            WebSocketMessage::TypingStart { room_id, user_id }
+            | WebSocketMessage::TypingStop { room_id, user_id } => {
+                self.route_typing_notification(*room_id, *user_id, &message)
+                    .await
             }
             WebSocketMessage::Error { .. } => {
                 debug!("Error message received");
@@ -109,7 +112,12 @@ impl MessageRouter {
         Ok(())
     }
 
-    async fn route_typing_notification(&self, room_id: Uuid, _typing_user_id: Uuid, _message: &WebSocketMessage) -> Result<()> {
+    async fn route_typing_notification(
+        &self,
+        room_id: Uuid,
+        _typing_user_id: Uuid,
+        _message: &WebSocketMessage,
+    ) -> Result<()> {
         let _participants = self.get_room_participants(room_id).await?;
         Ok(())
     }

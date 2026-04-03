@@ -1,15 +1,15 @@
 use axum::{
-    extract::{Path, State, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::Json,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use std::sync::Arc;
 use uuid::Uuid;
-use sqlx::Row;
 
-use crate::handlers::pages::AppState;
 use crate::auth::{AuthUser, OptionalAuthUser};
+use crate::handlers::pages::AppState;
 
 // ============================================================================
 // Request/Response Types
@@ -34,7 +34,7 @@ pub struct ApiResponse<T> {
 #[derive(Debug, Serialize)]
 pub struct UserResponse {
     pub id: String,
-    pub name: Option<String>,  // From user_profiles, not users table
+    pub name: Option<String>, // From user_profiles, not users table
     pub email: String,
     pub created_at: String,
 }
@@ -101,8 +101,12 @@ pub struct CommunitiesQueryParams {
     pub sort: Option<String>, // "created", "name", "members"
 }
 
-fn default_page() -> u32 { 1 }
-fn default_limit() -> u32 { 20 }
+fn default_page() -> u32 {
+    1
+}
+fn default_limit() -> u32 {
+    20
+}
 
 // ============================================================================
 // User Endpoints
@@ -113,26 +117,30 @@ pub async fn get_users(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<UserResponse>>, StatusCode> {
     use sqlx::Row;
-    
+
     let users = sqlx::query(
         "SELECT u.id, u.email, u.created_at, p.name 
          FROM users u 
          LEFT JOIN user_profiles p ON u.id = p.user_id 
-         ORDER BY u.created_at DESC"
+         ORDER BY u.created_at DESC",
     )
-        .fetch_all(&state.db.pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    let users_data: Vec<UserResponse> = users.iter().map(|row| {
-        UserResponse {
+    .fetch_all(&state.db.pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let users_data: Vec<UserResponse> = users
+        .iter()
+        .map(|row| UserResponse {
             id: row.get::<Uuid, _>("id").to_string(),
             name: row.get::<Option<String>, _>("name"),
             email: row.get::<String, _>("email"),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").format("%Y-%m-%d %H:%M").to_string(),
-        }
-    }).collect();
-    
+            created_at: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
+        })
+        .collect();
+
     Ok(Json(users_data))
 }
 
@@ -148,7 +156,7 @@ pub async fn create_community(
 ) -> Result<(StatusCode, Json<ApiResponse<CommunityResponse>>), StatusCode> {
     // Validate name: 3-100 characters
     let trimmed_name = payload.name.trim();
-    
+
     if trimmed_name.len() < 3 || trimmed_name.len() > 100 {
         return Ok((
             StatusCode::BAD_REQUEST,
@@ -188,35 +196,38 @@ pub async fn create_community(
     }
 
     // Validate slug format: lowercase, alphanumeric + hyphens only
-    if !trimmed_slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+    if !trimmed_slug
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
         return Ok((
             StatusCode::BAD_REQUEST,
             Json(ApiResponse {
                 success: false,
                 data: None,
-                message: Some("Slug must contain only lowercase letters, numbers, and hyphens".to_string()),
+                message: Some(
+                    "Slug must contain only lowercase letters, numbers, and hyphens".to_string(),
+                ),
             }),
         ));
     }
 
     // Parse authenticated user ID
-    let creator_id = Uuid::parse_str(&user.user_id)
-        .map_err(|e| {
-            tracing::error!("Invalid user ID format: {} - Error: {}", user.user_id, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    // Check slug uniqueness - return 409 Conflict if exists
-    let slug_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM communities WHERE slug = $1)"
-    )
-    .bind(trimmed_slug)
-    .fetch_one(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to check slug uniqueness: {}", e);
+    let creator_id = Uuid::parse_str(&user.user_id).map_err(|e| {
+        tracing::error!("Invalid user ID format: {} - Error: {}", user.user_id, e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+
+    // Check slug uniqueness - return 409 Conflict if exists
+    let slug_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM communities WHERE slug = $1)")
+            .bind(trimmed_slug)
+            .fetch_one(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to check slug uniqueness: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     if slug_exists {
         return Ok((
@@ -230,11 +241,10 @@ pub async fn create_community(
     }
 
     // Start transaction for atomic community creation + admin membership
-    let mut tx = state.db.pool.begin().await
-        .map_err(|e| {
-            tracing::error!("Failed to begin database transaction: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let mut tx = state.db.pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin database transaction: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     // Generate UUIDv7 for community ID (time-ordered, globally unique for federation)
     let community_id = Uuid::now_v7();
@@ -258,11 +268,10 @@ pub async fn create_community(
         Ok(row) => row,
         Err(e) => {
             tracing::error!("Failed to create community '{}': {}", trimmed_name, e);
-            tx.rollback().await
-                .map_err(|rollback_err| {
-                    tracing::error!("Failed to rollback transaction: {}", rollback_err);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
+            tx.rollback().await.map_err(|rollback_err| {
+                tracing::error!("Failed to rollback transaction: {}", rollback_err);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
             return Ok((
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -278,7 +287,7 @@ pub async fn create_community(
     // Add creator as admin member (using ENUM directly)
     let membership_result = sqlx::query(
         "INSERT INTO community_members (user_id, community_id, role, status, joined_at) 
-         VALUES ($1, $2, 'admin', 'active', NOW())"
+         VALUES ($1, $2, 'admin', 'active', NOW())",
     )
     .bind(creator_id)
     .bind(community_id)
@@ -288,21 +297,30 @@ pub async fn create_community(
     match membership_result {
         Ok(_) => {
             // Commit transaction
-            tx.commit().await
-                .map_err(|e| {
-                    tracing::error!("Failed to commit transaction: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
+            tx.commit().await.map_err(|e| {
+                tracing::error!("Failed to commit transaction: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
-            tracing::info!("Community '{}' (slug: {}) created successfully by user {}", 
-                trimmed_name, trimmed_slug, user.user_id);
+            tracing::info!(
+                "Community '{}' (slug: {}) created successfully by user {}",
+                trimmed_name,
+                trimmed_slug,
+                user.user_id
+            );
 
             let community = CommunityResponse {
                 id: community_id.to_string(), // Convert i64 to String for JSON response
                 name: trimmed_name.to_string(),
-                description: payload.description.as_ref().map(|d| d.trim().to_string()).filter(|s| !s.is_empty()),
-                created_at: community_row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
-                    .format("%Y-%m-%d %H:%M").to_string(),
+                description: payload
+                    .description
+                    .as_ref()
+                    .map(|d| d.trim().to_string())
+                    .filter(|s| !s.is_empty()),
+                created_at: community_row
+                    .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                    .format("%Y-%m-%d %H:%M")
+                    .to_string(),
             };
 
             Ok((
@@ -316,11 +334,10 @@ pub async fn create_community(
         }
         Err(e) => {
             tracing::error!("Failed to add creator as admin member: {}", e);
-            tx.rollback().await
-                .map_err(|rollback_err| {
-                    tracing::error!("Failed to rollback transaction: {}", rollback_err);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
+            tx.rollback().await.map_err(|rollback_err| {
+                tracing::error!("Failed to rollback transaction: {}", rollback_err);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
             Ok((
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -346,20 +363,25 @@ pub async fn get_communities(
     OptionalAuthUser(user): OptionalAuthUser, // Optional auth for enhanced results
 ) -> Result<Json<ApiResponse<CommunitiesListResponse>>, StatusCode> {
     use sqlx::Row;
-    
-    tracing::info!("📋 get_communities called - user: {:?}, page: {}, limit: {}, search: {:?}", 
-        user.as_ref().map(|u| &u.user_id), params.page, params.limit, params.search);
-    
+
+    tracing::info!(
+        "📋 get_communities called - user: {:?}, page: {}, limit: {}, search: {:?}",
+        user.as_ref().map(|u| &u.user_id),
+        params.page,
+        params.limit,
+        params.search
+    );
+
     let offset = (params.page - 1) * params.limit;
     let search_param = params.search.as_deref().unwrap_or("");
-    
+
     let sort_clause = match params.sort.as_deref() {
         Some("name") => "ORDER BY c.name ASC",
         Some("members") => "ORDER BY member_count DESC",
         Some("created") => "ORDER BY c.created_at DESC",
         _ => "ORDER BY c.created_at DESC", // Default
     };
-    
+
     // Build query based on filter type - ALWAYS use parameterized queries
     let (query, count_query) = if let Some(ref _user) = user {
         // Authenticated user - can see public + their memberships
@@ -377,7 +399,7 @@ pub async fn get_communities(
              LIMIT $3 OFFSET $4",
             sort_clause
         );
-        
+
         let count_query = format!(
             "SELECT COUNT(DISTINCT c.id) as total
              FROM communities c
@@ -386,7 +408,7 @@ pub async fn get_communities(
              WHERE (c.is_public = true OR m_user.user_id IS NOT NULL)
              AND ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')"
         );
-        
+
         (main_query, count_query)
     } else {
         // Unauthenticated user - can only see public communities
@@ -403,19 +425,22 @@ pub async fn get_communities(
              LIMIT $2 OFFSET $3",
             sort_clause
         );
-        
+
         let count_query = format!(
             "SELECT COUNT(DISTINCT c.id) as total
              FROM communities c
              WHERE c.is_public = true
              AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')"
         );
-        
+
         (main_query, count_query)
     };
-    
-    tracing::info!("Executing communities query with user_id: {:?}", user.as_ref().map(|u| &u.user_id));
-    
+
+    tracing::info!(
+        "Executing communities query with user_id: {:?}",
+        user.as_ref().map(|u| &u.user_id)
+    );
+
     // Execute query with proper parameter binding
     let communities = if let Some(ref _user) = user {
         sqlx::query(&query)
@@ -441,7 +466,7 @@ pub async fn get_communities(
                 StatusCode::INTERNAL_SERVER_ERROR
             })?
     };
-    
+
     // Execute count query with proper parameter binding
     let total_count: i64 = if let Some(ref user) = user {
         sqlx::query_scalar(&count_query)
@@ -463,25 +488,28 @@ pub async fn get_communities(
                 StatusCode::INTERNAL_SERVER_ERROR
             })?
     };
-    
+
     // Convert to response format
-    let communities_data: Vec<CommunityListResponse> = communities.iter().map(|row| {
-        CommunityListResponse {
+    let communities_data: Vec<CommunityListResponse> = communities
+        .iter()
+        .map(|row| CommunityListResponse {
             id: row.get::<uuid::Uuid, _>("id").to_string(),
             name: row.get::<String, _>("name"),
             description: row.get::<Option<String>, _>("description"),
             slug: row.get::<String, _>("slug"),
             is_public: row.get::<bool, _>("is_public"),
             member_count: row.get::<i64, _>("member_count"),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
-                .format("%Y-%m-%d %H:%M").to_string(),
+            created_at: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
             user_role: row.get::<Option<String>, _>("user_role"),
-        }
-    }).collect();
-    
+        })
+        .collect();
+
     let has_next = (params.page * params.limit) < total_count as u32;
     let has_prev = params.page > 1;
-    
+
     let response = CommunitiesListResponse {
         communities: communities_data,
         total_count,
@@ -490,7 +518,7 @@ pub async fn get_communities(
         has_next,
         has_prev,
     };
-    
+
     Ok(Json(ApiResponse {
         success: true,
         data: Some(response),
@@ -505,10 +533,10 @@ pub async fn get_community_detail(
     OptionalAuthUser(user): OptionalAuthUser, // Optional auth for member status
 ) -> Result<Json<ApiResponse<CommunityDetailResponse>>, StatusCode> {
     use sqlx::Row;
-    
+
     // Try to parse as UUID first, otherwise treat as slug
     let community_uuid = uuid::Uuid::parse_str(&community_id_or_slug);
-    
+
     // Build query based on whether we have UUID or slug - ALWAYS use parameterized queries
     let (query, _param_count) = if community_uuid.is_ok() {
         let main_query = format!(
@@ -547,9 +575,9 @@ pub async fn get_community_detail(
         );
         (main_query, 2)
     };
-    
+
     tracing::info!("Executing community detail query: {}", query);
-    
+
     let community = if let Some(ref user) = user {
         let user_uuid = Uuid::parse_str(&user.user_id).ok();
         if let Ok(uuid) = community_uuid {
@@ -599,7 +627,7 @@ pub async fn get_community_detail(
                 })?
         }
     };
-    
+
     let community_row = match community {
         Some(row) => row,
         None => {
@@ -610,7 +638,7 @@ pub async fn get_community_detail(
             }));
         }
     };
-    
+
     let response = CommunityDetailResponse {
         id: community_row.get::<uuid::Uuid, _>("id").to_string(),
         name: community_row.get::<String, _>("name"),
@@ -620,14 +648,18 @@ pub async fn get_community_detail(
         requires_approval: community_row.get::<bool, _>("requires_approval"),
         member_count: community_row.get::<i64, _>("member_count"),
         posts_count: community_row.get::<i64, _>("posts_count"),
-        created_at: community_row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
-            .format("%Y-%m-%d %H:%M").to_string(),
-        updated_at: community_row.get::<chrono::DateTime<chrono::Utc>, _>("updated_at")
-            .format("%Y-%m-%d %H:%M").to_string(),
+        created_at: community_row
+            .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+            .format("%Y-%m-%d %H:%M")
+            .to_string(),
+        updated_at: community_row
+            .get::<chrono::DateTime<chrono::Utc>, _>("updated_at")
+            .format("%Y-%m-%d %H:%M")
+            .to_string(),
         user_role: community_row.get::<Option<String>, _>("user_role"),
         is_member: community_row.get::<bool, _>("is_member"),
     };
-    
+
     Ok(Json(ApiResponse {
         success: true,
         data: Some(response),
@@ -643,20 +675,19 @@ pub async fn update_community(
     Json(payload): Json<CreateCommunityRequest>,
 ) -> Result<Json<ApiResponse<CommunityResponse>>, StatusCode> {
     // Parse user ID (UUID from Auth0)
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check if community exists and user is owner
-    let community_owner: Option<Uuid> = sqlx::query_scalar(
-        "SELECT created_by FROM communities WHERE id = $1"
-    )
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch community: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let community_owner: Option<Uuid> =
+        sqlx::query_scalar("SELECT created_by FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch community: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     let owner_id = match community_owner {
         Some(id) => id,
@@ -703,10 +734,16 @@ pub async fn update_community(
         "UPDATE communities 
          SET name = $1, description = $2, is_public = $3, requires_approval = $4, updated_at = NOW()
          WHERE id = $5
-         RETURNING id, name, description, created_at"
+         RETURNING id, name, description, created_at",
     )
     .bind(trimmed_name)
-    .bind(&payload.description.as_ref().map(|d| d.trim()).filter(|s| !s.is_empty()))
+    .bind(
+        &payload
+            .description
+            .as_ref()
+            .map(|d| d.trim())
+            .filter(|s| !s.is_empty()),
+    )
     .bind(payload.is_public.unwrap_or(true))
     .bind(payload.requires_approval.unwrap_or(false))
     .bind(community_id)
@@ -715,16 +752,22 @@ pub async fn update_community(
 
     match result {
         Ok(row) => {
-            tracing::info!("Community {} updated successfully by user {}", community_id, user.user_id);
-            
+            tracing::info!(
+                "Community {} updated successfully by user {}",
+                community_id,
+                user.user_id
+            );
+
             let community = CommunityResponse {
                 id: row.get::<Uuid, _>("id").to_string(),
                 name: row.get::<String, _>("name"),
                 description: row.get::<Option<String>, _>("description"),
-                created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
-                    .format("%Y-%m-%d %H:%M").to_string(),
+                created_at: row
+                    .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                    .format("%Y-%m-%d %H:%M")
+                    .to_string(),
             };
-            
+
             Ok(Json(ApiResponse {
                 success: true,
                 data: Some(community),
@@ -749,20 +792,19 @@ pub async fn delete_community(
     Path(community_id): Path<Uuid>,
 ) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
     // Parse user ID (UUID from Auth0)
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check if community exists and user is owner
-    let community_owner: Option<Uuid> = sqlx::query_scalar(
-        "SELECT created_by FROM communities WHERE id = $1"
-    )
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch community: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let community_owner: Option<Uuid> =
+        sqlx::query_scalar("SELECT created_by FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch community: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     let owner_id = match community_owner {
         Some(id) => id,
@@ -798,8 +840,12 @@ pub async fn delete_community(
 
     match result {
         Ok(_) => {
-            tracing::info!("Community {} deleted successfully by user {}", community_id, user.user_id);
-            
+            tracing::info!(
+                "Community {} deleted successfully by user {}",
+                community_id,
+                user.user_id
+            );
+
             Ok((
                 StatusCode::NO_CONTENT,
                 Json(ApiResponse {
@@ -829,7 +875,7 @@ pub async fn delete_community(
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateRoleRequest {
-    pub role: String,  // "admin", "moderator", "member"
+    pub role: String, // "admin", "moderator", "member"
 }
 
 #[derive(Debug, Serialize)]
@@ -863,20 +909,19 @@ pub async fn join_community(
     State(state): State<Arc<AppState>>,
     Path(community_id): Path<Uuid>,
 ) -> Result<(StatusCode, Json<ApiResponse<MembershipResponse>>), StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check community exists and is public
-    let community: Option<(bool, bool)> = sqlx::query_as(
-        "SELECT is_public, requires_approval FROM communities WHERE id = $1"
-    )
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch community: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let community: Option<(bool, bool)> =
+        sqlx::query_as("SELECT is_public, requires_approval FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch community: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     let (is_public, _requires_approval) = match community {
         Some(c) => c,
@@ -905,7 +950,7 @@ pub async fn join_community(
 
     // Check user not already member
     let existing: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM community_members WHERE community_id = $1 AND user_id = $2"
+        "SELECT id FROM community_members WHERE community_id = $1 AND user_id = $2",
     )
     .bind(community_id)
     .bind(user_uuid)
@@ -931,7 +976,7 @@ pub async fn join_community(
     let result = sqlx::query(
         "INSERT INTO community_members (user_id, community_id, role, status, joined_at)
          VALUES ($1, $2, 'member', 'active', NOW())
-         RETURNING joined_at"
+         RETURNING joined_at",
     )
     .bind(user_uuid)
     .bind(community_id)
@@ -941,7 +986,7 @@ pub async fn join_community(
     match result {
         Ok(row) => {
             tracing::info!("User {} joined community {}", user.user_id, community_id);
-            
+
             Ok((
                 StatusCode::CREATED,
                 Json(ApiResponse {
@@ -949,8 +994,10 @@ pub async fn join_community(
                     data: Some(MembershipResponse {
                         community_id: community_id.to_string(),
                         role: "member".to_string(),
-                        joined_at: row.get::<chrono::DateTime<chrono::Utc>, _>("joined_at")
-                            .format("%Y-%m-%d %H:%M").to_string(),
+                        joined_at: row
+                            .get::<chrono::DateTime<chrono::Utc>, _>("joined_at")
+                            .format("%Y-%m-%d %H:%M")
+                            .to_string(),
                     }),
                     message: Some("Successfully joined community".to_string()),
                 }),
@@ -976,12 +1023,12 @@ pub async fn leave_community(
     State(state): State<Arc<AppState>>,
     Path(community_id): Path<Uuid>,
 ) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check user is member
     let membership: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM community_members WHERE community_id = $1 AND user_id = $2"
+        "SELECT id FROM community_members WHERE community_id = $1 AND user_id = $2",
     )
     .bind(community_id)
     .bind(user_uuid)
@@ -1006,7 +1053,7 @@ pub async fn leave_community(
     // Check if user is the only admin/owner
     let admin_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM community_members
-         WHERE community_id = $1 AND role IN ('admin', 'owner')"
+         WHERE community_id = $1 AND role IN ('admin', 'owner')",
     )
     .bind(community_id)
     .fetch_one(&state.db.pool)
@@ -1022,7 +1069,7 @@ pub async fn leave_community(
             "SELECT EXISTS(
                 SELECT 1 FROM community_members
                 WHERE community_id = $1 AND user_id = $2 AND role IN ('admin', 'owner')
-            )"
+            )",
         )
         .bind(community_id)
         .bind(user_uuid)
@@ -1039,25 +1086,27 @@ pub async fn leave_community(
                 Json(ApiResponse {
                     success: false,
                     data: None,
-                    message: Some("Cannot leave: you are the only admin. Transfer ownership first.".to_string()),
+                    message: Some(
+                        "Cannot leave: you are the only admin. Transfer ownership first."
+                            .to_string(),
+                    ),
                 }),
             ));
         }
     }
 
     // Delete membership
-    let result = sqlx::query(
-        "DELETE FROM community_members WHERE community_id = $1 AND user_id = $2"
-    )
-    .bind(community_id)
-    .bind(user_uuid)
-    .execute(&state.db.pool)
-    .await;
+    let result =
+        sqlx::query("DELETE FROM community_members WHERE community_id = $1 AND user_id = $2")
+            .bind(community_id)
+            .bind(user_uuid)
+            .execute(&state.db.pool)
+            .await;
 
     match result {
         Ok(_) => {
             tracing::info!("User {} left community {}", user.user_id, community_id);
-            
+
             Ok((
                 StatusCode::NO_CONTENT,
                 Json(ApiResponse {
@@ -1088,28 +1137,30 @@ pub async fn list_members(
     Path(community_id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<MembersListResponse>>, StatusCode> {
     // Check community exists and access
-    let is_public: bool = sqlx::query_scalar(
-        "SELECT is_public FROM communities WHERE id = $1"
-    )
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch community: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    let is_public: bool = sqlx::query_scalar("SELECT is_public FROM communities WHERE id = $1")
+        .bind(community_id)
+        .fetch_optional(&state.db.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch community: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
 
     // Check access for private communities
     if !is_public {
         let user_uuid = match user {
-            Some(u) => Uuid::parse_str(&u.user_id)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+            Some(u) => {
+                Uuid::parse_str(&u.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            }
             None => {
                 return Ok(Json(ApiResponse {
                     success: false,
                     data: None,
-                    message: Some("Cannot view members of private community without authentication".to_string()),
+                    message: Some(
+                        "Cannot view members of private community without authentication"
+                            .to_string(),
+                    ),
                 }));
             }
         };
@@ -1141,7 +1192,7 @@ pub async fn list_members(
          FROM community_members cm
          JOIN users u ON cm.user_id = u.id
          WHERE cm.community_id = $1 AND cm.status = 'active'
-         ORDER BY cm.joined_at DESC"
+         ORDER BY cm.joined_at DESC",
     )
     .bind(community_id)
     .fetch_all(&state.db.pool)
@@ -1158,8 +1209,10 @@ pub async fn list_members(
             user_id: row.get::<Uuid, _>("user_id").to_string(),
             email: row.get::<String, _>("email"),
             role: row.get::<String, _>("role"),
-            joined_at: row.get::<chrono::DateTime<chrono::Utc>, _>("joined_at")
-                .format("%Y-%m-%d %H:%M").to_string(),
+            joined_at: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("joined_at")
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
         })
         .collect();
 
@@ -1177,15 +1230,15 @@ pub async fn update_member_role(
     Path((community_id, member_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdateRoleRequest>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check requester is admin/owner
     let is_admin: bool = sqlx::query_scalar(
         "SELECT EXISTS(
             SELECT 1 FROM community_members
             WHERE community_id = $1 AND user_id = $2 AND role IN ('admin', 'owner')
-        )"
+        )",
     )
     .bind(community_id)
     .bind(user_uuid)
@@ -1206,7 +1259,7 @@ pub async fn update_member_role(
 
     // Check target user is member
     let member_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2)",
     )
     .bind(community_id)
     .bind(member_id)
@@ -1231,7 +1284,10 @@ pub async fn update_member_role(
         return Ok(Json(ApiResponse {
             success: false,
             data: None,
-            message: Some(format!("Invalid role: {}. Valid roles: owner, admin, moderator, member", payload.role)),
+            message: Some(format!(
+                "Invalid role: {}. Valid roles: owner, admin, moderator, member",
+                payload.role
+            )),
         }));
     }
 
@@ -1247,8 +1303,13 @@ pub async fn update_member_role(
 
     match result {
         Ok(_) => {
-            tracing::info!("Updated role for user {} in community {} to {}", member_id, community_id, payload.role);
-            
+            tracing::info!(
+                "Updated role for user {} in community {} to {}",
+                member_id,
+                community_id,
+                payload.role
+            );
+
             Ok(Json(ApiResponse {
                 success: true,
                 data: None,
@@ -1272,20 +1333,19 @@ pub async fn request_join_community(
     State(state): State<Arc<AppState>>,
     Path(community_id): Path<Uuid>,
 ) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check community exists and requires approval
-    let community: Option<(bool, bool)> = sqlx::query_as(
-        "SELECT is_public, requires_approval FROM communities WHERE id = $1"
-    )
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch community: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let community: Option<(bool, bool)> =
+        sqlx::query_as("SELECT is_public, requires_approval FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch community: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     let (is_public, requires_approval) = match community {
         Some(c) => c,
@@ -1308,7 +1368,9 @@ pub async fn request_join_community(
             Json(ApiResponse {
                 success: false,
                 data: None,
-                message: Some("Cannot request join for public community. Use /join instead.".to_string()),
+                message: Some(
+                    "Cannot request join for public community. Use /join instead.".to_string(),
+                ),
             }),
         ));
     }
@@ -1319,14 +1381,17 @@ pub async fn request_join_community(
             Json(ApiResponse {
                 success: false,
                 data: None,
-                message: Some("This private community does not require approval. Contact owner for invite.".to_string()),
+                message: Some(
+                    "This private community does not require approval. Contact owner for invite."
+                        .to_string(),
+                ),
             }),
         ));
     }
 
     // Check user not already member or pending
     let existing: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2"
+        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2",
     )
     .bind(community_id)
     .bind(user_uuid)
@@ -1362,21 +1427,20 @@ pub async fn request_join_community(
     }
 
     // Get member role ID
-    let member_role_id: i64 = sqlx::query_scalar(
-        "SELECT id FROM roles WHERE name = 'member' LIMIT 1"
-    )
-    .fetch_one(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to get member role: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let member_role_id: i64 =
+        sqlx::query_scalar("SELECT id FROM roles WHERE name = 'member' LIMIT 1")
+            .fetch_one(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get member role: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     // Insert membership with 'pending' status
     let result = sqlx::query(
         "INSERT INTO community_members (user_id, community_id, role_id, status, joined_at)
          VALUES ($1, $2, $3, 'pending', NOW())
-         RETURNING joined_at"
+         RETURNING joined_at",
     )
     .bind(user_uuid)
     .bind(community_id)
@@ -1386,8 +1450,12 @@ pub async fn request_join_community(
 
     match result {
         Ok(_) => {
-            tracing::info!("User {} requested to join community {}", user.user_id, community_id);
-            
+            tracing::info!(
+                "User {} requested to join community {}",
+                user.user_id,
+                community_id
+            );
+
             Ok((
                 StatusCode::CREATED,
                 Json(ApiResponse {
@@ -1417,8 +1485,8 @@ pub async fn approve_join_request(
     State(state): State<Arc<AppState>>,
     Path((community_id, member_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check requester is admin
     let is_admin: bool = sqlx::query_scalar(
@@ -1426,7 +1494,7 @@ pub async fn approve_join_request(
             SELECT 1 FROM community_members cm
             JOIN roles r ON cm.role_id = r.id
             WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
-        )"
+        )",
     )
     .bind(community_id)
     .bind(user_uuid)
@@ -1447,7 +1515,7 @@ pub async fn approve_join_request(
 
     // Check request exists and is pending
     let status: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2"
+        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2",
     )
     .bind(community_id)
     .bind(member_id)
@@ -1478,7 +1546,7 @@ pub async fn approve_join_request(
 
     // Update status to active
     let result = sqlx::query(
-        "UPDATE community_members SET status = 'active' WHERE community_id = $1 AND user_id = $2"
+        "UPDATE community_members SET status = 'active' WHERE community_id = $1 AND user_id = $2",
     )
     .bind(community_id)
     .bind(member_id)
@@ -1487,8 +1555,13 @@ pub async fn approve_join_request(
 
     match result {
         Ok(_) => {
-            tracing::info!("Admin {} approved join request for user {} in community {}", user.user_id, member_id, community_id);
-            
+            tracing::info!(
+                "Admin {} approved join request for user {} in community {}",
+                user.user_id,
+                member_id,
+                community_id
+            );
+
             Ok(Json(ApiResponse {
                 success: true,
                 data: None,
@@ -1512,8 +1585,8 @@ pub async fn reject_join_request(
     State(state): State<Arc<AppState>>,
     Path((community_id, member_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check requester is admin
     let is_admin: bool = sqlx::query_scalar(
@@ -1521,7 +1594,7 @@ pub async fn reject_join_request(
             SELECT 1 FROM community_members cm
             JOIN roles r ON cm.role_id = r.id
             WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
-        )"
+        )",
     )
     .bind(community_id)
     .bind(user_uuid)
@@ -1545,7 +1618,7 @@ pub async fn reject_join_request(
 
     // Check request exists and is pending
     let status: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2"
+        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2",
     )
     .bind(community_id)
     .bind(member_id)
@@ -1571,18 +1644,22 @@ pub async fn reject_join_request(
     }
 
     // Delete the pending request
-    let result = sqlx::query(
-        "DELETE FROM community_members WHERE community_id = $1 AND user_id = $2"
-    )
-    .bind(community_id)
-    .bind(member_id)
-    .execute(&state.db.pool)
-    .await;
+    let result =
+        sqlx::query("DELETE FROM community_members WHERE community_id = $1 AND user_id = $2")
+            .bind(community_id)
+            .bind(member_id)
+            .execute(&state.db.pool)
+            .await;
 
     match result {
         Ok(_) => {
-            tracing::info!("Admin {} rejected join request for user {} in community {}", user.user_id, member_id, community_id);
-            
+            tracing::info!(
+                "Admin {} rejected join request for user {} in community {}",
+                user.user_id,
+                member_id,
+                community_id
+            );
+
             Ok((
                 StatusCode::NO_CONTENT,
                 Json(ApiResponse {
@@ -1612,8 +1689,8 @@ pub async fn remove_member(
     State(state): State<Arc<AppState>>,
     Path((community_id, member_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(StatusCode, Json<ApiResponse<()>>), StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check requester is admin
     let is_admin: bool = sqlx::query_scalar(
@@ -1621,7 +1698,7 @@ pub async fn remove_member(
             SELECT 1 FROM community_members cm
             JOIN roles r ON cm.role_id = r.id
             WHERE cm.community_id = $1 AND cm.user_id = $2 AND r.name = 'admin'
-        )"
+        )",
     )
     .bind(community_id)
     .bind(user_uuid)
@@ -1644,13 +1721,12 @@ pub async fn remove_member(
     }
 
     // Delete membership
-    let result = sqlx::query(
-        "DELETE FROM community_members WHERE community_id = $1 AND user_id = $2"
-    )
-    .bind(community_id)
-    .bind(member_id)
-    .execute(&state.db.pool)
-    .await;
+    let result =
+        sqlx::query("DELETE FROM community_members WHERE community_id = $1 AND user_id = $2")
+            .bind(community_id)
+            .bind(member_id)
+            .execute(&state.db.pool)
+            .await;
 
     match result {
         Ok(rows) => {
@@ -1665,8 +1741,13 @@ pub async fn remove_member(
                 ));
             }
 
-            tracing::info!("Admin {} removed user {} from community {}", user.user_id, member_id, community_id);
-            
+            tracing::info!(
+                "Admin {} removed user {} from community {}",
+                user.user_id,
+                member_id,
+                community_id
+            );
+
             Ok((
                 StatusCode::NO_CONTENT,
                 Json(ApiResponse {
@@ -1700,8 +1781,8 @@ pub async fn get_my_communities(
     State(state): State<Arc<AppState>>,
     Query(params): Query<CommunitiesQueryParams>,
 ) -> Result<Json<ApiResponse<CommunitiesListResponse>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let offset = ((params.page.saturating_sub(1)) * params.limit) as i64;
     let search_param = params.search.as_deref().unwrap_or("").to_string();
@@ -1750,19 +1831,22 @@ pub async fn get_my_communities(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let communities_data: Vec<CommunityListResponse> = communities.iter().map(|row| {
-        CommunityListResponse {
+    let communities_data: Vec<CommunityListResponse> = communities
+        .iter()
+        .map(|row| CommunityListResponse {
             id: row.get::<uuid::Uuid, _>("id").to_string(),
             name: row.get::<String, _>("name"),
             description: row.get::<Option<String>, _>("description"),
             slug: row.get::<String, _>("slug"),
             is_public: row.get::<bool, _>("is_public"),
             member_count: row.get::<i64, _>("member_count"),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
-                .format("%Y-%m-%d %H:%M").to_string(),
+            created_at: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
             user_role: row.get::<Option<String>, _>("user_role"),
-        }
-    }).collect();
+        })
+        .collect();
 
     let has_next = (params.page * params.limit) < total_count as u32;
     let has_prev = params.page > 1;
@@ -1800,7 +1884,7 @@ pub async fn get_trending_communities(
          AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')
          GROUP BY c.id, c.name, c.description, c.slug, c.is_public, c.created_at
          ORDER BY member_count DESC, c.created_at DESC
-         LIMIT $2 OFFSET $3"
+         LIMIT $2 OFFSET $3",
     )
     .bind(&search_param)
     .bind(params.limit as i64)
@@ -1817,7 +1901,7 @@ pub async fn get_trending_communities(
         "SELECT COUNT(DISTINCT c.id)
          FROM communities c
          WHERE c.is_public = true
-         AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')"
+         AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')",
     )
     .bind(&search_param)
     .fetch_one(&state.db.pool)
@@ -1827,19 +1911,22 @@ pub async fn get_trending_communities(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    let communities_data: Vec<CommunityListResponse> = communities.iter().map(|row| {
-        CommunityListResponse {
+    let communities_data: Vec<CommunityListResponse> = communities
+        .iter()
+        .map(|row| CommunityListResponse {
             id: row.get::<uuid::Uuid, _>("id").to_string(),
             name: row.get::<String, _>("name"),
             description: row.get::<Option<String>, _>("description"),
             slug: row.get::<String, _>("slug"),
             is_public: row.get::<bool, _>("is_public"),
             member_count: row.get::<i64, _>("member_count"),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
-                .format("%Y-%m-%d %H:%M").to_string(),
+            created_at: row
+                .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
             user_role: row.get::<Option<String>, _>("user_role"),
-        }
-    }).collect();
+        })
+        .collect();
 
     let has_next = (params.page * params.limit) < total_count as u32;
     let has_prev = params.page > 1;
@@ -1868,22 +1955,21 @@ pub async fn transfer_ownership(
     State(state): State<Arc<AppState>>,
     Path((community_id, new_owner_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check requester is owner
-    let is_owner: bool = sqlx::query_scalar(
-        "SELECT created_by = $1 FROM communities WHERE id = $2"
-    )
-    .bind(user_uuid)
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to check ownership: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .unwrap_or(false);
+    let is_owner: bool =
+        sqlx::query_scalar("SELECT created_by = $1 FROM communities WHERE id = $2")
+            .bind(user_uuid)
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to check ownership: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+            .unwrap_or(false);
 
     if !is_owner {
         return Ok(Json(ApiResponse {
@@ -1915,19 +2001,18 @@ pub async fn transfer_ownership(
     }
 
     // Get admin role ID
-    let admin_role_id: i64 = sqlx::query_scalar(
-        "SELECT id FROM roles WHERE name = 'admin' LIMIT 1"
-    )
-    .fetch_one(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to get admin role: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let admin_role_id: i64 =
+        sqlx::query_scalar("SELECT id FROM roles WHERE name = 'admin' LIMIT 1")
+            .fetch_one(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get admin role: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     // Update new owner to admin role
     sqlx::query(
-        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3"
+        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3",
     )
     .bind(admin_role_id)
     .bind(community_id)
@@ -1940,18 +2025,22 @@ pub async fn transfer_ownership(
     })?;
 
     // Transfer ownership in communities table
-    let result = sqlx::query(
-        "UPDATE communities SET created_by = $1, updated_at = NOW() WHERE id = $2"
-    )
-    .bind(new_owner_id)
-    .bind(community_id)
-    .execute(&state.db.pool)
-    .await;
+    let result =
+        sqlx::query("UPDATE communities SET created_by = $1, updated_at = NOW() WHERE id = $2")
+            .bind(new_owner_id)
+            .bind(community_id)
+            .execute(&state.db.pool)
+            .await;
 
     match result {
         Ok(_) => {
-            tracing::info!("Owner {} transferred community {} to {}", user.user_id, community_id, new_owner_id);
-            
+            tracing::info!(
+                "Owner {} transferred community {} to {}",
+                user.user_id,
+                community_id,
+                new_owner_id
+            );
+
             Ok(Json(ApiResponse {
                 success: true,
                 data: None,
@@ -1975,22 +2064,21 @@ pub async fn promote_to_admin(
     State(state): State<Arc<AppState>>,
     Path((community_id, member_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check requester is owner
-    let is_owner: bool = sqlx::query_scalar(
-        "SELECT created_by = $1 FROM communities WHERE id = $2"
-    )
-    .bind(user_uuid)
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to check ownership: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .unwrap_or(false);
+    let is_owner: bool =
+        sqlx::query_scalar("SELECT created_by = $1 FROM communities WHERE id = $2")
+            .bind(user_uuid)
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to check ownership: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+            .unwrap_or(false);
 
     if !is_owner {
         return Ok(Json(ApiResponse {
@@ -2022,19 +2110,18 @@ pub async fn promote_to_admin(
     }
 
     // Get admin role ID
-    let admin_role_id: i64 = sqlx::query_scalar(
-        "SELECT id FROM roles WHERE name = 'admin' LIMIT 1"
-    )
-    .fetch_one(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to get admin role: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let admin_role_id: i64 =
+        sqlx::query_scalar("SELECT id FROM roles WHERE name = 'admin' LIMIT 1")
+            .fetch_one(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get admin role: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     // Update role to admin
     let result = sqlx::query(
-        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3"
+        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3",
     )
     .bind(admin_role_id)
     .bind(community_id)
@@ -2044,8 +2131,13 @@ pub async fn promote_to_admin(
 
     match result {
         Ok(_) => {
-            tracing::info!("Owner {} promoted user {} to admin in community {}", user.user_id, member_id, community_id);
-            
+            tracing::info!(
+                "Owner {} promoted user {} to admin in community {}",
+                user.user_id,
+                member_id,
+                community_id
+            );
+
             Ok(Json(ApiResponse {
                 success: true,
                 data: None,
@@ -2069,22 +2161,21 @@ pub async fn demote_to_member(
     State(state): State<Arc<AppState>>,
     Path((community_id, member_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_uuid =
+        Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Check requester is owner
-    let is_owner: bool = sqlx::query_scalar(
-        "SELECT created_by = $1 FROM communities WHERE id = $2"
-    )
-    .bind(user_uuid)
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to check ownership: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .unwrap_or(false);
+    let is_owner: bool =
+        sqlx::query_scalar("SELECT created_by = $1 FROM communities WHERE id = $2")
+            .bind(user_uuid)
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to check ownership: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+            .unwrap_or(false);
 
     if !is_owner {
         return Ok(Json(ApiResponse {
@@ -2095,18 +2186,17 @@ pub async fn demote_to_member(
     }
 
     // Check target is not the owner
-    let is_target_owner: bool = sqlx::query_scalar(
-        "SELECT created_by = $1 FROM communities WHERE id = $2"
-    )
-    .bind(member_id)
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to check if target is owner: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .unwrap_or(false);
+    let is_target_owner: bool =
+        sqlx::query_scalar("SELECT created_by = $1 FROM communities WHERE id = $2")
+            .bind(member_id)
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to check if target is owner: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?
+            .unwrap_or(false);
 
     if is_target_owner {
         return Ok(Json(ApiResponse {
@@ -2117,19 +2207,18 @@ pub async fn demote_to_member(
     }
 
     // Get member role ID
-    let member_role_id: i64 = sqlx::query_scalar(
-        "SELECT id FROM roles WHERE name = 'member' LIMIT 1"
-    )
-    .fetch_one(&state.db.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to get member role: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let member_role_id: i64 =
+        sqlx::query_scalar("SELECT id FROM roles WHERE name = 'member' LIMIT 1")
+            .fetch_one(&state.db.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get member role: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     // Update role to member
     let result = sqlx::query(
-        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3"
+        "UPDATE community_members SET role_id = $1 WHERE community_id = $2 AND user_id = $3",
     )
     .bind(member_role_id)
     .bind(community_id)
@@ -2139,8 +2228,13 @@ pub async fn demote_to_member(
 
     match result {
         Ok(_) => {
-            tracing::info!("Owner {} demoted user {} to member in community {}", user.user_id, member_id, community_id);
-            
+            tracing::info!(
+                "Owner {} demoted user {} to member in community {}",
+                user.user_id,
+                member_id,
+                community_id
+            );
+
             Ok(Json(ApiResponse {
                 success: true,
                 data: None,
@@ -2188,10 +2282,9 @@ pub async fn update_profile(
             message: Some("You can only update your own profile".to_string()),
         }));
     }
-    
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    
+
+    let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
     // Upsert profile
     let result = sqlx::query(
         r#"INSERT INTO user_profiles (user_id, name, bio, location, website, avatar_url, cover_image, is_public, updated_at)
@@ -2216,7 +2309,7 @@ pub async fn update_profile(
     .bind(payload.is_public)
     .execute(&state.db.pool)
     .await;
-    
+
     match result {
         Ok(_) => {
             tracing::info!("User {} updated their profile", user.user_id);
@@ -2247,16 +2340,16 @@ pub async fn follow_user(
     State(state): State<Arc<AppState>>,
     Path(target_user_id): Path<String>,
 ) -> Result<axum::response::Html<String>, StatusCode> {
-    let follower_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    let following_uuid = Uuid::parse_str(&target_user_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    
+    let follower_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let following_uuid = Uuid::parse_str(&target_user_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
     // Can't follow yourself
     if follower_uuid == following_uuid {
-        return Ok(axum::response::Html("<div class=\"text-red-500\">Non puoi seguire te stesso</div>".to_string()));
+        return Ok(axum::response::Html(
+            "<div class=\"text-red-500\">Non puoi seguire te stesso</div>".to_string(),
+        ));
     }
-    
+
     // Insert follow relationship
     let result = sqlx::query(
         "INSERT INTO user_follows (follower_id, following_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
@@ -2265,26 +2358,33 @@ pub async fn follow_user(
     .bind(following_uuid)
     .execute(&state.db.pool)
     .await;
-    
+
     if let Err(e) = result {
         tracing::error!("Failed to follow user: {}", e);
-        return Ok(axum::response::Html("<div class=\"text-red-500\">Errore</div>".to_string()));
+        return Ok(axum::response::Html(
+            "<div class=\"text-red-500\">Errore</div>".to_string(),
+        ));
     }
-    
+
     // Update follower counts
-    let _ = sqlx::query("UPDATE user_profiles SET follower_count = follower_count + 1 WHERE user_id = $1")
-        .bind(following_uuid)
-        .execute(&state.db.pool)
-        .await;
-    let _ = sqlx::query("UPDATE user_profiles SET following_count = following_count + 1 WHERE user_id = $1")
-        .bind(follower_uuid)
-        .execute(&state.db.pool)
-        .await;
-    
+    let _ = sqlx::query(
+        "UPDATE user_profiles SET follower_count = follower_count + 1 WHERE user_id = $1",
+    )
+    .bind(following_uuid)
+    .execute(&state.db.pool)
+    .await;
+    let _ = sqlx::query(
+        "UPDATE user_profiles SET following_count = following_count + 1 WHERE user_id = $1",
+    )
+    .bind(follower_uuid)
+    .execute(&state.db.pool)
+    .await;
+
     tracing::info!("User {} followed user {}", user.user_id, target_user_id);
-    
+
     // Return updated follow button (now showing "following")
-    Ok(axum::response::Html(format!(r#"
+    Ok(axum::response::Html(format!(
+        r#"
         <button hx-post="/api/users/{}/unfollow"
                 hx-target="this"
                 hx-swap="outerHTML"
@@ -2292,7 +2392,9 @@ pub async fn follow_user(
             <span class="group-hover:hidden">Seguendo</span>
             <span class="hidden group-hover:inline">Smetti di seguire</span>
         </button>
-    "#, target_user_id)))
+    "#,
+        target_user_id
+    )))
 }
 
 /// Unfollow a user (PROTECTED)
@@ -2301,25 +2403,24 @@ pub async fn unfollow_user(
     State(state): State<Arc<AppState>>,
     Path(target_user_id): Path<String>,
 ) -> Result<axum::response::Html<String>, StatusCode> {
-    let follower_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    let following_uuid = Uuid::parse_str(&target_user_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    
+    let follower_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let following_uuid = Uuid::parse_str(&target_user_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
     // Delete follow relationship
-    let result = sqlx::query(
-        "DELETE FROM user_follows WHERE follower_id = $1 AND following_id = $2"
-    )
-    .bind(follower_uuid)
-    .bind(following_uuid)
-    .execute(&state.db.pool)
-    .await;
-    
+    let result =
+        sqlx::query("DELETE FROM user_follows WHERE follower_id = $1 AND following_id = $2")
+            .bind(follower_uuid)
+            .bind(following_uuid)
+            .execute(&state.db.pool)
+            .await;
+
     if let Err(e) = result {
         tracing::error!("Failed to unfollow user: {}", e);
-        return Ok(axum::response::Html("<div class=\"text-red-500\">Errore</div>".to_string()));
+        return Ok(axum::response::Html(
+            "<div class=\"text-red-500\">Errore</div>".to_string(),
+        ));
     }
-    
+
     // Update follower counts
     let _ = sqlx::query("UPDATE user_profiles SET follower_count = GREATEST(follower_count - 1, 0) WHERE user_id = $1")
         .bind(following_uuid)
@@ -2329,18 +2430,21 @@ pub async fn unfollow_user(
         .bind(follower_uuid)
         .execute(&state.db.pool)
         .await;
-    
+
     tracing::info!("User {} unfollowed user {}", user.user_id, target_user_id);
-    
+
     // Return updated follow button (now showing "follow")
-    Ok(axum::response::Html(format!(r#"
+    Ok(axum::response::Html(format!(
+        r#"
         <button hx-post="/api/users/{}/follow"
                 hx-target="this"
                 hx-swap="outerHTML"
                 class="px-4 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white rounded-lg transition text-sm font-medium">
             Segui
         </button>
-    "#, target_user_id)))
+    "#,
+        target_user_id
+    )))
 }
 
 /// Dismiss welcome modal (PROTECTED)
@@ -2349,17 +2453,14 @@ pub async fn dismiss_welcome(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    
+    let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
     // Update user profile to mark welcome as dismissed
-    let _ = sqlx::query(
-        "UPDATE user_profiles SET welcome_dismissed = true WHERE user_id = $1"
-    )
-    .bind(user_uuid)
-    .execute(&state.db.pool)
-    .await;
-    
+    let _ = sqlx::query("UPDATE user_profiles SET welcome_dismissed = true WHERE user_id = $1")
+        .bind(user_uuid)
+        .execute(&state.db.pool)
+        .await;
+
     Ok(Json(ApiResponse {
         success: true,
         data: None,
@@ -2373,17 +2474,15 @@ pub async fn dismiss_profile_banner(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ApiResponse<()>>, StatusCode> {
-    let user_uuid = Uuid::parse_str(&user.user_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-    
+    let user_uuid = Uuid::parse_str(&user.user_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
     // Update user profile to mark banner as dismissed
-    let _ = sqlx::query(
-        "UPDATE user_profiles SET profile_banner_dismissed = true WHERE user_id = $1"
-    )
-    .bind(user_uuid)
-    .execute(&state.db.pool)
-    .await;
-    
+    let _ =
+        sqlx::query("UPDATE user_profiles SET profile_banner_dismissed = true WHERE user_id = $1")
+            .bind(user_uuid)
+            .execute(&state.db.pool)
+            .await;
+
     Ok(Json(ApiResponse {
         success: true,
         data: None,

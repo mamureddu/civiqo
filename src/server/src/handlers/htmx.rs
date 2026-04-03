@@ -3,10 +3,10 @@ use axum::{
     response::{Html, IntoResponse},
 };
 use serde::Deserialize;
-use std::sync::Arc;
 use sqlx::Row;
+use std::sync::Arc;
 
-use super::pages::{AppState, AppError};
+use super::pages::{AppError, AppState};
 use crate::auth::AuthUser;
 
 /// Navigation fragment
@@ -31,7 +31,7 @@ pub async fn nav_fragment(State(_state): State<Arc<AppState>>) -> Html<String> {
 /// Recent communities fragment - fetches from database
 pub async fn recent_communities(State(state): State<Arc<AppState>>) -> Html<String> {
     use sqlx::Row;
-    
+
     // Fetch recent communities from database
     let communities = sqlx::query(
         "SELECT c.id, c.name, c.slug, c.description, 
@@ -41,16 +41,16 @@ pub async fn recent_communities(State(state): State<Arc<AppState>>) -> Html<Stri
          WHERE c.is_public = true
          GROUP BY c.id, c.name, c.slug, c.description
          ORDER BY c.created_at DESC
-         LIMIT 6"
+         LIMIT 6",
     )
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if communities.is_empty() {
         return Html(r#"<div class="col-span-full text-center py-8 text-gray-500">No communities yet. Be the first to create one!</div>"#.to_string());
     }
-    
+
     let mut html = String::new();
     for (i, row) in communities.iter().enumerate() {
         let id: uuid::Uuid = row.get("id");
@@ -58,7 +58,7 @@ pub async fn recent_communities(State(state): State<Arc<AppState>>) -> Html<Stri
         let description: Option<String> = row.get("description");
         let member_count: i64 = row.get("member_count");
         let desc = description.unwrap_or_else(|| "A community on Civiqo".to_string());
-        
+
         html.push_str(&format!(r#"
         <div class="community-card fade-in bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow" style="animation-delay: {}ms;">
             <h3 class="text-xl font-bold mb-2 text-gray-900">{}</h3>
@@ -70,7 +70,7 @@ pub async fn recent_communities(State(state): State<Arc<AppState>>) -> Html<Stri
         </div>
         "#, i * 100, name, desc, member_count, id));
     }
-    
+
     Html(html)
 }
 
@@ -93,7 +93,7 @@ pub async fn communities_list(
     Query(query): Query<CommunitiesQuery>,
 ) -> Html<String> {
     use sqlx::Row;
-    
+
     // Build query based on search term
     let communities = if query.q.is_empty() {
         sqlx::query(
@@ -104,7 +104,7 @@ pub async fn communities_list(
              WHERE c.is_public = true
              GROUP BY c.id, c.name, c.slug, c.description
              ORDER BY c.created_at DESC
-             LIMIT 20"
+             LIMIT 20",
         )
         .fetch_all(&state.db.pool)
         .await
@@ -119,23 +119,26 @@ pub async fn communities_list(
              WHERE c.is_public = true AND (c.name ILIKE $1 OR c.description ILIKE $1)
              GROUP BY c.id, c.name, c.slug, c.description
              ORDER BY c.created_at DESC
-             LIMIT 20"
+             LIMIT 20",
         )
         .bind(&search_pattern)
         .fetch_all(&state.db.pool)
         .await
         .unwrap_or_default()
     };
-    
+
     if communities.is_empty() {
         let msg = if query.q.is_empty() {
             "No communities yet. Be the first to create one!"
         } else {
             "No communities found matching your search."
         };
-        return Html(format!(r#"<div class="col-span-full text-center py-8 text-gray-500">{}</div>"#, msg));
+        return Html(format!(
+            r#"<div class="col-span-full text-center py-8 text-gray-500">{}</div>"#,
+            msg
+        ));
     }
-    
+
     let mut html = String::from(r#"<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">"#);
     for row in &communities {
         let id: uuid::Uuid = row.get("id");
@@ -143,7 +146,7 @@ pub async fn communities_list(
         let description: Option<String> = row.get("description");
         let member_count: i64 = row.get("member_count");
         let desc = description.unwrap_or_else(|| "A community on Civiqo".to_string());
-        
+
         html.push_str(&format!(r#"
         <div class="community-card bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-shadow">
             <h3 class="text-xl font-bold mb-2 text-gray-900">{}</h3>
@@ -156,7 +159,7 @@ pub async fn communities_list(
         "#, name, desc, member_count, id));
     }
     html.push_str("</div>");
-    
+
     Html(html)
 }
 
@@ -194,14 +197,16 @@ pub async fn chat_header(
         None => ("Chat".to_string(), 0),
     };
 
-    Html(format!(r#"
+    Html(format!(
+        r#"
     <div class="flex items-center justify-between">
         <div>
             <h2 class="text-xl font-bold text-civiqo-gray-900">{name}</h2>
             <p class="text-sm text-civiqo-gray-500">👥 {members} membri</p>
         </div>
     </div>
-    "#))
+    "#
+    ))
 }
 
 /// User communities fragment (PROTECTED - requires authentication)
@@ -212,7 +217,7 @@ pub async fn user_communities(
     // Parse user_id as UUID
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Fetch user's communities from database
     let communities = sqlx::query(
         "SELECT c.id, c.name, c.description, COUNT(DISTINCT m.user_id) as member_count
@@ -221,13 +226,13 @@ pub async fn user_communities(
          WHERE c.created_by = $1
          GROUP BY c.id, c.name, c.description
          ORDER BY c.created_at DESC
-         LIMIT 10"
+         LIMIT 10",
     )
     .bind(user_uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if communities.is_empty() {
         return Ok(Html(r#"
         <div class="text-center py-8 text-gray-500">
@@ -235,14 +240,16 @@ pub async fn user_communities(
         </div>
         "#.to_string()));
     }
-    
+
     let mut html = String::new();
     for row in communities {
         let id = row.get::<uuid::Uuid, _>("id").to_string();
         let name = row.get::<String, _>("name");
-        let description = row.get::<Option<String>, _>("description").unwrap_or_default();
+        let description = row
+            .get::<Option<String>, _>("description")
+            .unwrap_or_default();
         let member_count = row.get::<i64, _>("member_count");
-        
+
         html.push_str(&format!(
             r#"<div class="flex items-center justify-between p-4 border-b hover:bg-gray-50 transition">
                 <div class="flex-1">
@@ -255,7 +262,7 @@ pub async fn user_communities(
             name, description, member_count, id
         ));
     }
-    
+
     Ok(Html(html))
 }
 
@@ -267,33 +274,35 @@ pub async fn user_communities_options(
 ) -> Html<String> {
     let user_uuid = match uuid::Uuid::parse_str(&user.user_id) {
         Ok(id) => id,
-        Err(_) => return Html(r#"<option value="">Errore: ID utente non valido</option>"#.to_string()),
+        Err(_) => {
+            return Html(r#"<option value="">Errore: ID utente non valido</option>"#.to_string())
+        }
     };
-    
+
     // Fetch communities where user is a member (can create proposals)
     let communities = sqlx::query(
         r#"SELECT c.id, c.name
            FROM communities c
            JOIN community_members cm ON c.id = cm.community_id
            WHERE cm.user_id = $1 AND cm.status = 'active'
-           ORDER BY c.name ASC"#
+           ORDER BY c.name ASC"#,
     )
     .bind(user_uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if communities.is_empty() {
         return Html(r#"<option value="">Nessuna community disponibile</option>"#.to_string());
     }
-    
+
     let mut html = String::from(r#"<option value="">Seleziona una community...</option>"#);
     for row in communities {
         let id: uuid::Uuid = row.get("id");
         let name: String = row.get("name");
         html.push_str(&format!(r#"<option value="{}">{}</option>"#, id, name));
     }
-    
+
     Html(html)
 }
 
@@ -304,7 +313,7 @@ pub async fn dashboard_active_proposals(
 ) -> Result<Html<String>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Fetch active proposals from user's communities
     let proposals = sqlx::query(
         r#"SELECT p.id, p.title, p.status, p.voting_ends_at, c.name as community_name, c.id as community_id,
@@ -320,7 +329,7 @@ pub async fn dashboard_active_proposals(
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if proposals.is_empty() {
         return Ok(Html(r#"
         <div class="text-center py-6 text-civiqo-gray-600">
@@ -331,7 +340,7 @@ pub async fn dashboard_active_proposals(
         </div>
         "#.to_string()));
     }
-    
+
     let mut html = String::new();
     for row in proposals {
         let _id: uuid::Uuid = row.get("id");
@@ -340,7 +349,7 @@ pub async fn dashboard_active_proposals(
         let community_id: uuid::Uuid = row.get("community_id");
         let vote_count: i64 = row.get("vote_count");
         let voting_ends: Option<chrono::DateTime<chrono::Utc>> = row.get("voting_ends_at");
-        
+
         let time_left = if let Some(ends) = voting_ends {
             let now = chrono::Utc::now();
             if ends > now {
@@ -358,7 +367,7 @@ pub async fn dashboard_active_proposals(
         } else {
             "⏱️ Nessuna scadenza".to_string()
         };
-        
+
         html.push_str(&format!(r#"
         <a href="/communities/{}?tab=governance" class="block p-3 border border-civiqo-gray-200 rounded-lg hover:bg-civiqo-gray-50 hover:border-civiqo-blue transition">
             <div class="flex items-center justify-between">
@@ -374,7 +383,7 @@ pub async fn dashboard_active_proposals(
         </a>
         "#, community_id, title, community_name, vote_count, time_left));
     }
-    
+
     Ok(Html(html))
 }
 
@@ -386,7 +395,7 @@ pub async fn user_activity(
     // Parse user_id as UUID
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Fetch recent posts from user's communities
     let posts = sqlx::query(
         "SELECT p.id, p.title, p.community_id, c.name as community_name, p.created_at
@@ -394,29 +403,33 @@ pub async fn user_activity(
          JOIN communities c ON p.community_id = c.id
          WHERE c.created_by = $1
          ORDER BY p.created_at DESC
-         LIMIT 5"
+         LIMIT 5",
     )
     .bind(user_uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if posts.is_empty() {
-        return Ok(Html(r#"
+        return Ok(Html(
+            r#"
         <div class="text-center py-8 text-gray-500">
             <p>No recent activity in your communities.</p>
         </div>
-        "#.to_string()));
+        "#
+            .to_string(),
+        ));
     }
-    
+
     let mut html = String::new();
     for row in posts {
         let title = row.get::<String, _>("title");
         let community_name = row.get::<String, _>("community_name");
-        let created_at = row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+        let created_at = row
+            .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
             .format("%Y-%m-%d %H:%M")
             .to_string();
-        
+
         html.push_str(&format!(
             r#"<div class="flex items-start justify-between p-4 border-b hover:bg-gray-50 transition">
                 <div class="flex-1">
@@ -428,7 +441,7 @@ pub async fn user_activity(
             title, community_name, created_at
         ));
     }
-    
+
     Ok(Html(html))
 }
 
@@ -444,7 +457,7 @@ pub async fn community_feed(
 ) -> Result<Html<String>, AppError> {
     let uuid = uuid::Uuid::parse_str(&community_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid community ID")))?;
-    
+
     // Check if user is member
     let is_member = if let Some(ref u) = user {
         let user_uuid = uuid::Uuid::parse_str(&u.user_id).ok();
@@ -463,7 +476,7 @@ pub async fn community_feed(
     } else {
         false
     };
-    
+
     let posts = sqlx::query(
         "SELECT p.id, p.title, p.content, p.created_at,
                 COALESCE(pr.name, u.email) as author_name
@@ -472,17 +485,18 @@ pub async fn community_feed(
          LEFT JOIN user_profiles pr ON u.id = pr.user_id
          WHERE p.community_id = $1
          ORDER BY p.created_at DESC
-         LIMIT 20"
+         LIMIT 20",
     )
     .bind(uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if posts.is_empty() {
         if is_member {
             // Member - show create post button
-            return Ok(Html(format!(r#"
+            return Ok(Html(format!(
+                r#"
             <div class="text-center py-8">
                 <svg class="mx-auto h-12 w-12 text-civiqo-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
@@ -498,7 +512,9 @@ pub async fn community_feed(
                     Crea un post
                 </a>
             </div>
-            "#, uuid)));
+            "#,
+                uuid
+            )));
         } else {
             // Not member - show join message
             return Ok(Html(r#"
@@ -513,19 +529,30 @@ pub async fn community_feed(
             "#.to_string()));
         }
     }
-    
+
     let mut html = String::new();
     for row in posts {
         let post_id = row.get::<uuid::Uuid, _>("id");
         let title = row.get::<String, _>("title");
         let content = row.get::<String, _>("content");
-        let author = row.get::<Option<String>, _>("author_name").unwrap_or_else(|| "Anonymous".to_string());
-        let created_at = row.get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+        let author = row
+            .get::<Option<String>, _>("author_name")
+            .unwrap_or_else(|| "Anonymous".to_string());
+        let created_at = row
+            .get::<chrono::DateTime<chrono::Utc>, _>("created_at")
             .format("%Y-%m-%d %H:%M")
             .to_string();
         // Truncate content for excerpt
         let excerpt: String = if content.len() > 200 {
-            format!("{}...", &content[..content.char_indices().take_while(|(i, _)| *i < 200).last().map(|(i, c)| i + c.len_utf8()).unwrap_or(200)])
+            format!(
+                "{}...",
+                &content[..content
+                    .char_indices()
+                    .take_while(|(i, _)| *i < 200)
+                    .last()
+                    .map(|(i, c)| i + c.len_utf8())
+                    .unwrap_or(200)]
+            )
         } else {
             content
         };
@@ -582,7 +609,7 @@ pub async fn businesses_list(State(state): State<Arc<AppState>>) -> Html<String>
            FROM businesses b
            WHERE b.is_active = true
            ORDER BY b.rating_avg DESC NULLS LAST, b.created_at DESC
-           LIMIT 12"#
+           LIMIT 12"#,
     )
     .fetch_all(&state.db.pool)
     .await
@@ -611,14 +638,18 @@ pub async fn businesses_list(State(state): State<Arc<AppState>>) -> Html<String>
         let review_count: i32 = row.get::<Option<i32>, _>("review_count").unwrap_or(0);
         let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
 
-        let rating = rating_avg.map(|d| d.to_string().parse::<f64>().unwrap_or(0.0)).unwrap_or(0.0);
+        let rating = rating_avg
+            .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
+            .unwrap_or(0.0);
         let stars = render_stars(rating);
         let verified_badge = if is_verified {
             r#"<span class="inline-flex items-center px-2 py-0.5 bg-civiqo-eco-green/10 text-civiqo-eco-green text-xs rounded-full ml-2">
                 <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                 Verificato
             </span>"#
-        } else { "" };
+        } else {
+            ""
+        };
 
         html.push_str(&format!(r#"
         <a href="/businesses/{}" class="bg-white rounded-xl shadow-sm overflow-hidden border border-civiqo-gray-200 hover:shadow-md transition-shadow group">
@@ -687,7 +718,7 @@ pub async fn businesses_search(
 ) -> Html<String> {
     let search_term = query.q.trim();
     let category = query.category.trim();
-    
+
     let businesses = if search_term.is_empty() && category.is_empty() {
         sqlx::query(
             r#"SELECT b.id, b.name, b.description, b.category, b.address, 
@@ -695,7 +726,7 @@ pub async fn businesses_search(
                FROM businesses b
                WHERE b.is_active = true
                ORDER BY b.rating_avg DESC NULLS LAST
-               LIMIT 12"#
+               LIMIT 12"#,
         )
         .fetch_all(&state.db.pool)
         .await
@@ -705,19 +736,19 @@ pub async fn businesses_search(
         let mut query_str = String::from(
             r#"SELECT b.id, b.name, b.description, b.category, b.address, 
                       b.rating_avg, b.review_count, b.cover_url, b.is_verified
-               FROM businesses b WHERE "#
+               FROM businesses b WHERE "#,
         );
-        
+
         if !search_term.is_empty() {
             conditions.push("(b.name ILIKE $1 OR b.description ILIKE $1)");
         }
         if !category.is_empty() {
             conditions.push("b.category = $2");
         }
-        
+
         query_str.push_str(&conditions.join(" AND "));
         query_str.push_str(" ORDER BY b.rating_avg DESC NULLS LAST LIMIT 12");
-        
+
         let search_pattern = format!("%{}%", search_term);
         sqlx::query(&query_str)
             .bind(&search_pattern)
@@ -728,7 +759,8 @@ pub async fn businesses_search(
     };
 
     if businesses.is_empty() {
-        return Html(format!(r#"
+        return Html(format!(
+            r#"
         <div class="col-span-full text-center py-12">
             <svg class="w-16 h-16 mx-auto text-civiqo-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -736,7 +768,9 @@ pub async fn businesses_search(
             <p class="text-civiqo-gray-600 font-medium">Nessun risultato per "{}"</p>
             <p class="text-civiqo-gray-500 text-sm mt-1">Prova con termini di ricerca diversi</p>
         </div>
-        "#, search_term));
+        "#,
+            search_term
+        ));
     }
 
     // Reuse the same rendering logic
@@ -751,11 +785,15 @@ pub async fn businesses_search(
         let review_count: i32 = row.get::<Option<i32>, _>("review_count").unwrap_or(0);
         let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
 
-        let rating = rating_avg.map(|d| d.to_string().parse::<f64>().unwrap_or(0.0)).unwrap_or(0.0);
+        let rating = rating_avg
+            .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
+            .unwrap_or(0.0);
         let stars = render_stars(rating);
         let verified_badge = if is_verified {
             r#"<span class="inline-flex items-center px-2 py-0.5 bg-civiqo-eco-green/10 text-civiqo-eco-green text-xs rounded-full ml-2">✓</span>"#
-        } else { "" };
+        } else {
+            ""
+        };
 
         html.push_str(&format!(r#"
         <a href="/businesses/{}" class="bg-white rounded-xl shadow-sm overflow-hidden border border-civiqo-gray-200 hover:shadow-md transition-shadow group">
@@ -810,7 +848,11 @@ pub async fn business_reviews(
 ) -> Html<String> {
     let business_uuid = match uuid::Uuid::parse_str(&business_id) {
         Ok(id) => id,
-        Err(_) => return Html(r#"<div class="text-civiqo-coral">ID attività non valido</div>"#.to_string()),
+        Err(_) => {
+            return Html(
+                r#"<div class="text-civiqo-coral">ID attività non valido</div>"#.to_string(),
+            )
+        }
     };
 
     let reviews = sqlx::query(
@@ -820,7 +862,7 @@ pub async fn business_reviews(
            JOIN users u ON r.user_id = u.id
            WHERE r.business_id = $1
            ORDER BY r.created_at DESC
-           LIMIT 10"#
+           LIMIT 10"#,
     )
     .bind(business_uuid)
     .fetch_all(&state.db.pool)
@@ -853,7 +895,8 @@ pub async fn business_reviews(
             .unwrap_or_else(|| format!(r#"<div class="w-10 h-10 rounded-full bg-civiqo-blue text-white flex items-center justify-center font-medium">{}</div>"#, 
                 display_name.chars().next().unwrap_or('U').to_uppercase()));
 
-        html.push_str(&format!(r#"
+        html.push_str(&format!(
+            r#"
         <div class="border-b border-civiqo-gray-200 pb-4 mb-4 last:border-0 last:pb-0 last:mb-0">
             <div class="flex items-start gap-3">
                 {}
@@ -873,8 +916,15 @@ pub async fn business_reviews(
             display_name,
             created_at.format("%d/%m/%Y"),
             stars,
-            title.map(|t| format!(r#"<h4 class="font-medium text-civiqo-gray-900 mt-2">{}</h4>"#, t)).unwrap_or_default(),
-            content.map(|c| format!(r#"<p class="text-civiqo-gray-600 text-sm mt-1">{}</p>"#, c)).unwrap_or_default()
+            title
+                .map(|t| format!(
+                    r#"<h4 class="font-medium text-civiqo-gray-900 mt-2">{}</h4>"#,
+                    t
+                ))
+                .unwrap_or_default(),
+            content
+                .map(|c| format!(r#"<p class="text-civiqo-gray-600 text-sm mt-1">{}</p>"#, c))
+                .unwrap_or_default()
         ));
     }
 
@@ -897,9 +947,9 @@ pub async fn governance_proposals(
     Query(params): Query<GovernanceProposalsQuery>,
 ) -> Html<String> {
     use sqlx::Row;
-    
+
     let filter = params.status.unwrap_or_else(|| "active".to_string());
-    
+
     // Build query based on filter
     let proposals = match filter.as_str() {
         "completed" => {
@@ -911,7 +961,7 @@ pub async fn governance_proposals(
                    JOIN communities c ON p.community_id = c.id
                    WHERE p.status IN ('passed', 'rejected', 'closed')
                    ORDER BY p.created_at DESC
-                   LIMIT 20"#
+                   LIMIT 20"#,
             )
             .fetch_all(&state.db.pool)
             .await
@@ -950,13 +1000,13 @@ pub async fn governance_proposals(
                    JOIN communities c ON p.community_id = c.id
                    WHERE p.status = 'active'
                    ORDER BY p.created_at DESC
-                   LIMIT 20"#
+                   LIMIT 20"#,
             )
             .fetch_all(&state.db.pool)
             .await
         }
     };
-    
+
     match proposals {
         Ok(rows) if !rows.is_empty() => {
             let mut html = String::new();
@@ -968,7 +1018,7 @@ pub async fn governance_proposals(
                 let community_name: String = row.get("community_name");
                 let vote_count: i64 = row.get("vote_count");
                 let voting_ends: Option<chrono::DateTime<chrono::Utc>> = row.get("voting_ends_at");
-                
+
                 let (status_class, status_label) = match status.as_str() {
                     "active" => ("bg-civiqo-eco-green/10 text-civiqo-eco-green", "Attiva"),
                     "draft" => ("bg-civiqo-yellow/10 text-civiqo-yellow", "Bozza"),
@@ -977,7 +1027,7 @@ pub async fn governance_proposals(
                     "closed" => ("bg-civiqo-gray-200 text-civiqo-gray-600", "Chiusa"),
                     _ => ("bg-civiqo-gray-200 text-civiqo-gray-600", "Sconosciuto"),
                 };
-                
+
                 let ends_text = voting_ends
                     .map(|dt| {
                         let now = chrono::Utc::now();
@@ -993,10 +1043,11 @@ pub async fn governance_proposals(
                         }
                     })
                     .unwrap_or_else(|| "Nessuna scadenza".to_string());
-                
+
                 // Build action buttons based on status
                 let action_buttons = if status == "draft" {
-                    format!(r#"
+                    format!(
+                        r#"
                         <div class="flex items-center space-x-2">
                             <button hx-post="/api/proposals/{}/activate"
                                     hx-target="closest div.bg-white"
@@ -1005,21 +1056,29 @@ pub async fn governance_proposals(
                                 Attiva Votazione
                             </button>
                         </div>
-                    "#, id)
+                    "#,
+                        id
+                    )
                 } else if status == "active" {
-                    format!(r#"
+                    format!(
+                        r#"
                         <div class="flex items-center space-x-2">
                             <a href="/governance/{}" 
                                class="px-3 py-1 bg-civiqo-blue text-white text-sm rounded-lg hover:bg-civiqo-blue-dark transition">
                                 Vota
                             </a>
                         </div>
-                    "#, id)
+                    "#,
+                        id
+                    )
                 } else {
-                    format!(r#"
+                    format!(
+                        r#"
                         <a href="/governance/{}" 
                            class="text-civiqo-blue hover:underline font-medium">Dettagli →</a>
-                    "#, id)
+                    "#,
+                        id
+                    )
                 };
 
                 html.push_str(&format!(r#"
@@ -1059,21 +1118,22 @@ pub async fn governance_proposals(
                 "completed" => (
                     r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>"#,
                     "Nessuna proposta completata",
-                    "Le proposte completate appariranno qui."
+                    "Le proposte completate appariranno qui.",
                 ),
                 "mine" => (
                     r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>"#,
                     "Nessuna proposta creata",
-                    "Non hai ancora creato proposte. Inizia ora!"
+                    "Non hai ancora creato proposte. Inizia ora!",
                 ),
                 _ => (
                     r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>"#,
                     "Nessuna proposta attiva",
-                    "Sii il primo a creare una proposta per la tua community!"
+                    "Sii il primo a creare una proposta per la tua community!",
                 ),
             };
-            
-            Html(format!(r#"
+
+            Html(format!(
+                r#"
             <div class="bg-white rounded-xl shadow-sm p-8 text-center border border-civiqo-gray-200">
                 <svg class="mx-auto h-12 w-12 text-civiqo-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     {icon}
@@ -1081,7 +1141,11 @@ pub async fn governance_proposals(
                 <h3 class="mt-4 text-lg font-medium text-civiqo-gray-900">{title}</h3>
                 <p class="mt-2 text-civiqo-gray-600">{message}</p>
             </div>
-            "#, icon = icon, title = title, message = message))
+            "#,
+                icon = icon,
+                title = title,
+                message = message
+            ))
         }
     }
 }
@@ -1114,7 +1178,7 @@ pub async fn community_proposals(
     } else {
         false
     };
-    
+
     let proposals = sqlx::query(
         r#"SELECT p.id, p.title, p.description, p.status, p.proposal_type,
                   p.voting_starts_at, p.voting_ends_at,
@@ -1131,16 +1195,16 @@ pub async fn community_proposals(
                    ELSE 3 
                END,
                p.created_at DESC
-           LIMIT 20"#
+           LIMIT 20"#,
     )
     .bind(community_id)
     .fetch_all(&state.db.pool)
     .await;
-    
+
     match proposals {
         Ok(rows) if !rows.is_empty() => {
             let mut html = String::new();
-            
+
             for row in rows {
                 let id: uuid::Uuid = row.get("id");
                 let title: String = row.get("title");
@@ -1150,20 +1214,28 @@ pub async fn community_proposals(
                 let author_name: String = row.get("author_name");
                 let vote_count: i64 = row.get("vote_count");
                 let voting_ends: Option<chrono::DateTime<chrono::Utc>> = row.get("voting_ends_at");
-                
+
                 let status_badge = match status.as_str() {
-                    "active" => r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-eco-green/10 text-civiqo-eco-green rounded-full">🗳️ Votazione Aperta</span>"#,
-                    "draft" => r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-yellow/10 text-civiqo-yellow rounded-full">📝 Bozza</span>"#,
-                    "closed" => r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-blue/10 text-civiqo-blue rounded-full">✓ Conclusa</span>"#,
-                    _ => r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-gray-100 text-civiqo-gray-600 rounded-full">-</span>"#,
+                    "active" => {
+                        r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-eco-green/10 text-civiqo-eco-green rounded-full">🗳️ Votazione Aperta</span>"#
+                    }
+                    "draft" => {
+                        r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-yellow/10 text-civiqo-yellow rounded-full">📝 Bozza</span>"#
+                    }
+                    "closed" => {
+                        r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-blue/10 text-civiqo-blue rounded-full">✓ Conclusa</span>"#
+                    }
+                    _ => {
+                        r#"<span class="px-2 py-1 text-xs font-medium bg-civiqo-gray-100 text-civiqo-gray-600 rounded-full">-</span>"#
+                    }
                 };
-                
+
                 let type_icon = match proposal_type.as_str() {
                     "vote" => "🗳️",
                     "poll" => "📊",
                     _ => "💬",
                 };
-                
+
                 let time_info = if let Some(ends) = voting_ends {
                     let now = chrono::Utc::now();
                     if ends > now {
@@ -1181,32 +1253,41 @@ pub async fn community_proposals(
                 } else {
                     "Nessuna scadenza".to_string()
                 };
-                
+
                 // Action button based on status
                 let action_html = match status.as_str() {
-                    "active" => format!(r#"
+                    "active" => format!(
+                        r#"
                         <a href="/governance/{}" 
                            style="background-color: var(--color-civiqo-eco-green, #57C98A);"
                            class="ml-4 px-4 py-2 text-white rounded-lg hover:opacity-90 transition text-sm font-medium whitespace-nowrap">
                             🗳️ Vota
                         </a>
-                    "#, id),
-                    "draft" => format!(r#"
+                    "#,
+                        id
+                    ),
+                    "draft" => format!(
+                        r#"
                         <a href="/governance/{}" 
                            style="background-color: var(--color-civiqo-amber, #F59E0B);"
                            class="ml-4 px-4 py-2 text-white rounded-lg hover:opacity-90 transition text-sm font-medium whitespace-nowrap">
                             ✏️ Rivedi
                         </a>
-                    "#, id),
-                    "closed" => format!(r#"
+                    "#,
+                        id
+                    ),
+                    "closed" => format!(
+                        r#"
                         <a href="/governance/{}" 
                            class="ml-4 px-4 py-2 bg-civiqo-gray-200 text-civiqo-gray-700 rounded-lg hover:bg-civiqo-gray-300 transition text-sm font-medium whitespace-nowrap">
                             📊 Risultati
                         </a>
-                    "#, id),
+                    "#,
+                        id
+                    ),
                     _ => String::new(),
                 };
-                
+
                 html.push_str(&format!(r#"
                 <a href="/governance/{}" class="block bg-white border border-civiqo-gray-200 rounded-lg p-4 hover:shadow-md hover:border-civiqo-blue/30 transition cursor-pointer">
                     <div class="flex items-start justify-between">
@@ -1238,7 +1319,7 @@ pub async fn community_proposals(
                     action_html
                 ));
             }
-            
+
             Html(html)
         }
         _ => {
@@ -1300,11 +1381,11 @@ pub async fn create_proposal_htmx(
     if form.title.trim().is_empty() {
         return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg mb-4">Il titolo è obbligatorio</div>"#.to_string()));
     }
-    
+
     // Parse user_id
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     // Verify user is member of community
     let is_member = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active'"
@@ -1314,33 +1395,35 @@ pub async fn create_proposal_htmx(
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(0);
-    
+
     if is_member == 0 {
         return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg mb-4">Devi essere membro della community per creare proposte</div>"#.to_string()));
     }
-    
+
     let proposal_type = form.proposal_type.unwrap_or_else(|| "text".to_string());
-    
+
     // Parse dates (datetime-local format: 2024-01-15T10:30)
-    let voting_starts: Option<chrono::DateTime<chrono::Utc>> = form.voting_starts_at
+    let voting_starts: Option<chrono::DateTime<chrono::Utc>> = form
+        .voting_starts_at
         .as_ref()
         .filter(|s| !s.is_empty())
         .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").ok())
         .map(|dt| dt.and_utc());
-    
-    let voting_ends: Option<chrono::DateTime<chrono::Utc>> = form.voting_ends_at
+
+    let voting_ends: Option<chrono::DateTime<chrono::Utc>> = form
+        .voting_ends_at
         .as_ref()
         .filter(|s| !s.is_empty())
         .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M").ok())
         .map(|dt| dt.and_utc());
-    
+
     // Insert proposal as draft - user must review and publish
     let proposal_id = uuid::Uuid::now_v7();
     sqlx::query(
         r#"INSERT INTO proposals (id, community_id, created_by, title, description, 
                                    proposal_type, status, voting_starts_at, voting_ends_at, 
                                    quorum_required, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8, 0, NOW(), NOW())"#
+           VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8, 0, NOW(), NOW())"#,
     )
     .bind(proposal_id)
     .bind(community_id)
@@ -1353,7 +1436,7 @@ pub async fn create_proposal_htmx(
     .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+
     // Return updated proposals list - user is authenticated so wrap in OptionalAuthUser
     let optional_user = crate::auth::OptionalAuthUser(Some(crate::auth::SessionData {
         user_id: user.user_id,
@@ -1361,7 +1444,12 @@ pub async fn create_proposal_htmx(
         name: user.name,
         picture: user.picture,
     }));
-    Ok(community_proposals(optional_user, State(state), axum::extract::Path(community_id)).await)
+    Ok(community_proposals(
+        optional_user,
+        State(state),
+        axum::extract::Path(community_id),
+    )
+    .await)
 }
 
 /// Community proposals count badge
@@ -1370,15 +1458,18 @@ pub async fn community_proposals_count(
     axum::extract::Path(community_id): axum::extract::Path<uuid::Uuid>,
 ) -> Html<String> {
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM proposals WHERE community_id = $1 AND status = 'active'"
+        "SELECT COUNT(*) FROM proposals WHERE community_id = $1 AND status = 'active'",
     )
     .bind(community_id)
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(0);
-    
+
     if count > 0 {
-        Html(format!(r#"<script>document.getElementById('proposals-badge').classList.remove('hidden');</script>{}"#, count))
+        Html(format!(
+            r#"<script>document.getElementById('proposals-badge').classList.remove('hidden');</script>{}"#,
+            count
+        ))
     } else {
         Html(String::new())
     }
@@ -1392,39 +1483,44 @@ pub async fn publish_proposal_htmx(
 ) -> Result<axum::response::Response, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     // Verify user is the author and proposal is draft
-    let proposal: Option<(uuid::Uuid, String)> = sqlx::query_as(
-        "SELECT created_by, status FROM proposals WHERE id = $1"
-    )
-    .bind(proposal_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+    let proposal: Option<(uuid::Uuid, String)> =
+        sqlx::query_as("SELECT created_by, status FROM proposals WHERE id = $1")
+            .bind(proposal_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+
     match proposal {
         Some((author_id, status)) => {
             if author_id != user_uuid {
-                return Ok(axum::response::Redirect::to("/governance?error=not_author").into_response());
+                return Ok(
+                    axum::response::Redirect::to("/governance?error=not_author").into_response()
+                );
             }
             if status != "draft" {
-                return Ok(axum::response::Redirect::to(&format!("/governance/{}?error=not_draft", proposal_id)).into_response());
+                return Ok(axum::response::Redirect::to(&format!(
+                    "/governance/{}?error=not_draft",
+                    proposal_id
+                ))
+                .into_response());
             }
         }
         None => {
             return Ok(axum::response::Redirect::to("/governance?error=not_found").into_response());
         }
     }
-    
+
     // Update status to active
     sqlx::query("UPDATE proposals SET status = 'active', updated_at = NOW() WHERE id = $1")
         .bind(proposal_id)
         .execute(&state.db.pool)
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+
     tracing::info!("User {} published proposal {}", user.user_id, proposal_id);
-    
+
     // Redirect to the proposal page
     Ok(axum::response::Redirect::to(&format!("/governance/{}", proposal_id)).into_response())
 }
@@ -1443,16 +1539,15 @@ pub async fn vote_proposal_htmx(
 ) -> Result<Html<String>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     // Verify proposal exists and is active
-    let proposal: Option<(String, uuid::Uuid)> = sqlx::query_as(
-        "SELECT status, community_id FROM proposals WHERE id = $1"
-    )
-    .bind(proposal_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+    let proposal: Option<(String, uuid::Uuid)> =
+        sqlx::query_as("SELECT status, community_id FROM proposals WHERE id = $1")
+            .bind(proposal_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+
     let community_id = match proposal {
         Some((status, cid)) => {
             if status != "active" {
@@ -1464,7 +1559,7 @@ pub async fn vote_proposal_htmx(
             return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg">Proposta non trovata.</div>"#.to_string()));
         }
     };
-    
+
     // Verify user is member of community
     let is_member: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active'"
@@ -1474,17 +1569,17 @@ pub async fn vote_proposal_htmx(
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(0);
-    
+
     if is_member == 0 {
         return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg">Devi essere membro della community per votare.</div>"#.to_string()));
     }
-    
+
     // Validate vote value
     let vote_value = match form.vote_value.as_str() {
         "yes" | "no" | "abstain" => form.vote_value.clone(),
         _ => return Ok(Html(r#"<div class="p-4 bg-red-100 text-red-700 rounded-lg">Valore di voto non valido.</div>"#.to_string())),
     };
-    
+
     // Upsert vote: delete existing + insert (since IDENTITY column can't use ON CONFLICT easily)
     sqlx::query("DELETE FROM votes WHERE proposal_id = $1 AND user_id = $2")
         .bind(proposal_id)
@@ -1502,32 +1597,73 @@ pub async fn vote_proposal_htmx(
     .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
-    tracing::info!("User {} voted {} on proposal {}", user.user_id, vote_value, proposal_id);
-    
+
+    tracing::info!(
+        "User {} voted {} on proposal {}",
+        user.user_id,
+        vote_value,
+        proposal_id
+    );
+
     // Get updated vote counts
     let yes_votes: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM votes WHERE proposal_id = $1 AND vote_value = 'yes'"
-    ).bind(proposal_id).fetch_one(&state.db.pool).await.unwrap_or(0);
-    
+        "SELECT COUNT(*) FROM votes WHERE proposal_id = $1 AND vote_value = 'yes'",
+    )
+    .bind(proposal_id)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+
     let no_votes: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM votes WHERE proposal_id = $1 AND vote_value = 'no'"
-    ).bind(proposal_id).fetch_one(&state.db.pool).await.unwrap_or(0);
-    
+        "SELECT COUNT(*) FROM votes WHERE proposal_id = $1 AND vote_value = 'no'",
+    )
+    .bind(proposal_id)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+
     let abstain_votes: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM votes WHERE proposal_id = $1 AND vote_value = 'abstain'"
-    ).bind(proposal_id).fetch_one(&state.db.pool).await.unwrap_or(0);
-    
+        "SELECT COUNT(*) FROM votes WHERE proposal_id = $1 AND vote_value = 'abstain'",
+    )
+    .bind(proposal_id)
+    .fetch_one(&state.db.pool)
+    .await
+    .unwrap_or(0);
+
     let total_votes = yes_votes + no_votes + abstain_votes;
-    let yes_percent = if total_votes > 0 { (yes_votes as f64 / total_votes as f64) * 100.0 } else { 0.0 };
-    let no_percent = if total_votes > 0 { (no_votes as f64 / total_votes as f64) * 100.0 } else { 0.0 };
-    let abstain_percent = if total_votes > 0 { (abstain_votes as f64 / total_votes as f64) * 100.0 } else { 0.0 };
-    
+    let yes_percent = if total_votes > 0 {
+        (yes_votes as f64 / total_votes as f64) * 100.0
+    } else {
+        0.0
+    };
+    let no_percent = if total_votes > 0 {
+        (no_votes as f64 / total_votes as f64) * 100.0
+    } else {
+        0.0
+    };
+    let abstain_percent = if total_votes > 0 {
+        (abstain_votes as f64 / total_votes as f64) * 100.0
+    } else {
+        0.0
+    };
+
     // Build button classes based on current vote (using brand colors)
-    let yes_class = if vote_value == "yes" { "bg-civiqo-eco-green text-white" } else { "bg-civiqo-gray-100 hover:bg-civiqo-eco-green/20 text-civiqo-gray-700" };
-    let no_class = if vote_value == "no" { "bg-civiqo-coral text-white" } else { "bg-civiqo-gray-100 hover:bg-civiqo-coral/20 text-civiqo-gray-700" };
-    let abstain_class = if vote_value == "abstain" { "bg-civiqo-gray-600 text-white" } else { "bg-civiqo-gray-100 hover:bg-civiqo-gray-200 text-civiqo-gray-700" };
-    
+    let yes_class = if vote_value == "yes" {
+        "bg-civiqo-eco-green text-white"
+    } else {
+        "bg-civiqo-gray-100 hover:bg-civiqo-eco-green/20 text-civiqo-gray-700"
+    };
+    let no_class = if vote_value == "no" {
+        "bg-civiqo-coral text-white"
+    } else {
+        "bg-civiqo-gray-100 hover:bg-civiqo-coral/20 text-civiqo-gray-700"
+    };
+    let abstain_class = if vote_value == "abstain" {
+        "bg-civiqo-gray-600 text-white"
+    } else {
+        "bg-civiqo-gray-100 hover:bg-civiqo-gray-200 text-civiqo-gray-700"
+    };
+
     // Return updated voting section HTML (using Tailwind brand classes)
     let html = format!(
         r#"<div class="p-6" id="voting-section">
@@ -1592,7 +1728,7 @@ pub async fn vote_proposal_htmx(
         abs_cls = abstain_class,
         hash = "#",
     );
-    
+
     Ok(Html(html))
 }
 
@@ -1604,39 +1740,48 @@ pub async fn delete_proposal_htmx(
 ) -> Result<axum::response::Response, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Invalid user ID")))?;
-    
+
     // Verify user is the author and proposal is draft
-    let proposal: Option<(uuid::Uuid, String)> = sqlx::query_as(
-        "SELECT created_by, status FROM proposals WHERE id = $1"
-    )
-    .bind(proposal_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+    let proposal: Option<(uuid::Uuid, String)> =
+        sqlx::query_as("SELECT created_by, status FROM proposals WHERE id = $1")
+            .bind(proposal_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+
     match proposal {
         Some((author_id, status)) => {
             if author_id != user_uuid {
-                return Ok(axum::response::Redirect::to("/governance?error=not_author").into_response());
+                return Ok(
+                    axum::response::Redirect::to("/governance?error=not_author").into_response()
+                );
             }
             if status != "draft" {
-                return Ok(axum::response::Redirect::to(&format!("/governance/{}?error=cannot_delete", proposal_id)).into_response());
+                return Ok(axum::response::Redirect::to(&format!(
+                    "/governance/{}?error=cannot_delete",
+                    proposal_id
+                ))
+                .into_response());
             }
         }
         None => {
             return Ok(axum::response::Redirect::to("/governance?error=not_found").into_response());
         }
     }
-    
+
     // Delete the proposal
     sqlx::query("DELETE FROM proposals WHERE id = $1")
         .bind(proposal_id)
         .execute(&state.db.pool)
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
-    tracing::info!("User {} deleted draft proposal {}", user.user_id, proposal_id);
-    
+
+    tracing::info!(
+        "User {} deleted draft proposal {}",
+        user.user_id,
+        proposal_id
+    );
+
     // Redirect to governance page
     Ok(axum::response::Redirect::to("/governance").into_response())
 }
@@ -1647,11 +1792,14 @@ pub async fn delete_proposal_htmx(
 
 /// POI nearby places fragment
 pub async fn poi_nearby(State(_state): State<Arc<AppState>>) -> Html<String> {
-    Html(r#"
+    Html(
+        r#"
     <div class="text-center py-4 text-gray-500 text-sm">
         <p>Nessun punto di interesse nelle vicinanze.</p>
     </div>
-    "#.to_string())
+    "#
+        .to_string(),
+    )
 }
 
 // =============================================================================
@@ -1665,16 +1813,14 @@ pub async fn comment_reply_form(
 ) -> Html<String> {
     // Look up the post_id from the parent comment
     let post_id = if let Ok(comment_uuid) = uuid::Uuid::parse_str(&comment_id) {
-        sqlx::query_scalar::<_, uuid::Uuid>(
-            "SELECT post_id FROM comments WHERE id = $1"
-        )
-        .bind(comment_uuid)
-        .fetch_optional(&state.db.pool)
-        .await
-        .ok()
-        .flatten()
-        .map(|id| id.to_string())
-        .unwrap_or_default()
+        sqlx::query_scalar::<_, uuid::Uuid>("SELECT post_id FROM comments WHERE id = $1")
+            .bind(comment_uuid)
+            .fetch_optional(&state.db.pool)
+            .await
+            .ok()
+            .flatten()
+            .map(|id| id.to_string())
+            .unwrap_or_default()
     } else {
         String::new()
     };
@@ -1704,15 +1850,13 @@ pub async fn comment_edit_form(
 ) -> Html<String> {
     // Fetch actual comment content from database
     let content = if let Ok(comment_uuid) = uuid::Uuid::parse_str(&comment_id) {
-        sqlx::query_scalar::<_, String>(
-            "SELECT content FROM comments WHERE id = $1"
-        )
-        .bind(comment_uuid)
-        .fetch_optional(&state.db.pool)
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or_default()
+        sqlx::query_scalar::<_, String>("SELECT content FROM comments WHERE id = $1")
+            .bind(comment_uuid)
+            .fetch_optional(&state.db.pool)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_default()
     } else {
         String::new()
     };
@@ -1723,7 +1867,8 @@ pub async fn comment_edit_form(
         .replace('>', "&gt;")
         .replace('"', "&quot;");
 
-    Html(format!(r#"
+    Html(format!(
+        r#"
     <form hx-put="/api/comments/{}" hx-swap="outerHTML" class="mt-2">
         <textarea name="content" rows="3"
                   class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#57C98A] text-sm"
@@ -1734,7 +1879,9 @@ pub async fn comment_edit_form(
             <button type="submit" class="px-3 py-1 bg-[#57C98A] text-white text-sm rounded">Salva</button>
         </div>
     </form>
-    "#, comment_id, escaped_content))
+    "#,
+        comment_id, escaped_content
+    ))
 }
 
 /// Comment replies fragment - loads nested replies for a comment
@@ -1760,7 +1907,8 @@ pub async fn comment_replies(
         .ok()
         .flatten();
 
-        let member = if let (Some(cid), Ok(uid)) = (community_id, uuid::Uuid::parse_str(&u.user_id)) {
+        let member = if let (Some(cid), Ok(uid)) = (community_id, uuid::Uuid::parse_str(&u.user_id))
+        {
             sqlx::query_scalar::<_, bool>(
                 "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'active')"
             )
@@ -1805,11 +1953,24 @@ pub async fn comment_replies(
         let author_name: Option<String> = row.get("author_name");
         let author_email: Option<String> = row.get("author_email");
         let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
-        let display_name = author_name.unwrap_or_else(|| author_email.clone().unwrap_or_else(|| "Anonymous".to_string()));
-        let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
+        let display_name = author_name.unwrap_or_else(|| {
+            author_email
+                .clone()
+                .unwrap_or_else(|| "Anonymous".to_string())
+        });
+        let initial = display_name
+            .chars()
+            .next()
+            .unwrap_or('?')
+            .to_uppercase()
+            .to_string();
         let is_reply_author = author_id.to_string() == user_id_str;
 
-        let edited_badge = if is_edited { r#"<span class="text-gray-400 text-xs italic ml-1">(modificato)</span>"# } else { "" };
+        let edited_badge = if is_edited {
+            r#"<span class="text-gray-400 text-xs italic ml-1">(modificato)</span>"#
+        } else {
+            ""
+        };
 
         let rid = reply_id.to_string();
         let reply_btn = if is_member {
@@ -1820,7 +1981,9 @@ pub async fn comment_replies(
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
                 </svg>
                 <span>Rispondi</span>
-            </button>"##, rid = rid)
+            </button>"##,
+                rid = rid
+            )
         } else {
             String::new()
         };
@@ -1841,7 +2004,9 @@ pub async fn comment_replies(
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                 </svg>
                 <span>Elimina</span>
-            </button>"##, rid = rid)
+            </button>"##,
+                rid = rid
+            )
         } else {
             String::new()
         };
@@ -1907,7 +2072,7 @@ pub async fn community_members(
         Ok(u) => u,
         Err(_) => return Html("<p class=\"text-red-500\">Invalid community ID</p>".to_string()),
     };
-    
+
     // Fetch members from database
     let members = sqlx::query(
         r#"SELECT u.id, u.email, p.name, p.avatar_url, r.name as role, cm.joined_at
@@ -1917,42 +2082,60 @@ pub async fn community_members(
            LEFT JOIN roles r ON cm.role_id = r.id
            WHERE cm.community_id = $1 AND cm.status = 'active'
            ORDER BY cm.joined_at ASC
-           LIMIT 50"#
+           LIMIT 50"#,
     )
     .bind(uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if members.is_empty() {
-        return Html(r#"
+        return Html(
+            r#"
         <div class="text-center py-8 text-gray-500">
             <p>Nessun membro ancora.</p>
         </div>
-        "#.to_string());
+        "#
+            .to_string(),
+        );
     }
-    
+
     let mut html = String::from(r#"<div class="space-y-3">"#);
-    
+
     for member in members {
         let email: String = member.get("email");
         let name: Option<String> = member.get("name");
         let avatar_url: Option<String> = member.get("avatar_url");
         let role: Option<String> = member.get("role");
         let display_name = name.unwrap_or_else(|| email.clone());
-        let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
+        let initial = display_name
+            .chars()
+            .next()
+            .unwrap_or('?')
+            .to_uppercase()
+            .to_string();
         let role_badge = match role.as_deref() {
-            Some("admin") => r#"<span class="px-2 py-0.5 bg-[#3B7FBA]/10 text-[#3B7FBA] text-xs rounded-full">Admin</span>"#,
-            Some("moderator") => r#"<span class="px-2 py-0.5 bg-[#57C98A]/10 text-[#57C98A] text-xs rounded-full">Mod</span>"#,
+            Some("admin") => {
+                r#"<span class="px-2 py-0.5 bg-[#3B7FBA]/10 text-[#3B7FBA] text-xs rounded-full">Admin</span>"#
+            }
+            Some("moderator") => {
+                r#"<span class="px-2 py-0.5 bg-[#57C98A]/10 text-[#57C98A] text-xs rounded-full">Mod</span>"#
+            }
             _ => "",
         };
-        
+
         let avatar_html = if let Some(url) = avatar_url {
-            format!(r#"<img src="{}" alt="{}" class="w-10 h-10 rounded-full object-cover">"#, url, display_name)
+            format!(
+                r#"<img src="{}" alt="{}" class="w-10 h-10 rounded-full object-cover">"#,
+                url, display_name
+            )
         } else {
-            format!(r#"<div class="w-10 h-10 rounded-full bg-[#57C98A]/10 flex items-center justify-center text-[#57C98A] font-medium">{}</div>"#, initial)
+            format!(
+                r#"<div class="w-10 h-10 rounded-full bg-[#57C98A]/10 flex items-center justify-center text-[#57C98A] font-medium">{}</div>"#,
+                initial
+            )
         };
-        
+
         html.push_str(&format!(r#"
         <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
             <div class="flex items-center space-x-3">
@@ -1966,7 +2149,7 @@ pub async fn community_members(
         </div>
         "#, avatar_html, display_name, email, role_badge));
     }
-    
+
     html.push_str("</div>");
     Html(html)
 }
@@ -1987,24 +2170,27 @@ pub async fn search_results(
 ) -> Html<String> {
     let query = params.q.trim();
     if query.len() < 2 {
-        return Html("<div class=\"p-4 text-center text-gray-500\">Inserisci almeno 2 caratteri</div>".to_string());
+        return Html(
+            "<div class=\"p-4 text-center text-gray-500\">Inserisci almeno 2 caratteri</div>"
+                .to_string(),
+        );
     }
-    
+
     let search_pattern = format!("%{}%", query.to_lowercase());
-    
+
     // Search users
     let users = sqlx::query(
         r#"SELECT u.id, u.email, p.name, p.avatar_url
            FROM users u
            LEFT JOIN user_profiles p ON u.id = p.user_id
            WHERE LOWER(u.email) LIKE $1 OR LOWER(p.name) LIKE $1
-           LIMIT 5"#
+           LIMIT 5"#,
     )
     .bind(&search_pattern)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     // Search communities
     let communities = sqlx::query(
         r#"SELECT c.id, c.name, c.description, COUNT(cm.user_id) as member_count
@@ -2012,13 +2198,13 @@ pub async fn search_results(
            LEFT JOIN community_members cm ON c.id = cm.community_id AND cm.status = 'active'
            WHERE LOWER(c.name) LIKE $1 OR LOWER(c.description) LIKE $1
            GROUP BY c.id, c.name, c.description
-           LIMIT 5"#
+           LIMIT 5"#,
     )
     .bind(&search_pattern)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     // Search posts
     let posts = sqlx::query(
         r#"SELECT p.id, p.title, c.name as community_name, p.created_at
@@ -2026,40 +2212,56 @@ pub async fn search_results(
            JOIN communities c ON p.community_id = c.id
            WHERE LOWER(p.title) LIKE $1
            ORDER BY p.created_at DESC
-           LIMIT 5"#
+           LIMIT 5"#,
     )
     .bind(&search_pattern)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if users.is_empty() && communities.is_empty() && posts.is_empty() {
-        return Html(format!(r#"
+        return Html(format!(
+            r#"
             <div class="p-4 text-center text-gray-500">
                 <p>Nessun risultato per "{}"</p>
             </div>
-        "#, query));
+        "#,
+            query
+        ));
     }
-    
+
     let mut html = String::from("<div class=\"p-2 space-y-4\">");
-    
+
     // Users section
     if !users.is_empty() {
-        html.push_str("<div><p class=\"text-xs font-semibold text-gray-400 uppercase px-2 mb-1\">Utenti</p>");
+        html.push_str(
+            "<div><p class=\"text-xs font-semibold text-gray-400 uppercase px-2 mb-1\">Utenti</p>",
+        );
         for user in users {
             let id: uuid::Uuid = user.get("id");
             let email: String = user.get("email");
             let name: Option<String> = user.get("name");
             let avatar_url: Option<String> = user.get("avatar_url");
             let display_name = name.unwrap_or_else(|| email.clone());
-            let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
-            
+            let initial = display_name
+                .chars()
+                .next()
+                .unwrap_or('?')
+                .to_uppercase()
+                .to_string();
+
             let avatar = if let Some(url) = avatar_url {
-                format!(r#"<img src="{}" class="w-8 h-8 rounded-full object-cover">"#, url)
+                format!(
+                    r#"<img src="{}" class="w-8 h-8 rounded-full object-cover">"#,
+                    url
+                )
             } else {
-                format!(r#"<div class="w-8 h-8 rounded-full bg-[#57C98A]/10 text-[#57C98A] flex items-center justify-center text-sm font-medium">{}</div>"#, initial)
+                format!(
+                    r#"<div class="w-8 h-8 rounded-full bg-[#57C98A]/10 text-[#57C98A] flex items-center justify-center text-sm font-medium">{}</div>"#,
+                    initial
+                )
             };
-            
+
             html.push_str(&format!(r#"
                 <a href="/users/{}" class="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg">
                     {}
@@ -2069,7 +2271,7 @@ pub async fn search_results(
         }
         html.push_str("</div>");
     }
-    
+
     // Communities section
     if !communities.is_empty() {
         html.push_str("<div><p class=\"text-xs font-semibold text-gray-400 uppercase px-2 mb-1\">Community</p>");
@@ -2077,35 +2279,43 @@ pub async fn search_results(
             let id: uuid::Uuid = community.get("id");
             let name: String = community.get("name");
             let member_count: i64 = community.get("member_count");
-            
-            html.push_str(&format!(r#"
+
+            html.push_str(&format!(
+                r#"
                 <a href="/communities/{}" class="block p-2 hover:bg-gray-100 rounded-lg">
                     <p class="text-sm font-medium text-gray-900">{}</p>
                     <p class="text-xs text-gray-500">{} membri</p>
                 </a>
-            "#, id, name, member_count));
+            "#,
+                id, name, member_count
+            ));
         }
         html.push_str("</div>");
     }
-    
+
     // Posts section
     if !posts.is_empty() {
-        html.push_str("<div><p class=\"text-xs font-semibold text-gray-400 uppercase px-2 mb-1\">Post</p>");
+        html.push_str(
+            "<div><p class=\"text-xs font-semibold text-gray-400 uppercase px-2 mb-1\">Post</p>",
+        );
         for post in posts {
             let id: uuid::Uuid = post.get("id");
             let title: String = post.get("title");
             let community_name: String = post.get("community_name");
-            
-            html.push_str(&format!(r#"
+
+            html.push_str(&format!(
+                r#"
                 <a href="/posts/{}" class="block p-2 hover:bg-gray-100 rounded-lg">
                     <p class="text-sm font-medium text-gray-900">{}</p>
                     <p class="text-xs text-gray-500">in {}</p>
                 </a>
-            "#, id, title, community_name));
+            "#,
+                id, title, community_name
+            ));
         }
         html.push_str("</div>");
     }
-    
+
     html.push_str("</div>");
     Html(html)
 }
@@ -2128,12 +2338,12 @@ pub async fn follow_button(
             </a>
         "#.to_string());
     };
-    
+
     // Don't show follow button for own profile
     if user.user_id == target_user_id {
         return Html(String::new());
     }
-    
+
     let follower_uuid = match uuid::Uuid::parse_str(&user.user_id) {
         Ok(u) => u,
         Err(_) => return Html("<div class=\"text-red-500\">Errore</div>".to_string()),
@@ -2142,19 +2352,20 @@ pub async fn follow_button(
         Ok(u) => u,
         Err(_) => return Html("<div class=\"text-red-500\">Errore</div>".to_string()),
     };
-    
+
     // Check if already following
     let is_following: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM user_follows WHERE follower_id = $1 AND following_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM user_follows WHERE follower_id = $1 AND following_id = $2)",
     )
     .bind(follower_uuid)
     .bind(following_uuid)
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(false);
-    
+
     if is_following {
-        Html(format!(r#"
+        Html(format!(
+            r#"
             <button hx-post="/api/users/{}/unfollow"
                     hx-target="this"
                     hx-swap="outerHTML"
@@ -2162,16 +2373,21 @@ pub async fn follow_button(
                 <span class="group-hover:hidden">Seguendo</span>
                 <span class="hidden group-hover:inline">Smetti di seguire</span>
             </button>
-        "#, target_user_id))
+        "#,
+            target_user_id
+        ))
     } else {
-        Html(format!(r#"
+        Html(format!(
+            r#"
             <button hx-post="/api/users/{}/follow"
                     hx-target="this"
                     hx-swap="outerHTML"
                     class="px-4 py-2 bg-[#57C98A] hover:bg-[#4ab87a] text-white rounded-lg transition text-sm font-medium">
                 Segui
             </button>
-        "#, target_user_id))
+        "#,
+            target_user_id
+        ))
     }
 }
 
@@ -2189,7 +2405,7 @@ pub async fn notifications_dropdown(
         Ok(u) => u,
         Err(_) => return Html("<div class=\"p-4 text-red-500\">Errore</div>".to_string()),
     };
-    
+
     // Fetch recent notifications
     let notifications = sqlx::query(
         r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at,
@@ -2200,43 +2416,58 @@ pub async fn notifications_dropdown(
            LEFT JOIN user_profiles p ON u.id = p.user_id
            WHERE n.user_id = $1
            ORDER BY n.created_at DESC
-           LIMIT 10"#
+           LIMIT 10"#,
     )
     .bind(user_uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if notifications.is_empty() {
-        return Html(r#"
+        return Html(
+            r#"
             <div class="p-4 text-center text-gray-500">
                 <p>Nessuna notifica</p>
             </div>
-        "#.to_string());
+        "#
+            .to_string(),
+        );
     }
-    
+
     let mut html = String::from("<div class=\"divide-y divide-gray-100\">");
-    
+
     for notif in notifications {
         let message: Option<String> = notif.get("message");
         let is_read: bool = notif.get("is_read");
         let created_at: chrono::DateTime<chrono::Utc> = notif.get("created_at");
         let actor_name: Option<String> = notif.get("actor_name");
         let actor_avatar: Option<String> = notif.get("actor_avatar");
-        
+
         let bg_class = if is_read { "" } else { "bg-blue-50" };
         let display_name = actor_name.unwrap_or_else(|| "Qualcuno".to_string());
         let display_message = message.unwrap_or_else(|| "ha interagito con te".to_string());
         let time_ago = format_time_ago(created_at);
-        
+
         let avatar = if let Some(url) = actor_avatar {
-            format!(r#"<img src="{}" class="w-10 h-10 rounded-full object-cover">"#, url)
+            format!(
+                r#"<img src="{}" class="w-10 h-10 rounded-full object-cover">"#,
+                url
+            )
         } else {
-            let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
-            format!(r#"<div class="w-10 h-10 rounded-full bg-[#57C98A]/10 text-[#57C98A] flex items-center justify-center font-medium">{}</div>"#, initial)
+            let initial = display_name
+                .chars()
+                .next()
+                .unwrap_or('?')
+                .to_uppercase()
+                .to_string();
+            format!(
+                r#"<div class="w-10 h-10 rounded-full bg-[#57C98A]/10 text-[#57C98A] flex items-center justify-center font-medium">{}</div>"#,
+                initial
+            )
         };
-        
-        html.push_str(&format!(r#"
+
+        html.push_str(&format!(
+            r#"
             <div class="flex items-start space-x-3 p-3 {} hover:bg-gray-50">
                 {}
                 <div class="flex-1 min-w-0">
@@ -2244,9 +2475,11 @@ pub async fn notifications_dropdown(
                     <p class="text-xs text-gray-500">{}</p>
                 </div>
             </div>
-        "#, bg_class, avatar, display_name, display_message, time_ago));
+        "#,
+            bg_class, avatar, display_name, display_message, time_ago
+        ));
     }
-    
+
     html.push_str("</div>");
     Html(html)
 }
@@ -2254,7 +2487,7 @@ pub async fn notifications_dropdown(
 fn format_time_ago(dt: chrono::DateTime<chrono::Utc>) -> String {
     let now = chrono::Utc::now();
     let diff = now.signed_duration_since(dt);
-    
+
     if diff.num_minutes() < 1 {
         "ora".to_string()
     } else if diff.num_minutes() < 60 {
@@ -2281,31 +2514,33 @@ pub async fn user_posts(
         Ok(u) => u,
         Err(_) => return Html("<p class=\"text-red-500\">Invalid user ID</p>".to_string()),
     };
-    
+
     let posts = sqlx::query(
         r#"SELECT p.id, p.title, p.created_at, c.name as community_name
            FROM posts p
            JOIN communities c ON p.community_id = c.id
            WHERE p.author_id = $1
            ORDER BY p.created_at DESC
-           LIMIT 20"#
+           LIMIT 20"#,
     )
     .bind(user_uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if posts.is_empty() {
-        return Html("<div class=\"text-center py-8 text-gray-500\">Nessun post ancora</div>".to_string());
+        return Html(
+            "<div class=\"text-center py-8 text-gray-500\">Nessun post ancora</div>".to_string(),
+        );
     }
-    
+
     let mut html = String::from("<div class=\"space-y-3\">");
     for post in posts {
         let id: uuid::Uuid = post.get("id");
         let title: String = post.get("title");
         let community_name: String = post.get("community_name");
         let created_at: chrono::DateTime<chrono::Utc> = post.get("created_at");
-        
+
         html.push_str(&format!(r#"
             <a href="/posts/{}" class="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
                 <h4 class="font-medium text-gray-900">{}</h4>
@@ -2326,30 +2561,32 @@ pub async fn user_profile_communities(
         Ok(u) => u,
         Err(_) => return Html("<p class=\"text-red-500\">Invalid user ID</p>".to_string()),
     };
-    
+
     let communities = sqlx::query(
         r#"SELECT c.id, c.name, c.description
            FROM communities c
            JOIN community_members cm ON c.id = cm.community_id
            WHERE cm.user_id = $1 AND cm.status = 'active'
            ORDER BY cm.joined_at DESC
-           LIMIT 20"#
+           LIMIT 20"#,
     )
     .bind(user_uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if communities.is_empty() {
-        return Html("<div class=\"text-center py-8 text-gray-500\">Nessuna community</div>".to_string());
+        return Html(
+            "<div class=\"text-center py-8 text-gray-500\">Nessuna community</div>".to_string(),
+        );
     }
-    
+
     let mut html = String::from("<div class=\"space-y-3\">");
     for community in communities {
         let id: uuid::Uuid = community.get("id");
         let name: String = community.get("name");
         let description: Option<String> = community.get("description");
-        
+
         html.push_str(&format!(r#"
             <a href="/communities/{}" class="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
                 <h4 class="font-medium text-gray-900">{}</h4>
@@ -2370,7 +2607,7 @@ pub async fn user_followers(
         Ok(u) => u,
         Err(_) => return Html("<p class=\"text-red-500\">Invalid user ID</p>".to_string()),
     };
-    
+
     let followers = sqlx::query(
         r#"SELECT u.id, u.email, p.name, p.avatar_url
            FROM user_follows f
@@ -2378,17 +2615,19 @@ pub async fn user_followers(
            LEFT JOIN user_profiles p ON u.id = p.user_id
            WHERE f.following_id = $1
            ORDER BY f.created_at DESC
-           LIMIT 50"#
+           LIMIT 50"#,
     )
     .bind(user_uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if followers.is_empty() {
-        return Html("<div class=\"text-center py-8 text-gray-500\">Nessun follower</div>".to_string());
+        return Html(
+            "<div class=\"text-center py-8 text-gray-500\">Nessun follower</div>".to_string(),
+        );
     }
-    
+
     render_user_list(followers)
 }
 
@@ -2401,7 +2640,7 @@ pub async fn user_following(
         Ok(u) => u,
         Err(_) => return Html("<p class=\"text-red-500\">Invalid user ID</p>".to_string()),
     };
-    
+
     let following = sqlx::query(
         r#"SELECT u.id, u.email, p.name, p.avatar_url
            FROM user_follows f
@@ -2409,37 +2648,50 @@ pub async fn user_following(
            LEFT JOIN user_profiles p ON u.id = p.user_id
            WHERE f.follower_id = $1
            ORDER BY f.created_at DESC
-           LIMIT 50"#
+           LIMIT 50"#,
     )
     .bind(user_uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if following.is_empty() {
-        return Html("<div class=\"text-center py-8 text-gray-500\">Non segue nessuno</div>".to_string());
+        return Html(
+            "<div class=\"text-center py-8 text-gray-500\">Non segue nessuno</div>".to_string(),
+        );
     }
-    
+
     render_user_list(following)
 }
 
 fn render_user_list(users: Vec<sqlx::postgres::PgRow>) -> Html<String> {
     let mut html = String::from("<div class=\"space-y-3\">");
-    
+
     for user in users {
         let id: uuid::Uuid = user.get("id");
         let email: String = user.get("email");
         let name: Option<String> = user.get("name");
         let avatar_url: Option<String> = user.get("avatar_url");
         let display_name = name.unwrap_or_else(|| email.clone());
-        let initial = display_name.chars().next().unwrap_or('?').to_uppercase().to_string();
-        
+        let initial = display_name
+            .chars()
+            .next()
+            .unwrap_or('?')
+            .to_uppercase()
+            .to_string();
+
         let avatar = if let Some(url) = avatar_url {
-            format!(r#"<img src="{}" class="w-12 h-12 rounded-full object-cover">"#, url)
+            format!(
+                r#"<img src="{}" class="w-12 h-12 rounded-full object-cover">"#,
+                url
+            )
         } else {
-            format!(r#"<div class="w-12 h-12 rounded-full bg-[#57C98A]/10 text-[#57C98A] flex items-center justify-center font-medium">{}</div>"#, initial)
+            format!(
+                r#"<div class="w-12 h-12 rounded-full bg-[#57C98A]/10 text-[#57C98A] flex items-center justify-center font-medium">{}</div>"#,
+                initial
+            )
         };
-        
+
         html.push_str(&format!(r#"
             <a href="/users/{}" class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
                 {}
@@ -2450,7 +2702,7 @@ fn render_user_list(users: Vec<sqlx::postgres::PgRow>) -> Html<String> {
             </a>
         "#, id, avatar, display_name, email));
     }
-    
+
     html.push_str("</div>");
     Html(html)
 }
@@ -2472,96 +2724,90 @@ pub async fn notifications_list(
         Ok(id) => id,
         Err(_) => return Html(render_empty_notifications("all")),
     };
-    
+
     let filter = params.filter.unwrap_or_else(|| "all".to_string());
     let page = params.page.unwrap_or(1);
     let limit = 20;
     let offset = (page - 1) * limit;
-    
+
     // Build query based on filter
     let notifications = match filter.as_str() {
-        "unread" => {
-            sqlx::query(
-                r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
+        "unread" => sqlx::query(
+            r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
                           COALESCE(p.name, u.email) as actor_name, p.avatar_url as actor_avatar
                    FROM notifications n
                    LEFT JOIN users u ON n.actor_id = u.id
                    LEFT JOIN user_profiles p ON u.id = p.user_id
                    WHERE n.user_id = $1 AND n.is_read = false
                    ORDER BY n.created_at DESC
-                   LIMIT $2 OFFSET $3"#
-            )
-            .bind(user_uuid)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&state.db.pool)
-            .await
-        }
-        "mentions" => {
-            sqlx::query(
-                r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
+                   LIMIT $2 OFFSET $3"#,
+        )
+        .bind(user_uuid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db.pool)
+        .await,
+        "mentions" => sqlx::query(
+            r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
                           COALESCE(p.name, u.email) as actor_name, p.avatar_url as actor_avatar
                    FROM notifications n
                    LEFT JOIN users u ON n.actor_id = u.id
                    LEFT JOIN user_profiles p ON u.id = p.user_id
                    WHERE n.user_id = $1 AND n.type = 'mention'
                    ORDER BY n.created_at DESC
-                   LIMIT $2 OFFSET $3"#
-            )
-            .bind(user_uuid)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&state.db.pool)
-            .await
-        }
-        "votes" => {
-            sqlx::query(
-                r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
+                   LIMIT $2 OFFSET $3"#,
+        )
+        .bind(user_uuid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db.pool)
+        .await,
+        "votes" => sqlx::query(
+            r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
                           COALESCE(p.name, u.email) as actor_name, p.avatar_url as actor_avatar
                    FROM notifications n
                    LEFT JOIN users u ON n.actor_id = u.id
                    LEFT JOIN user_profiles p ON u.id = p.user_id
                    WHERE n.user_id = $1 AND n.type IN ('vote', 'proposal')
                    ORDER BY n.created_at DESC
-                   LIMIT $2 OFFSET $3"#
-            )
-            .bind(user_uuid)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&state.db.pool)
-            .await
-        }
-        _ => {
-            sqlx::query(
-                r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
+                   LIMIT $2 OFFSET $3"#,
+        )
+        .bind(user_uuid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db.pool)
+        .await,
+        _ => sqlx::query(
+            r#"SELECT n.id, n.type, n.message, n.is_read, n.created_at, n.target_type, n.target_id,
                           COALESCE(p.name, u.email) as actor_name, p.avatar_url as actor_avatar
                    FROM notifications n
                    LEFT JOIN users u ON n.actor_id = u.id
                    LEFT JOIN user_profiles p ON u.id = p.user_id
                    WHERE n.user_id = $1
                    ORDER BY n.created_at DESC
-                   LIMIT $2 OFFSET $3"#
-            )
-            .bind(user_uuid)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&state.db.pool)
-            .await
-        }
+                   LIMIT $2 OFFSET $3"#,
+        )
+        .bind(user_uuid)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&state.db.pool)
+        .await,
     };
-    
+
     match notifications {
-        Ok(rows) if !rows.is_empty() => {
-            Html(render_notifications_list(rows, page, &filter))
-        }
-        _ => Html(render_empty_notifications(&filter))
+        Ok(rows) if !rows.is_empty() => Html(render_notifications_list(rows, page, &filter)),
+        _ => Html(render_empty_notifications(&filter)),
     }
 }
 
 #[allow(dead_code)]
-fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, _page: i32, _filter: &str) -> String {
+fn render_notifications_list(
+    notifications: Vec<sqlx::postgres::PgRow>,
+    _page: i32,
+    _filter: &str,
+) -> String {
     let mut html = String::new();
-    
+
     for notification in notifications {
         let id: uuid::Uuid = notification.get("id");
         let notif_type: String = notification.get("type");
@@ -2572,7 +2818,7 @@ fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, _page: i
         let target_id: Option<String> = notification.get("target_id");
         let actor_name: Option<String> = notification.get("actor_name");
         let _actor_avatar: Option<String> = notification.get("actor_avatar");
-        
+
         // Calculate time ago
         let now = chrono::Utc::now();
         let diff = now.signed_duration_since(created_at);
@@ -2585,7 +2831,7 @@ fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, _page: i
         } else {
             "Adesso".to_string()
         };
-        
+
         // Build link based on target
         let link = match (target_type.as_deref(), target_id.as_ref()) {
             (Some("post"), Some(id)) => format!("/posts/{}", id),
@@ -2594,32 +2840,64 @@ fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, _page: i
             (Some("proposal"), Some(id)) => format!("/governance?proposal={}", id),
             _ => "#".to_string(),
         };
-        
+
         // Icon and color based on type
         let (icon_class, icon_svg) = match notif_type.as_str() {
-            "follow" => ("bg-civiqo-eco-green/10 text-civiqo-eco-green", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>"#),
-            "comment" => ("bg-civiqo-blue/10 text-civiqo-blue", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>"#),
-            "mention" => ("bg-civiqo-lilac/10 text-civiqo-lilac", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>"#),
-            "vote" | "proposal" => ("bg-civiqo-coral/10 text-civiqo-coral", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>"#),
-            "reaction" => ("bg-civiqo-yellow/10 text-civiqo-yellow", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>"#),
-            _ => ("bg-civiqo-gray-200 text-civiqo-gray-600", r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>"#),
+            "follow" => (
+                "bg-civiqo-eco-green/10 text-civiqo-eco-green",
+                r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>"#,
+            ),
+            "comment" => (
+                "bg-civiqo-blue/10 text-civiqo-blue",
+                r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>"#,
+            ),
+            "mention" => (
+                "bg-civiqo-lilac/10 text-civiqo-lilac",
+                r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>"#,
+            ),
+            "vote" | "proposal" => (
+                "bg-civiqo-coral/10 text-civiqo-coral",
+                r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>"#,
+            ),
+            "reaction" => (
+                "bg-civiqo-yellow/10 text-civiqo-yellow",
+                r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>"#,
+            ),
+            _ => (
+                "bg-civiqo-gray-200 text-civiqo-gray-600",
+                r#"<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>"#,
+            ),
         };
-        
-        let unread_class = if !is_read { "border-l-4 border-l-civiqo-blue" } else { "" };
+
+        let unread_class = if !is_read {
+            "border-l-4 border-l-civiqo-blue"
+        } else {
+            ""
+        };
         let font_class = if !is_read { "font-medium" } else { "" };
-        
-        let display_message = message.unwrap_or_else(|| {
-            match notif_type.as_str() {
-                "follow" => format!("{} ha iniziato a seguirti", actor_name.as_deref().unwrap_or("Qualcuno")),
-                "comment" => format!("{} ha commentato il tuo post", actor_name.as_deref().unwrap_or("Qualcuno")),
-                "mention" => format!("{} ti ha menzionato", actor_name.as_deref().unwrap_or("Qualcuno")),
-                "reaction" => format!("{} ha reagito al tuo post", actor_name.as_deref().unwrap_or("Qualcuno")),
-                "vote" => "Nuova votazione disponibile".to_string(),
-                "proposal" => "Nuova proposta nella tua community".to_string(),
-                _ => "Nuova notifica".to_string(),
-            }
+
+        let display_message = message.unwrap_or_else(|| match notif_type.as_str() {
+            "follow" => format!(
+                "{} ha iniziato a seguirti",
+                actor_name.as_deref().unwrap_or("Qualcuno")
+            ),
+            "comment" => format!(
+                "{} ha commentato il tuo post",
+                actor_name.as_deref().unwrap_or("Qualcuno")
+            ),
+            "mention" => format!(
+                "{} ti ha menzionato",
+                actor_name.as_deref().unwrap_or("Qualcuno")
+            ),
+            "reaction" => format!(
+                "{} ha reagito al tuo post",
+                actor_name.as_deref().unwrap_or("Qualcuno")
+            ),
+            "vote" => "Nuova votazione disponibile".to_string(),
+            "proposal" => "Nuova proposta nella tua community".to_string(),
+            _ => "Nuova notifica".to_string(),
         });
-        
+
         html.push_str(&format!(r#"
             <div class="bg-white rounded-lg p-4 border border-civiqo-gray-200 hover:border-civiqo-blue/30 transition-colors {unread_class}">
                 <a href="{link}" 
@@ -2650,7 +2928,7 @@ fn render_notifications_list(notifications: Vec<sqlx::postgres::PgRow>, _page: i
             unread_dot = if !is_read { r#"<div class="flex-shrink-0"><div class="w-2 h-2 bg-civiqo-blue rounded-full"></div></div>"# } else { "" }
         ));
     }
-    
+
     html
 }
 
@@ -2662,8 +2940,9 @@ fn render_empty_notifications(filter: &str) -> String {
         "votes" => "Nessuna votazione attiva.",
         _ => "Le notifiche appariranno qui quando ci saranno novità.",
     };
-    
-    format!(r#"
+
+    format!(
+        r#"
         <div class="text-center py-12 bg-white rounded-lg border border-gray-200">
             <svg class="w-16 h-16 mx-auto text-gray-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
@@ -2671,7 +2950,9 @@ fn render_empty_notifications(filter: &str) -> String {
             <h3 class="text-lg font-semibold text-gray-900 mb-2">Nessuna notifica</h3>
             <p class="text-gray-600">{}</p>
         </div>
-    "#, message)
+    "#,
+        message
+    )
 }
 
 /// Mark all notifications as read
@@ -2684,14 +2965,14 @@ pub async fn mark_all_notifications_read(
         Ok(id) => id,
         Err(_) => return Html(String::new()),
     };
-    
+
     let _ = sqlx::query(
-        "UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false"
+        "UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false",
     )
     .bind(user_uuid)
     .execute(&state.db.pool)
     .await;
-    
+
     Html(String::new())
 }
 
@@ -2706,20 +2987,18 @@ pub async fn mark_notification_read(
         Ok(id) => id,
         Err(_) => return Html(String::new()),
     };
-    
+
     let notification_uuid = match uuid::Uuid::parse_str(&notification_id) {
         Ok(id) => id,
         Err(_) => return Html(String::new()),
     };
-    
-    let _ = sqlx::query(
-        "UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2"
-    )
-    .bind(notification_uuid)
-    .bind(user_uuid)
-    .execute(&state.db.pool)
-    .await;
-    
+
+    let _ = sqlx::query("UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2")
+        .bind(notification_uuid)
+        .bind(user_uuid)
+        .execute(&state.db.pool)
+        .await;
+
     Html(String::new())
 }
 
@@ -2736,21 +3015,19 @@ pub async fn community_businesses(
         Ok(id) => id,
         Err(_) => return Html(render_empty_businesses()),
     };
-    
+
     // Verify community exists
-    let community_exists = sqlx::query(
-        "SELECT id FROM communities WHERE id = $1"
-    )
-    .bind(community_uuid)
-    .fetch_optional(&state.db.pool)
-    .await
-    .ok()
-    .flatten();
-    
+    let community_exists = sqlx::query("SELECT id FROM communities WHERE id = $1")
+        .bind(community_uuid)
+        .fetch_optional(&state.db.pool)
+        .await
+        .ok()
+        .flatten();
+
     if community_exists.is_none() {
         return Html(render_empty_businesses());
     }
-    
+
     // Fetch businesses for this community
     let businesses = sqlx::query(
         r#"SELECT b.id, b.name, b.description, b.category, b.address, 
@@ -2758,19 +3035,20 @@ pub async fn community_businesses(
            FROM businesses b
            WHERE b.community_id = $1
            ORDER BY b.is_verified DESC, b.rating_avg DESC NULLS LAST, b.name ASC
-           LIMIT 20"#
+           LIMIT 20"#,
     )
     .bind(community_uuid)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if businesses.is_empty() {
         return Html(render_empty_businesses());
     }
-    
-    let mut html = String::from(r#"<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">"#);
-    
+
+    let mut html =
+        String::from(r#"<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">"#);
+
     for row in businesses {
         let id: uuid::Uuid = row.get("id");
         let name: String = row.get("name");
@@ -2780,13 +3058,15 @@ pub async fn community_businesses(
         let rating_avg: Option<rust_decimal::Decimal> = row.get("rating_avg");
         let review_count: Option<i32> = row.get("review_count");
         let is_verified: bool = row.get::<Option<bool>, _>("is_verified").unwrap_or(false);
-        
+
         let desc = description.unwrap_or_default();
         let cat = category.unwrap_or_else(|| "Attività".to_string());
         let addr = address.unwrap_or_default();
-        let rating = rating_avg.map(|d| d.to_string().parse::<f64>().unwrap_or(0.0)).unwrap_or(0.0);
+        let rating = rating_avg
+            .map(|d| d.to_string().parse::<f64>().unwrap_or(0.0))
+            .unwrap_or(0.0);
         let reviews = review_count.unwrap_or(0);
-        
+
         let verified_badge = if is_verified {
             r#"<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-civiqo-eco-green/10 text-civiqo-eco-green">
                 <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -2797,7 +3077,7 @@ pub async fn community_businesses(
         } else {
             ""
         };
-        
+
         html.push_str(&format!(r#"
         <a href="/businesses/{}" class="block bg-white rounded-xl shadow-sm border border-civiqo-gray-200 overflow-hidden hover:shadow-md hover:border-civiqo-blue/30 transition-all group">
             <div class="p-5">
@@ -2828,7 +3108,7 @@ pub async fn community_businesses(
         </a>
         "#, id, name, cat, verified_badge, desc, addr, rating, reviews));
     }
-    
+
     html.push_str("</div>");
     Html(html)
 }
@@ -2855,24 +3135,23 @@ pub async fn community_chat(
         Ok(id) => id,
         Err(_) => return Html(render_chat_error()),
     };
-    
+
     // Verify community exists and get its name
-    let community = sqlx::query(
-        "SELECT id, name FROM communities WHERE id = $1"
-    )
-    .bind(community_uuid)
-    .fetch_optional(&state.db.pool)
-    .await
-    .ok()
-    .flatten();
-    
+    let community = sqlx::query("SELECT id, name FROM communities WHERE id = $1")
+        .bind(community_uuid)
+        .fetch_optional(&state.db.pool)
+        .await
+        .ok()
+        .flatten();
+
     let community_name = match community {
         Some(row) => row.get::<String, _>("name"),
         None => return Html(render_chat_error()),
     };
-    
+
     // Return chat interface HTML
-    Html(format!(r#"
+    Html(format!(
+        r#"
     <div class="bg-white rounded-xl border border-civiqo-gray-200 overflow-hidden">
         <!-- Chat Header -->
         <div class="px-6 py-4 border-b border-civiqo-gray-200 bg-civiqo-gray-50">
@@ -2918,7 +3197,9 @@ pub async fn community_chat(
             </div>
         </div>
     </div>
-    "#, community_name, community_uuid))
+    "#,
+        community_name, community_uuid
+    ))
 }
 
 fn render_chat_error() -> String {
@@ -2945,25 +3226,27 @@ pub async fn join_community_htmx(
 ) -> Result<Html<String>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Check community exists and is public
-    let community: Option<(bool,)> = sqlx::query_as(
-        "SELECT is_public FROM communities WHERE id = $1"
-    )
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+    let community: Option<(bool,)> =
+        sqlx::query_as("SELECT is_public FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+
     let (is_public,) = match community {
         Some(c) => c,
         None => {
-            return Ok(Html(r#"
+            return Ok(Html(
+                r#"
                 <div class="text-civiqo-coral text-sm">Community non trovata</div>
-            "#.to_string()));
+            "#
+                .to_string(),
+            ));
         }
     };
-    
+
     if !is_public {
         return Ok(Html(r#"
             <button disabled class="inline-flex items-center px-4 py-2 bg-civiqo-gray-200 text-civiqo-gray-500 rounded-lg font-medium cursor-not-allowed">
@@ -2974,17 +3257,17 @@ pub async fn join_community_htmx(
             </button>
         "#.to_string()));
     }
-    
+
     // Check if already member
     let existing: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2)",
     )
     .bind(community_id)
     .bind(user_uuid)
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(false);
-    
+
     if existing {
         return Ok(Html(r#"
             <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-eco-green/20 text-white rounded-full text-sm font-medium">
@@ -2995,20 +3278,24 @@ pub async fn join_community_htmx(
             </span>
         "#.to_string()));
     }
-    
+
     // Insert membership
     let result = sqlx::query(
         "INSERT INTO community_members (user_id, community_id, role, status, joined_at)
-         VALUES ($1, $2, 'member', 'active', NOW())"
+         VALUES ($1, $2, 'member', 'active', NOW())",
     )
     .bind(user_uuid)
     .bind(community_id)
     .execute(&state.db.pool)
     .await;
-    
+
     match result {
         Ok(_) => {
-            tracing::info!("User {} joined community {} via HTMX", user.user_id, community_id);
+            tracing::info!(
+                "User {} joined community {} via HTMX",
+                user.user_id,
+                community_id
+            );
             Ok(Html(r#"
                 <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-eco-green/20 text-white rounded-full text-sm font-medium animate-pulse">
                     <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3040,26 +3327,28 @@ pub async fn request_join_htmx(
 ) -> Result<Html<String>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Check community exists
-    let community: Option<(bool, bool)> = sqlx::query_as(
-        "SELECT is_public, requires_approval FROM communities WHERE id = $1"
-    )
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+    let community: Option<(bool, bool)> =
+        sqlx::query_as("SELECT is_public, requires_approval FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+
     let (is_public, requires_approval) = match community {
         Some(c) => c,
         None => {
-            return Ok(Html(r#"<div class="text-civiqo-coral text-sm">Community non trovata</div>"#.to_string()));
+            return Ok(Html(
+                r#"<div class="text-civiqo-coral text-sm">Community non trovata</div>"#.to_string(),
+            ));
         }
     };
-    
+
     // If public, redirect to join
     if is_public && !requires_approval {
-        return Ok(Html(format!(r#"
+        return Ok(Html(format!(
+            r#"
             <button hx-post="/htmx/communities/{}/join" hx-swap="outerHTML"
                     class="inline-flex items-center px-4 py-2 bg-white text-civiqo-blue rounded-lg font-medium hover:bg-civiqo-gray-50 transition-colors shadow-sm">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3067,19 +3356,21 @@ pub async fn request_join_htmx(
                 </svg>
                 Iscriviti
             </button>
-        "#, community_id)));
+        "#,
+            community_id
+        )));
     }
-    
+
     // Check if already member or pending
     let existing: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2"
+        "SELECT status FROM community_members WHERE community_id = $1 AND user_id = $2",
     )
     .bind(community_id)
     .bind(user_uuid)
     .fetch_optional(&state.db.pool)
     .await
     .unwrap_or(None);
-    
+
     if let Some(status) = existing {
         if status == "active" {
             return Ok(Html(r#"
@@ -3101,20 +3392,24 @@ pub async fn request_join_htmx(
             "#.to_string()));
         }
     }
-    
+
     // Insert pending membership request
     let result = sqlx::query(
         "INSERT INTO community_members (user_id, community_id, role, status, joined_at)
-         VALUES ($1, $2, 'member', 'pending', NOW())"
+         VALUES ($1, $2, 'member', 'pending', NOW())",
     )
     .bind(user_uuid)
     .bind(community_id)
     .execute(&state.db.pool)
     .await;
-    
+
     match result {
         Ok(_) => {
-            tracing::info!("User {} requested to join community {} via HTMX", user.user_id, community_id);
+            tracing::info!(
+                "User {} requested to join community {} via HTMX",
+                user.user_id,
+                community_id
+            );
             Ok(Html(r#"
                 <span class="inline-flex items-center px-3 py-1.5 bg-civiqo-amber/20 text-civiqo-amber rounded-full text-sm font-medium">
                     <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3142,22 +3437,22 @@ pub async fn membership_button_htmx(
     axum::extract::Path(community_id): axum::extract::Path<uuid::Uuid>,
 ) -> Result<Html<String>, AppError> {
     // Check community type
-    let community: Option<(bool, bool)> = sqlx::query_as(
-        "SELECT is_public, requires_approval FROM communities WHERE id = $1"
-    )
-    .bind(community_id)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+    let community: Option<(bool, bool)> =
+        sqlx::query_as("SELECT is_public, requires_approval FROM communities WHERE id = $1")
+            .bind(community_id)
+            .fetch_optional(&state.db.pool)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+
     let (is_public, requires_approval) = match community {
         Some(c) => c,
         None => return Ok(Html(String::new())),
     };
-    
+
     // Not logged in
     let Some(user) = user else {
-        return Ok(Html(format!(r#"
+        return Ok(Html(format!(
+            r#"
             <a href="/auth/login" 
                class="inline-flex items-center px-4 py-2 bg-white text-civiqo-blue rounded-lg font-medium hover:bg-civiqo-gray-50 transition-colors shadow-sm">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3165,22 +3460,23 @@ pub async fn membership_button_htmx(
                 </svg>
                 Accedi per iscriverti
             </a>
-        "#)));
+        "#
+        )));
     };
-    
+
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Check membership status
     let membership: Option<(String, String)> = sqlx::query_as(
-        "SELECT status, role::text FROM community_members WHERE community_id = $1 AND user_id = $2"
+        "SELECT status, role::text FROM community_members WHERE community_id = $1 AND user_id = $2",
     )
     .bind(community_id)
     .bind(user_uuid)
     .fetch_optional(&state.db.pool)
     .await
     .unwrap_or(None);
-    
+
     match membership {
         Some((status, role)) if status == "active" => {
             let role_badge = match role.as_str() {
@@ -3243,7 +3539,7 @@ pub async fn membership_requests_htmx(
 ) -> Result<Html<String>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Check if user is admin/owner
     let is_admin: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND role IN ('owner', 'admin') AND status = 'active')"
@@ -3253,24 +3549,31 @@ pub async fn membership_requests_htmx(
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(false);
-    
+
     if !is_admin {
-        return Ok(Html(r#"<div class="text-civiqo-coral">Accesso non autorizzato</div>"#.to_string()));
+        return Ok(Html(
+            r#"<div class="text-civiqo-coral">Accesso non autorizzato</div>"#.to_string(),
+        ));
     }
-    
+
     // Get pending requests
-    let requests: Vec<(uuid::Uuid, String, Option<String>, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
+    let requests: Vec<(
+        uuid::Uuid,
+        String,
+        Option<String>,
+        chrono::DateTime<chrono::Utc>,
+    )> = sqlx::query_as(
         "SELECT cm.user_id, u.email, u.display_name, cm.joined_at 
          FROM community_members cm
          JOIN users u ON cm.user_id = u.id
          WHERE cm.community_id = $1 AND cm.status = 'pending'
-         ORDER BY cm.joined_at DESC"
+         ORDER BY cm.joined_at DESC",
     )
     .bind(community_id)
     .fetch_all(&state.db.pool)
     .await
     .unwrap_or_default();
-    
+
     if requests.is_empty() {
         return Ok(Html(r#"
             <div class="text-center py-8 text-civiqo-gray-500">
@@ -3281,13 +3584,13 @@ pub async fn membership_requests_htmx(
             </div>
         "#.to_string()));
     }
-    
+
     let mut html = String::from(r#"<div class="space-y-3">"#);
-    
+
     for (req_user_id, email, display_name, requested_at) in requests {
         let name = display_name.unwrap_or_else(|| email.clone());
         let time_ago = requested_at.format("%d/%m/%Y %H:%M").to_string();
-        
+
         html.push_str(&format!(r#"
             <div class="flex items-center justify-between p-4 bg-white rounded-lg border border-civiqo-gray-200">
                 <div class="flex items-center gap-3">
@@ -3320,7 +3623,7 @@ pub async fn membership_requests_htmx(
             req_user_id
         ));
     }
-    
+
     html.push_str("</div>");
     Ok(Html(html))
 }
@@ -3329,11 +3632,14 @@ pub async fn membership_requests_htmx(
 pub async fn approve_request_htmx(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
-    axum::extract::Path((community_id, request_user_id)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+    axum::extract::Path((community_id, request_user_id)): axum::extract::Path<(
+        uuid::Uuid,
+        uuid::Uuid,
+    )>,
 ) -> Result<Html<String>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Check if user is admin/owner
     let is_admin: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND role IN ('owner', 'admin') AND status = 'active')"
@@ -3343,11 +3649,13 @@ pub async fn approve_request_htmx(
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(false);
-    
+
     if !is_admin {
-        return Ok(Html(r#"<div class="text-civiqo-coral p-2">Non autorizzato</div>"#.to_string()));
+        return Ok(Html(
+            r#"<div class="text-civiqo-coral p-2">Non autorizzato</div>"#.to_string(),
+        ));
     }
-    
+
     // Update status to active
     let result = sqlx::query(
         "UPDATE community_members SET status = 'active', updated_at = NOW() WHERE community_id = $1 AND user_id = $2 AND status = 'pending'"
@@ -3356,10 +3664,15 @@ pub async fn approve_request_htmx(
     .bind(request_user_id)
     .execute(&state.db.pool)
     .await;
-    
+
     match result {
         Ok(r) if r.rows_affected() > 0 => {
-            tracing::info!("Admin {} approved membership for {} in community {}", user.user_id, request_user_id, community_id);
+            tracing::info!(
+                "Admin {} approved membership for {} in community {}",
+                user.user_id,
+                request_user_id,
+                community_id
+            );
             Ok(Html(r#"
                 <div class="flex items-center gap-2 p-4 bg-civiqo-eco-green/10 rounded-lg text-civiqo-eco-green">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3369,9 +3682,9 @@ pub async fn approve_request_htmx(
                 </div>
             "#.to_string()))
         }
-        _ => {
-            Ok(Html(r#"<div class="text-civiqo-coral p-2">Richiesta non trovata</div>"#.to_string()))
-        }
+        _ => Ok(Html(
+            r#"<div class="text-civiqo-coral p-2">Richiesta non trovata</div>"#.to_string(),
+        )),
     }
 }
 
@@ -3379,11 +3692,14 @@ pub async fn approve_request_htmx(
 pub async fn reject_request_htmx(
     AuthUser(user): AuthUser,
     State(state): State<Arc<AppState>>,
-    axum::extract::Path((community_id, request_user_id)): axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+    axum::extract::Path((community_id, request_user_id)): axum::extract::Path<(
+        uuid::Uuid,
+        uuid::Uuid,
+    )>,
 ) -> Result<Html<String>, AppError> {
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Invalid user ID: {}", e)))?;
-    
+
     // Check if user is admin/owner
     let is_admin: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id = $1 AND user_id = $2 AND role IN ('owner', 'admin') AND status = 'active')"
@@ -3393,11 +3709,13 @@ pub async fn reject_request_htmx(
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(false);
-    
+
     if !is_admin {
-        return Ok(Html(r#"<div class="text-civiqo-coral p-2">Non autorizzato</div>"#.to_string()));
+        return Ok(Html(
+            r#"<div class="text-civiqo-coral p-2">Non autorizzato</div>"#.to_string(),
+        ));
     }
-    
+
     // Delete the pending request
     let result = sqlx::query(
         "DELETE FROM community_members WHERE community_id = $1 AND user_id = $2 AND status = 'pending'"
@@ -3406,10 +3724,15 @@ pub async fn reject_request_htmx(
     .bind(request_user_id)
     .execute(&state.db.pool)
     .await;
-    
+
     match result {
         Ok(r) if r.rows_affected() > 0 => {
-            tracing::info!("Admin {} rejected membership for {} in community {}", user.user_id, request_user_id, community_id);
+            tracing::info!(
+                "Admin {} rejected membership for {} in community {}",
+                user.user_id,
+                request_user_id,
+                community_id
+            );
             Ok(Html(r#"
                 <div class="flex items-center gap-2 p-4 bg-civiqo-gray-100 rounded-lg text-civiqo-gray-600">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3419,9 +3742,9 @@ pub async fn reject_request_htmx(
                 </div>
             "#.to_string()))
         }
-        _ => {
-            Ok(Html(r#"<div class="text-civiqo-coral p-2">Richiesta non trovata</div>"#.to_string()))
-        }
+        _ => Ok(Html(
+            r#"<div class="text-civiqo-coral p-2">Richiesta non trovata</div>"#.to_string(),
+        )),
     }
 }
 
@@ -3459,13 +3782,11 @@ pub async fn stats_messages(
     };
 
     // Count chat messages sent by the user
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM chat_messages WHERE sender_id = $1"
-    )
-    .bind(user_uuid)
-    .fetch_one(&state.db.pool)
-    .await
-    .unwrap_or(0);
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM chat_messages WHERE sender_id = $1")
+        .bind(user_uuid)
+        .fetch_one(&state.db.pool)
+        .await
+        .unwrap_or(0);
 
     Html(count.to_string())
 }

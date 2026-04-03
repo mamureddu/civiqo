@@ -1,17 +1,14 @@
 //! Instance configuration handlers
-//! 
+//!
 //! Handles instance-level settings, setup wizard, and federation config.
 
-use axum::{
-    extract::State,
-    Json,
-};
+use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::sync::Arc;
 
 use crate::auth::AuthUser;
-use crate::handlers::pages::{AppState, AppError};
+use crate::handlers::pages::{AppError, AppState};
 
 // ============================================================================
 // TYPES
@@ -90,7 +87,7 @@ pub async fn get_community(state: &AppState) -> Option<sqlx::postgres::PgRow> {
         r#"SELECT c.*, 
                   (SELECT COUNT(*) FROM community_members WHERE community_id = c.id) as member_count
            FROM communities c
-           LIMIT 1"#
+           LIMIT 1"#,
     )
     .fetch_optional(&state.db.pool)
     .await
@@ -104,30 +101,29 @@ pub async fn is_instance_admin(state: &AppState, user_id: &str) -> bool {
         Ok(u) => u,
         Err(_) => return false,
     };
-    
+
     // Check instance_admins table
-    let is_admin: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM instance_admins WHERE user_id = $1"
-    )
-    .bind(user_uuid)
-    .fetch_one(&state.db.pool)
-    .await
-    .unwrap_or(0);
-    
+    let is_admin: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM instance_admins WHERE user_id = $1")
+            .bind(user_uuid)
+            .fetch_one(&state.db.pool)
+            .await
+            .unwrap_or(0);
+
     if is_admin > 0 {
         return true;
     }
-    
+
     // Also check if user is community owner/admin
     let is_community_admin: i64 = sqlx::query_scalar(
         r#"SELECT COUNT(*) FROM community_members
-           WHERE user_id = $1 AND role IN ('owner', 'admin')"#
+           WHERE user_id = $1 AND role IN ('owner', 'admin')"#,
     )
     .bind(user_uuid)
     .fetch_one(&state.db.pool)
     .await
     .unwrap_or(0);
-    
+
     is_community_admin > 0
 }
 
@@ -141,7 +137,7 @@ pub async fn get_instance_info(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<InstanceInfo>, AppError> {
     let setup_completed = is_setup_completed(&state).await;
-    
+
     let community = if let Some(row) = get_community(&state).await {
         Some(CommunityInfo {
             id: row.get::<uuid::Uuid, _>("id").to_string(),
@@ -157,26 +153,25 @@ pub async fn get_instance_info(
     } else {
         None
     };
-    
+
     // Get instance name from settings
-    let name: String = sqlx::query_scalar(
-        "SELECT value FROM instance_settings WHERE key = 'instance_name'"
-    )
-    .fetch_optional(&state.db.pool)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Civiqo".to_string());
-    
+    let name: String =
+        sqlx::query_scalar("SELECT value FROM instance_settings WHERE key = 'instance_name'")
+            .fetch_optional(&state.db.pool)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "Civiqo".to_string());
+
     let description: String = sqlx::query_scalar(
-        "SELECT value FROM instance_settings WHERE key = 'instance_description'"
+        "SELECT value FROM instance_settings WHERE key = 'instance_description'",
     )
     .fetch_optional(&state.db.pool)
     .await
     .ok()
     .flatten()
     .unwrap_or_else(|| "Piattaforma di partecipazione civica".to_string());
-    
+
     Ok(Json(InstanceInfo {
         name,
         description,
@@ -196,17 +191,18 @@ pub async fn complete_setup(
     if is_setup_completed(&state).await {
         return Err(AppError::BadRequest("Setup già completato".to_string()));
     }
-    
+
     // Validate
     if req.name.trim().is_empty() {
         return Err(AppError::BadRequest("Il nome è obbligatorio".to_string()));
     }
-    
+
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)
         .map_err(|_| AppError::BadRequest("Invalid user ID".to_string()))?;
-    
+
     // Generate slug from name
-    let slug = req.name
+    let slug = req
+        .name
         .to_lowercase()
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-')
@@ -214,15 +210,15 @@ pub async fn complete_setup(
         .split_whitespace()
         .collect::<Vec<_>>()
         .join("-");
-    
+
     let community_id = uuid::Uuid::now_v7();
-    
+
     // Create the community
     sqlx::query(
         r#"INSERT INTO communities 
            (id, name, description, slug, is_public, requires_approval, created_by,
             primary_color, secondary_color, accent_color)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#,
     )
     .bind(community_id)
     .bind(&req.name)
@@ -237,29 +233,29 @@ pub async fn complete_setup(
     .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to create community: {}", e)))?;
-    
+
     // Add user as owner (using ENUM directly)
     sqlx::query(
         r#"INSERT INTO community_members (community_id, user_id, role, status)
-           VALUES ($1, $2, 'owner', 'active')"#
+           VALUES ($1, $2, 'owner', 'active')"#,
     )
     .bind(community_id)
     .bind(user_uuid)
     .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to add owner: {}", e)))?;
-    
+
     // Add user as instance admin
     sqlx::query(
         r#"INSERT INTO instance_admins (user_id, created_by)
            VALUES ($1, $1)
-           ON CONFLICT (user_id) DO NOTHING"#
+           ON CONFLICT (user_id) DO NOTHING"#,
     )
     .bind(user_uuid)
     .execute(&state.db.pool)
     .await
     .ok(); // Ignore errors
-    
+
     // Update instance settings
     sqlx::query(
         "UPDATE instance_settings SET value = 'true', updated_at = NOW() WHERE key = 'setup_completed'"
@@ -267,15 +263,15 @@ pub async fn complete_setup(
     .execute(&state.db.pool)
     .await
     .ok();
-    
+
     sqlx::query(
-        "UPDATE instance_settings SET value = $1, updated_at = NOW() WHERE key = 'instance_name'"
+        "UPDATE instance_settings SET value = $1, updated_at = NOW() WHERE key = 'instance_name'",
     )
     .bind(&req.name)
     .execute(&state.db.pool)
     .await
     .ok();
-    
+
     if let Some(desc) = &req.description {
         sqlx::query(
             "UPDATE instance_settings SET value = $1, updated_at = NOW() WHERE key = 'instance_description'"
@@ -285,7 +281,7 @@ pub async fn complete_setup(
         .await
         .ok();
     }
-    
+
     Ok(Json(serde_json::json!({
         "success": true,
         "community_id": community_id.to_string(),
@@ -302,9 +298,9 @@ pub async fn get_instance_settings(
     if !is_instance_admin(&state, &user.user_id).await {
         return Err(AppError::BadRequest("Accesso non autorizzato".to_string()));
     }
-    
+
     let community = get_community(&state).await;
-    
+
     let settings = if let Some(row) = community {
         serde_json::json!({
             "community": {
@@ -326,7 +322,7 @@ pub async fn get_instance_settings(
             "community": null
         })
     };
-    
+
     Ok(Json(settings))
 }
 
@@ -340,30 +336,49 @@ pub async fn update_instance_settings(
     if !is_instance_admin(&state, &user.user_id).await {
         return Err(AppError::BadRequest("Accesso non autorizzato".to_string()));
     }
-    
-    let community = get_community(&state).await
+
+    let community = get_community(&state)
+        .await
         .ok_or_else(|| AppError::BadRequest("Nessuna comunità configurata".to_string()))?;
-    
+
     let community_id: uuid::Uuid = community.get("id");
-    
+
     // Build dynamic update
     let mut updates = vec!["updated_at = NOW()".to_string()];
-    
-    if req.name.is_some() { updates.push("name = $2".to_string()); }
-    if req.description.is_some() { updates.push("description = $3".to_string()); }
-    if req.is_public.is_some() { updates.push("is_public = $4".to_string()); }
-    if req.requires_approval.is_some() { updates.push("requires_approval = $5".to_string()); }
-    if req.logo_url.is_some() { updates.push("logo_url = $6".to_string()); }
-    if req.cover_url.is_some() { updates.push("cover_url = $7".to_string()); }
-    if req.primary_color.is_some() { updates.push("primary_color = $8".to_string()); }
-    if req.secondary_color.is_some() { updates.push("secondary_color = $9".to_string()); }
-    if req.accent_color.is_some() { updates.push("accent_color = $10".to_string()); }
-    
+
+    if req.name.is_some() {
+        updates.push("name = $2".to_string());
+    }
+    if req.description.is_some() {
+        updates.push("description = $3".to_string());
+    }
+    if req.is_public.is_some() {
+        updates.push("is_public = $4".to_string());
+    }
+    if req.requires_approval.is_some() {
+        updates.push("requires_approval = $5".to_string());
+    }
+    if req.logo_url.is_some() {
+        updates.push("logo_url = $6".to_string());
+    }
+    if req.cover_url.is_some() {
+        updates.push("cover_url = $7".to_string());
+    }
+    if req.primary_color.is_some() {
+        updates.push("primary_color = $8".to_string());
+    }
+    if req.secondary_color.is_some() {
+        updates.push("secondary_color = $9".to_string());
+    }
+    if req.accent_color.is_some() {
+        updates.push("accent_color = $10".to_string());
+    }
+
     let query = format!(
         "UPDATE communities SET {} WHERE id = $1",
         updates.join(", ")
     );
-    
+
     sqlx::query(&query)
         .bind(community_id)
         .bind(&req.name)
@@ -378,7 +393,7 @@ pub async fn update_instance_settings(
         .execute(&state.db.pool)
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update: {}", e)))?;
-    
+
     // Update instance name if changed
     if let Some(name) = &req.name {
         sqlx::query(
@@ -389,7 +404,7 @@ pub async fn update_instance_settings(
         .await
         .ok();
     }
-    
+
     Ok(Json(serde_json::json!({
         "success": true,
         "message": "Impostazioni aggiornate"
@@ -405,14 +420,12 @@ pub async fn get_federation_config(
     if !is_instance_admin(&state, &user.user_id).await {
         return Err(AppError::BadRequest("Accesso non autorizzato".to_string()));
     }
-    
-    let config = sqlx::query(
-        "SELECT * FROM federation_config LIMIT 1"
-    )
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
-    
+
+    let config = sqlx::query("SELECT * FROM federation_config LIMIT 1")
+        .fetch_optional(&state.db.pool)
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Database error: {}", e)))?;
+
     let response = if let Some(row) = config {
         serde_json::json!({
             "enabled": row.get::<bool, _>("enabled"),
@@ -434,7 +447,7 @@ pub async fn get_federation_config(
             "last_sync_at": null,
         })
     };
-    
+
     Ok(Json(response))
 }
 
@@ -448,7 +461,7 @@ pub async fn update_federation_config(
     if !is_instance_admin(&state, &user.user_id).await {
         return Err(AppError::BadRequest("Accesso non autorizzato".to_string()));
     }
-    
+
     // Upsert federation config
     sqlx::query(
         r#"INSERT INTO federation_config (id, enabled, hub_url, sync_members, sync_posts, sync_proposals, updated_at)
@@ -469,10 +482,9 @@ pub async fn update_federation_config(
     .execute(&state.db.pool)
     .await
     .map_err(|e| AppError::Internal(anyhow::anyhow!("Failed to update federation: {}", e)))?;
-    
+
     Ok(Json(serde_json::json!({
         "success": true,
         "message": "Configurazione federazione aggiornata"
     })))
 }
-
