@@ -637,7 +637,7 @@ pub async fn create_product(
     .bind(business_id)
     .bind(&req.product_name)
     .bind(&req.description)
-    .bind(req.price.map(rust_decimal::Decimal::from_f64_retain).flatten())
+    .bind(req.price.and_then(rust_decimal::Decimal::from_f64_retain))
     .bind(req.currency.as_deref().unwrap_or("EUR"))
     .execute(&state.db.pool)
     .await

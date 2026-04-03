@@ -323,6 +323,7 @@ pub async fn handle_text_message(
 }
 
 /// Handle send message
+#[allow(clippy::too_many_arguments)]
 pub async fn handle_send_message(
     room_id: Uuid,
     recipient_id: Option<Uuid>,
@@ -539,12 +540,12 @@ async fn handle_key_exchange(
     };
 
     // Send directly to the recipient user
-    if let Err(_) = state
+    if state
         .connection_manager()
         .send_to_user(recipient_id, ws_message)
         .await
+        .is_err()
     {
-        // If direct send fails, we could queue it for when the user comes online
         warn!("Failed to send key exchange to user {}", recipient_id);
     }
 

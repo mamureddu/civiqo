@@ -138,21 +138,17 @@ pub async fn get_instance_info(
 ) -> Result<Json<InstanceInfo>, AppError> {
     let setup_completed = is_setup_completed(&state).await;
 
-    let community = if let Some(row) = get_community(&state).await {
-        Some(CommunityInfo {
-            id: row.get::<uuid::Uuid, _>("id").to_string(),
-            name: row.get("name"),
-            description: row.get("description"),
-            is_public: row.get("is_public"),
-            member_count: row.get("member_count"),
-            logo_url: row.get("logo_url"),
-            primary_color: row.get("primary_color"),
-            secondary_color: row.get("secondary_color"),
-            accent_color: row.get("accent_color"),
-        })
-    } else {
-        None
-    };
+    let community = get_community(&state).await.map(|row| CommunityInfo {
+        id: row.get::<uuid::Uuid, _>("id").to_string(),
+        name: row.get("name"),
+        description: row.get("description"),
+        is_public: row.get("is_public"),
+        member_count: row.get("member_count"),
+        logo_url: row.get("logo_url"),
+        primary_color: row.get("primary_color"),
+        secondary_color: row.get("secondary_color"),
+        accent_color: row.get("accent_color"),
+    });
 
     // Get instance name from settings
     let name: String =

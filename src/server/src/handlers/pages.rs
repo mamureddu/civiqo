@@ -993,8 +993,8 @@ pub async fn community_posts(
 
     let posts = sqlx::query(&query)
         .bind(uuid)
-        .bind(limit as i64)
-        .bind(offset as i64)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&state.db.pool)
         .await
         .unwrap_or_default();

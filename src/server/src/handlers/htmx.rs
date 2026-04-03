@@ -752,7 +752,7 @@ pub async fn businesses_search(
         let search_pattern = format!("%{}%", search_term);
         sqlx::query(&query_str)
             .bind(&search_pattern)
-            .bind(&category)
+            .bind(category)
             .fetch_all(&state.db.pool)
             .await
             .unwrap_or_default()
@@ -3451,8 +3451,7 @@ pub async fn membership_button_htmx(
 
     // Not logged in
     let Some(user) = user else {
-        return Ok(Html(format!(
-            r#"
+        return Ok(Html(r#"
             <a href="/auth/login" 
                class="inline-flex items-center px-4 py-2 bg-white text-civiqo-blue rounded-lg font-medium hover:bg-civiqo-gray-50 transition-colors shadow-sm">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3460,8 +3459,7 @@ pub async fn membership_button_htmx(
                 </svg>
                 Accedi per iscriverti
             </a>
-        "#
-        )));
+        "#.to_string()));
     };
 
     let user_uuid = uuid::Uuid::parse_str(&user.user_id)

@@ -113,8 +113,8 @@ impl JwtService {
 
 /// Extract token from Authorization header
 pub fn extract_bearer_token(auth_header: &str) -> Result<&str> {
-    if auth_header.starts_with("Bearer ") {
-        Ok(&auth_header[7..])
+    if let Some(token) = auth_header.strip_prefix("Bearer ") {
+        Ok(token)
     } else {
         Err(AppError::Auth(
             "Invalid Authorization header format".to_string(),

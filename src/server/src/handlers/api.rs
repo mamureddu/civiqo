@@ -257,7 +257,7 @@ pub async fn create_community(
     )
     .bind(community_id)
     .bind(trimmed_name)
-    .bind(&payload.description.as_ref().map(|d| d.trim()).filter(|s| !s.is_empty()))
+    .bind(payload.description.as_ref().map(|d| d.trim()).filter(|s| !s.is_empty()))
     .bind(trimmed_slug)
     .bind(payload.is_public.unwrap_or(true))
     .bind(creator_id)
@@ -400,14 +400,12 @@ pub async fn get_communities(
             sort_clause
         );
 
-        let count_query = format!(
-            "SELECT COUNT(DISTINCT c.id) as total
+        let count_query = "SELECT COUNT(DISTINCT c.id) as total
              FROM communities c
              LEFT JOIN community_members m ON c.id = m.community_id AND m.status = 'active'
              LEFT JOIN community_members m_user ON c.id = m_user.community_id AND m_user.user_id = $1
              WHERE (c.is_public = true OR m_user.user_id IS NOT NULL)
-             AND ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')"
-        );
+             AND ($2 = '' OR c.name ILIKE '%' || $2 || '%' OR c.description ILIKE '%' || $2 || '%')".to_string();
 
         (main_query, count_query)
     } else {
@@ -426,12 +424,10 @@ pub async fn get_communities(
             sort_clause
         );
 
-        let count_query = format!(
-            "SELECT COUNT(DISTINCT c.id) as total
+        let count_query = "SELECT COUNT(DISTINCT c.id) as total
              FROM communities c
              WHERE c.is_public = true
-             AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')"
-        );
+             AND ($1 = '' OR c.name ILIKE '%' || $1 || '%' OR c.description ILIKE '%' || $1 || '%')".to_string();
 
         (main_query, count_query)
     };
@@ -738,7 +734,7 @@ pub async fn update_community(
     )
     .bind(trimmed_name)
     .bind(
-        &payload
+        payload
             .description
             .as_ref()
             .map(|d| d.trim())
